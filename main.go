@@ -62,15 +62,13 @@ func follow(url *url.URL) (*ActualLocation, error) {
 			return nil, err
 		}
 
-		filename, _ := parseContentDisposition(resp.Header.Get("Content-Disposition"))
-
 		actualLocation = &ActualLocation{
 			Location:          next,
+			SuggestedFileName: parseContentDisposition(resp.Header.Get("Content-Disposition")),
 			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
 			StatusCode:        resp.StatusCode,
 			ContentLength:     resp.ContentLength,
 			ContentMD5:        resp.Header.Get("Content-MD5"),
-			SuggestedFileName: filename,
 		}
 
 		if !isRedirect(resp.StatusCode) {
@@ -99,24 +97,25 @@ func getResp(client *http.Client, url string) (*http.Response, error) {
 	return resp, nil
 }
 
-func parseContentDisposition(input string) (string, error) {
+func parseContentDisposition(input string) string {
 	groups := contentDispositionRe.FindAllStringSubmatch(input, -1)
 	if groups == nil {
-		return "", errors.New("invalid Content-Disposition")
+		return ""
 	}
 	for _, group := range groups {
 		if group[2] != "" {
-			return group[2], nil
+			return group[2]
 		}
 		split := strings.Split(group[1], "'")
 		if len(split) == 3 && strings.ToLower(split[0]) == "utf-8" {
-			return url.QueryUnescape(split[2])
+			unescaped, _ := url.QueryUnescape(split[2])
+			return unescaped
 		}
 		if split[0] != `""` {
-			return split[0], nil
+			return split[0]
 		}
 	}
-	return "", nil
+	return ""
 }
 
 func parseURL(uri string) *url.URL {

@@ -8,6 +8,10 @@ func TestParseContentDisposition(t *testing.T) {
 		want  string
 	}{
 		{
+			input: "",
+			want:  "",
+		},
+		{
 			input: `attachment;filename=""`,
 			want:  "",
 		},
@@ -42,10 +46,7 @@ func TestParseContentDisposition(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got, err := parseContentDisposition(test.input)
-		if err != nil {
-			t.Error(err)
-		}
+		got := parseContentDisposition(test.input)
 		if got != test.want {
 			t.Errorf("Given: %s\nwant: %s\ngot: %s", test.input, test.want, got)
 		}
