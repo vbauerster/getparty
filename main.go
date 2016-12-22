@@ -51,12 +51,12 @@ func main() {
 	// url := "https://homebrew.bintray.com/bottles/youtube-dl-2016.12.12.sierra.bottle.tar.gz"
 	// url := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
 	url := "http://127.0.0.1:8080/libtiff-4.0.7.sierra.bottle.tar.gz"
+	// url := "http://127.0.0.1:8080/orig.txt"
 
 	al, err := follow(parseURL(url), userAgent)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// fmt.Printf("actualLocation = %+v\n", actualLocation)
 
 	totalParts := 2
 	ctx, cancel := context.WithCancel(context.Background())
@@ -88,35 +88,11 @@ func main() {
 			pb.Stop()
 		}()
 
-		part0 := al.Parts[0].Name
-		if _, err = os.Stat(al.Parts[1].Name); err == nil {
-			fmt.Println("part1 exists")
-			fpart0, err := os.OpenFile(part0, os.O_APPEND|os.O_WRONLY, 0644)
-			exitOnError(errors.Wrapf(err, "cannot open %q", part0))
-
-			buf := make([]byte, 2048)
-			for i := 1; i < totalParts; i++ {
-				parti := al.Parts[i].Name
-				fparti, err := os.Open(parti)
-				exitOnError(errors.Wrapf(err, "cannot open %q", parti))
-				for {
-					n, err := fparti.Read(buf[0:])
-					_, errw := fpart0.Write(buf[0:n])
-					exitOnError(errors.Wrapf(errw, "cannot write to %q", part0))
-					if err != nil {
-						if err == io.EOF {
-							break
-						}
-						exitOnError(errors.Wrapf(err, "cannot read from %q", parti))
-					}
-				}
-				logIfError(fparti.Close())
-				logIfError(os.Remove(parti))
-			}
-			logIfError(fpart0.Close())
+		if totalParts > 1 {
+			concatenateParts(al, totalParts)
 		}
 
-		exitOnError(renamePart0(part0))
+		exitOnError(renamePart0(al.Parts[0].Name))
 		wg.Wait()
 	}
 
@@ -132,13 +108,13 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	name := fmt.Sprintf("part#%d:", n)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		log.Printf("%s%v\n", name, err)
+		log.Println(name, err)
 		return
 	}
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", p.Start, p.Stop))
 
-	fmt.Fprintf(os.Stderr, "%s Range = %+v\n", name, req.Header.Get("Range"))
+	// fmt.Fprintf(os.Stderr, "%s Range = %+v\n", name, req.Header.Get("Range"))
 
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
@@ -159,27 +135,26 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 
 	dest, err := os.Create(p.Name)
 	if err != nil {
-		log.Printf("%s %v\n", name, err)
+		log.Println(name, err)
 		return
 	}
 
 	bar := pb.AddBar(int(total)).
 		PrependName(name, 0).
-		PrependCounters(mpb.UnitBytes, 20).
+		PrependCounters(mpb.UnitBytes, 19).
 		AppendETA(-6)
 
 	// create proxy reader
 	reader := bar.ProxyReader(resp.Body)
 	// and copy from reader
-	written, err := io.Copy(dest, reader)
+	_, err = io.Copy(dest, reader)
 
-	if closeErr := dest.Close(); err == nil {
+	if errc := dest.Close(); err == nil {
 		p.Done = true
-		fmt.Fprintf(os.Stderr, "%s written = %d\n", name, written)
-		err = closeErr
+		err = errc
 	}
 	if err != nil {
-		log.Printf("%s %v\n", name, err)
+		log.Println(name, err)
 	}
 }
 
@@ -266,6 +241,38 @@ func renamePart0(path string) error {
 		return os.Rename(path, path[0:len(path)-len(ext)])
 	}
 	return errors.Errorf("expected *.part0, got: %s", path)
+}
+
+func concatenateParts(al *ActualLocation, totalParts int) {
+	openErrMsg := "cannot open %q"
+	writeErrMsg := "cannot write to %q"
+	readErrMsg := "cannot read from %q"
+	part0 := al.Parts[0].Name
+	if _, err := os.Stat(al.Parts[1].Name); err == nil {
+		fpart0, err := os.OpenFile(part0, os.O_APPEND|os.O_WRONLY, 0644)
+		exitOnError(errors.Wrapf(err, openErrMsg, part0))
+
+		buf := make([]byte, 2048)
+		for i := 1; i < totalParts; i++ {
+			parti := al.Parts[i].Name
+			fparti, err := os.Open(parti)
+			exitOnError(errors.Wrapf(err, openErrMsg, parti))
+			for {
+				n, err := fparti.Read(buf[0:])
+				_, errw := fpart0.Write(buf[0:n])
+				exitOnError(errors.Wrapf(errw, writeErrMsg, part0))
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					exitOnError(errors.Wrapf(err, readErrMsg, parti))
+				}
+			}
+			logIfError(fparti.Close())
+			logIfError(os.Remove(parti))
+		}
+		logIfError(fpart0.Close())
+	}
 }
 
 func parseURL(uri string) *url.URL {
