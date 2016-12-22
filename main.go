@@ -30,58 +30,65 @@ func init() {
 }
 
 func main() {
-	url2 := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
+	userAgent := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
+	url := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
+	// url := "http://127.0.0.1:8080/libtiff-4.0.7.sierra.bottle.tar.gz"
 
-	actualLocation, err := follow(parseURL(url2))
+	actualLocation, err := follow(parseURL(url))
 	if err != nil {
 		log.Fatal(err)
 	}
 	// fmt.Printf("actualLocation = %+v\n", actualLocation)
 
-	parts := 2
+	totalParts := 2
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if actualLocation.AcceptRanges == "bytes" && actualLocation.StatusCode == 206 {
 		var wg sync.WaitGroup
 		pb := mpb.New().SetWidth(60)
 		partSize := actualLocation.ContentLength / 2
-		actualLocation.Parts = make(map[int]Part)
-		for i := 0; i < parts; i++ {
+		actualLocation.Parts = make(map[int]*Part)
+		for i := 0; i < totalParts; i++ {
 			offset := int64(i) * partSize
 			start, stop := offset, offset+partSize-1
-			name := fmt.Sprintf("%s.part%d", actualLocation.SuggestedFileName, i)
-			part := Part{
+			// name := fmt.Sprintf("%s.part%d", actualLocation.SuggestedFileName, i)
+			name := fmt.Sprintf("%s.part%d", "test.tar.gz", i)
+			part := &Part{
 				Name:  name,
 				Start: start,
 				Stop:  stop,
 			}
 			actualLocation.Parts[i] = part
 			wg.Add(1)
-			go part.download(ctx, &wg, pb, name, i)
+			go part.download(ctx, &wg, pb, url, userAgent, i)
 		}
 		wg.Wait()
+		// fmt.Println("after wait")
+		// pb.Stop()
+
 		go func() {
 			pb.Stop()
 		}()
 
+		fmt.Println("Writing...")
 		f, err := os.OpenFile(actualLocation.Parts[0].Name, os.O_APPEND|os.O_WRONLY, 0644)
 		exitOnError(err)
 		defer f.Close()
 
 		buf := make([]byte, 2048)
-		for i := 1; i < parts; i++ {
+		for i := 1; i < totalParts; i++ {
 			part, err := os.Open(actualLocation.Parts[i].Name)
 			exitOnError(err)
 			for {
-				n, err := part.Read(buf)
-				if err != io.EOF {
+				n, err := part.Read(buf[0:])
+				_, errWrite := f.Write(buf[0:n])
+				exitOnError(errWrite)
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
 					exitOnError(err)
 				}
-				if n == 0 {
-					break
-				}
-				_, err = f.Write(buf)
-				exitOnError(err)
 			}
 			part.Close()
 		}
@@ -102,7 +109,7 @@ type ActualLocation struct {
 	AcceptRanges      string
 	StatusCode        int
 	ContentLength     int64
-	Parts             map[int]Part
+	Parts             map[int]*Part
 }
 
 type Part struct {
@@ -111,44 +118,55 @@ type Part struct {
 	Done        bool
 }
 
-func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url string, n int) {
+func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
 	defer wg.Done()
-	name := fmt.Sprintf("part#%d: ", n)
+	name := fmt.Sprintf("part#%d:", n)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Printf("%s%v\n", name, err)
 		return
 	}
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", p.Start, p.Stop))
+
+	fmt.Fprintf(os.Stderr, "%s Range = %+v\n", name, req.Header.Get("Range"))
 
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
-		log.Printf("%s%v\n", name, err)
+		log.Printf("%s %v\n", name, err)
 		return
 	}
 	defer resp.Body.Close()
 
+	fmt.Fprintf(os.Stderr, "%s resp.StatusCode = %+v\n", name, resp.StatusCode)
+
+	if resp.StatusCode != 206 {
+		return
+	}
+
 	dest, err := os.Create(p.Name)
 	if err != nil {
-		log.Printf("%s%v\n", name, err)
+		log.Printf("%s %v\n", name, err)
 		return
 	}
 
 	bar := pb.AddBar(int(p.Stop-p.Start)+1).
-		PrependName(name, 0).PrependCounters(mpb.UnitBytes, 20).
-		TrimLeftSpace().AppendETA(-6)
+		PrependName(name, 0).
+		PrependCounters(mpb.UnitBytes, 20).
+		AppendETA(-6)
 
 	// create proxy reader
 	reader := bar.ProxyReader(resp.Body)
 	// and copy from reader
-	_, err = io.Copy(dest, reader)
+	written, err := io.Copy(dest, reader)
 
 	if closeErr := dest.Close(); err == nil {
 		p.Done = true
+		fmt.Fprintf(os.Stderr, "%s written = %d\n", name, written)
 		err = closeErr
 	}
 	if err != nil {
-		log.Printf("%s%v\n", name, err)
+		log.Printf("%s %v\n", name, err)
 	}
 }
 
