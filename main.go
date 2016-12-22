@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -24,84 +25,6 @@ var (
 	contentDispositionRe *regexp.Regexp
 )
 
-func init() {
-	// https://regex101.com/r/N4AovD/3
-	contentDispositionRe = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`)
-}
-
-func main() {
-	userAgent := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
-	url := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
-	// url := "http://127.0.0.1:8080/libtiff-4.0.7.sierra.bottle.tar.gz"
-
-	actualLocation, err := follow(parseURL(url))
-	if err != nil {
-		log.Fatal(err)
-	}
-	// fmt.Printf("actualLocation = %+v\n", actualLocation)
-
-	totalParts := 2
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	if actualLocation.AcceptRanges == "bytes" && actualLocation.StatusCode == 206 {
-		var wg sync.WaitGroup
-		pb := mpb.New().SetWidth(60)
-		partSize := actualLocation.ContentLength / 2
-		actualLocation.Parts = make(map[int]*Part)
-		for i := 0; i < totalParts; i++ {
-			offset := int64(i) * partSize
-			start, stop := offset, offset+partSize-1
-			// name := fmt.Sprintf("%s.part%d", actualLocation.SuggestedFileName, i)
-			name := fmt.Sprintf("%s.part%d", "test.tar.gz", i)
-			part := &Part{
-				Name:  name,
-				Start: start,
-				Stop:  stop,
-			}
-			actualLocation.Parts[i] = part
-			wg.Add(1)
-			go part.download(ctx, &wg, pb, url, userAgent, i)
-		}
-		wg.Wait()
-		// fmt.Println("after wait")
-		// pb.Stop()
-
-		go func() {
-			pb.Stop()
-		}()
-
-		fmt.Println("Writing...")
-		f, err := os.OpenFile(actualLocation.Parts[0].Name, os.O_APPEND|os.O_WRONLY, 0644)
-		exitOnError(err)
-		defer f.Close()
-
-		buf := make([]byte, 2048)
-		for i := 1; i < totalParts; i++ {
-			part, err := os.Open(actualLocation.Parts[i].Name)
-			exitOnError(err)
-			for {
-				n, err := part.Read(buf[0:])
-				_, errWrite := f.Write(buf[0:n])
-				exitOnError(errWrite)
-				if err != nil {
-					if err == io.EOF {
-						break
-					}
-					exitOnError(err)
-				}
-			}
-			part.Close()
-		}
-
-	}
-
-	data, err := json.MarshalIndent(actualLocation, "", "	")
-	if err != nil {
-		log.Fatalf("JSON marshaling failed: %s", err)
-	}
-	fmt.Printf("%s\n", data)
-}
-
 type ActualLocation struct {
 	Location          string
 	SuggestedFileName string
@@ -116,6 +39,92 @@ type Part struct {
 	Name        string
 	Start, Stop int64
 	Done        bool
+}
+
+func init() {
+	// https://regex101.com/r/N4AovD/3
+	contentDispositionRe = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`)
+}
+
+func main() {
+	userAgent := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
+	// url := "https://homebrew.bintray.com/bottles/youtube-dl-2016.12.12.sierra.bottle.tar.gz"
+	// url := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
+	url := "http://127.0.0.1:8080/libtiff-4.0.7.sierra.bottle.tar.gz"
+
+	al, err := follow(parseURL(url), userAgent)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// fmt.Printf("actualLocation = %+v\n", actualLocation)
+
+	totalParts := 2
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if al.AcceptRanges == "bytes" && al.StatusCode == http.StatusOK {
+		var wg sync.WaitGroup
+		pb := mpb.New().SetWidth(60)
+		partSize := al.ContentLength / int64(totalParts)
+		al.Parts = make(map[int]*Part)
+		for i := 0; i < totalParts; i++ {
+			offset := int64(i) * partSize
+			start, stop := offset, offset+partSize-1
+			// name := fmt.Sprintf("%s.part%d", actualLocation.SuggestedFileName, i)
+			name := fmt.Sprintf("%s.part%d", "test.tar.gz", i)
+			part := &Part{
+				Name:  name,
+				Start: start,
+				Stop:  stop,
+			}
+			al.Parts[i] = part
+			wg.Add(1)
+			go part.download(ctx, &wg, pb, url, userAgent, i)
+		}
+		wg.Wait()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			pb.Stop()
+		}()
+
+		part0 := al.Parts[0].Name
+		if _, err = os.Stat(al.Parts[1].Name); err == nil {
+			fmt.Println("part1 exists")
+			fpart0, err := os.OpenFile(part0, os.O_APPEND|os.O_WRONLY, 0644)
+			exitOnError(errors.Wrapf(err, "cannot open %q", part0))
+
+			buf := make([]byte, 2048)
+			for i := 1; i < totalParts; i++ {
+				parti := al.Parts[i].Name
+				fparti, err := os.Open(parti)
+				exitOnError(errors.Wrapf(err, "cannot open %q", parti))
+				for {
+					n, err := fparti.Read(buf[0:])
+					_, errw := fpart0.Write(buf[0:n])
+					exitOnError(errors.Wrapf(errw, "cannot write to %q", part0))
+					if err != nil {
+						if err == io.EOF {
+							break
+						}
+						exitOnError(errors.Wrapf(err, "cannot read from %q", parti))
+					}
+				}
+				logIfError(fparti.Close())
+				logIfError(os.Remove(parti))
+			}
+			logIfError(fpart0.Close())
+		}
+
+		exitOnError(renamePart0(part0))
+		wg.Wait()
+	}
+
+	data, err := json.MarshalIndent(al, "", "	")
+	if err != nil {
+		log.Fatalf("JSON marshaling failed: %s", err)
+	}
+	fmt.Printf("%s\n", data)
 }
 
 func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
@@ -140,8 +149,12 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 
 	fmt.Fprintf(os.Stderr, "%s resp.StatusCode = %+v\n", name, resp.StatusCode)
 
+	total := p.Stop - p.Start + 1
 	if resp.StatusCode != 206 {
-		return
+		total = resp.ContentLength
+		if n > 0 {
+			return
+		}
 	}
 
 	dest, err := os.Create(p.Name)
@@ -150,7 +163,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		return
 	}
 
-	bar := pb.AddBar(int(p.Stop-p.Start)+1).
+	bar := pb.AddBar(int(total)).
 		PrependName(name, 0).
 		PrependCounters(mpb.UnitBytes, 20).
 		AppendETA(-6)
@@ -170,7 +183,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	}
 }
 
-func follow(url *url.URL) (*ActualLocation, error) {
+func follow(url *url.URL, userAgent string) (*ActualLocation, error) {
 	client := &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -180,7 +193,7 @@ func follow(url *url.URL) (*ActualLocation, error) {
 	var actualLocation *ActualLocation
 	var redirectsFollowed int
 	for {
-		resp, err := getResp(client, next)
+		resp, err := getResp(client, next, userAgent)
 		if err != nil {
 			return nil, err
 		}
@@ -211,12 +224,13 @@ func follow(url *url.URL) (*ActualLocation, error) {
 	return actualLocation, nil
 }
 
-func getResp(client *http.Client, url string) (*http.Response, error) {
+func getResp(client *http.Client, url, userAgent string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot make request with %q", url)
 	}
-	req.Header.Set("Range", "bytes=0-")
+	req.Header.Set("User-Agent", userAgent)
+	// req.Header.Set("Range", "bytes=0-")
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot get %q", url)
@@ -246,6 +260,14 @@ func parseContentDisposition(input string) string {
 	return ""
 }
 
+func renamePart0(path string) error {
+	ext := filepath.Ext(path)
+	if ext == ".part0" {
+		return os.Rename(path, path[0:len(path)-len(ext)])
+	}
+	return errors.Errorf("expected *.part0, got: %s", path)
+}
+
 func parseURL(uri string) *url.URL {
 	if !strings.Contains(uri, "://") && !strings.HasPrefix(uri, "//") {
 		uri = "//" + uri
@@ -272,5 +294,11 @@ func isRedirect(status int) bool {
 func exitOnError(err error) {
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+func logIfError(err error) {
+	if err != nil {
+		log.Println(err)
 	}
 }
