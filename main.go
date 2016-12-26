@@ -50,8 +50,8 @@ func init() {
 
 func main() {
 	userAgent := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
-	url := "https://homebrew.bintray.com/bottles/youtube-dl-2016.12.12.sierra.bottle.tar.gz"
-	// url := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
+	// url := "https://homebrew.bintray.com/bottles/youtube-dl-2016.12.12.sierra.bottle.tar.gz"
+	url := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
 	// url := "http://127.0.0.1:8080/libtiff-4.0.7.sierra.bottle.tar.gz"
 	// url := "http://127.0.0.1:8080/orig.txt"
 	// url := "https://swtch.com/~rsc/thread/squint.pdf"
@@ -69,7 +69,7 @@ func main() {
 		sigs := make(chan os.Signal)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigs
-		// fmt.Println()
+		fmt.Println()
 		fmt.Println(sig)
 		cancel()
 		wg.Wait()
@@ -123,14 +123,22 @@ func main() {
 		if totalParts > 1 {
 			concatenateParts(al, totalParts)
 		}
-		exitOnError(renamePart0(al.Parts[0].Name))
+
+		var totalWritten int64
+		for _, p := range al.Parts {
+			totalWritten += p.Written
+		}
+		if totalWritten == al.ContentLength {
+			exitOnError(renamePart0(al.Parts[0].Name))
+		}
 	}
 
-	// data, err := json.MarshalIndent(al, "", "	")
-	// if err != nil {
-	// 	log.Fatalf("JSON marshaling failed: %s", err)
-	// }
-	// fmt.Printf("%s\n", data)
+	// 	data, err := json.MarshalIndent(al, "", "	")
+	// 	if err != nil {
+	// 		log.Fatalf("JSON marshaling failed: %s", err)
+	// 	}
+	// 	fmt.Printf("%s\n", data)
+
 }
 
 func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
