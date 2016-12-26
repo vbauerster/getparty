@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb"
@@ -36,9 +38,9 @@ type ActualLocation struct {
 }
 
 type Part struct {
-	Name        string
-	Start, Stop int64
-	Done        bool
+	Name                 string
+	Start, Stop, Written int64
+	Skip                 bool
 }
 
 func init() {
@@ -48,29 +50,64 @@ func init() {
 
 func main() {
 	userAgent := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
-	// url := "https://homebrew.bintray.com/bottles/youtube-dl-2016.12.12.sierra.bottle.tar.gz"
+	url := "https://homebrew.bintray.com/bottles/youtube-dl-2016.12.12.sierra.bottle.tar.gz"
 	// url := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
-	url := "http://127.0.0.1:8080/libtiff-4.0.7.sierra.bottle.tar.gz"
+	// url := "http://127.0.0.1:8080/libtiff-4.0.7.sierra.bottle.tar.gz"
 	// url := "http://127.0.0.1:8080/orig.txt"
+	// url := "https://swtch.com/~rsc/thread/squint.pdf"
 
 	al, err := follow(parseURL(url), userAgent)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	totalParts := 2
+	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+
+	go func() {
+		// defer cancel()
+		sigs := make(chan os.Signal)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-sigs
+		// fmt.Println()
+		fmt.Println(sig)
+		cancel()
+		wg.Wait()
+		data, err := json.Marshal(al)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		name := al.SuggestedFileName
+		ext := filepath.Ext(name)
+		dst, err := os.Create(name[0:len(name)-len(ext)] + ".json")
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		_, err = dst.Write(data)
+		if errc := dst.Close(); err == nil {
+			err = errc
+		}
+		logIfError(err)
+	}()
+
+	totalParts := 2
 	if al.AcceptRanges == "bytes" && al.StatusCode == http.StatusOK {
-		var wg sync.WaitGroup
-		pb := mpb.New().SetWidth(60)
+		if al.SuggestedFileName == "" {
+			al.SuggestedFileName = filepath.Base(url)
+		}
+		pb := mpb.New(ctx).SetWidth(60)
 		partSize := al.ContentLength / int64(totalParts)
+		if partSize < 0 {
+			partSize = al.ContentLength / 2
+		}
 		al.Parts = make(map[int]*Part)
 		for i := 0; i < totalParts; i++ {
 			offset := int64(i) * partSize
 			start, stop := offset, offset+partSize-1
-			// name := fmt.Sprintf("%s.part%d", actualLocation.SuggestedFileName, i)
-			name := fmt.Sprintf("%s.part%d", "test.tar.gz", i)
+			name := fmt.Sprintf("%s.part%d", al.SuggestedFileName, i)
+			// name := fmt.Sprintf("%s.part%d", "test.tar.gz", i)
 			part := &Part{
 				Name:  name,
 				Start: start,
@@ -81,26 +118,19 @@ func main() {
 			go part.download(ctx, &wg, pb, url, userAgent, i)
 		}
 		wg.Wait()
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			pb.Stop()
-		}()
+		pb.Stop()
 
 		if totalParts > 1 {
 			concatenateParts(al, totalParts)
 		}
-
 		exitOnError(renamePart0(al.Parts[0].Name))
-		wg.Wait()
 	}
 
-	data, err := json.MarshalIndent(al, "", "	")
-	if err != nil {
-		log.Fatalf("JSON marshaling failed: %s", err)
-	}
-	fmt.Printf("%s\n", data)
+	// data, err := json.MarshalIndent(al, "", "	")
+	// if err != nil {
+	// 	log.Fatalf("JSON marshaling failed: %s", err)
+	// }
+	// fmt.Printf("%s\n", data)
 }
 
 func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
@@ -111,8 +141,14 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		log.Println(name, err)
 		return
 	}
+
+	start := p.Start
+	if p.Written > 0 {
+		start = start + p.Written + 1
+	}
+
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", p.Start, p.Stop))
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, p.Stop))
 
 	// fmt.Fprintf(os.Stderr, "%s Range = %+v\n", name, req.Header.Get("Range"))
 
@@ -123,34 +159,43 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	}
 	defer resp.Body.Close()
 
-	fmt.Fprintf(os.Stderr, "%s resp.StatusCode = %+v\n", name, resp.StatusCode)
-
 	total := p.Stop - p.Start + 1
-	if resp.StatusCode != 206 {
+	if resp.StatusCode == http.StatusOK {
 		total = resp.ContentLength
-		if n > 0 {
+		if n == 0 {
+			p.Stop = total - 1
+		} else {
+			p.Skip = true
 			return
 		}
+	} else if resp.StatusCode != 206 {
+		return
 	}
 
-	dest, err := os.Create(p.Name)
+	var dst *os.File
+	if p.Written > 0 {
+		dst, err = os.OpenFile(p.Name, os.O_APPEND|os.O_WRONLY, 0644)
+	} else {
+		dst, err = os.Create(p.Name)
+	}
+
 	if err != nil {
 		log.Println(name, err)
 		return
 	}
 
-	bar := pb.AddBar(int(total)).
+	bar := pb.AddBar(total).
 		PrependName(name, 0).
-		PrependCounters(mpb.UnitBytes, 19).
+		PrependCounters(mpb.UnitBytes, 20).
 		AppendETA(-6)
+	bar.Incr(int(p.Written))
 
 	// create proxy reader
 	reader := bar.ProxyReader(resp.Body)
 	// and copy from reader
-	_, err = io.Copy(dest, reader)
+	p.Written, err = io.Copy(dst, reader)
 
-	if errc := dest.Close(); err == nil {
-		p.Done = true
+	if errc := dst.Close(); err == nil {
 		err = errc
 	}
 	if err != nil {
