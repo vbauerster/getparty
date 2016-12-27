@@ -140,30 +140,6 @@ func main() {
 	}
 }
 
-func (al *ActualLocation) calcParts(totalParts int) {
-	partSize := al.ContentLength / int64(totalParts)
-	if partSize == 0 {
-		partSize = al.ContentLength / 2
-	}
-	al.Parts = make(map[int]*Part)
-
-	stop := al.ContentLength
-	start := stop
-	for i := totalParts; i > 1; i-- {
-		stop = start - 1
-		start = stop - partSize
-		al.Parts[i] = &Part{
-			Name:  fmt.Sprintf("%s.part%d", al.SuggestedFileName, i),
-			Start: start,
-			Stop:  stop,
-		}
-	}
-	al.Parts[1] = &Part{
-		Name: al.SuggestedFileName,
-		Stop: start - 1,
-	}
-}
-
 func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
 	defer wg.Done()
 	if p.Written-1 == p.Stop {
@@ -237,6 +213,83 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	}
 }
 
+func (al *ActualLocation) calcParts(totalParts int) {
+	partSize := al.ContentLength / int64(totalParts)
+	if partSize == 0 {
+		partSize = al.ContentLength / 2
+	}
+	al.Parts = make(map[int]*Part)
+
+	stop := al.ContentLength
+	start := stop
+	for i := totalParts; i > 1; i-- {
+		stop = start - 1
+		start = stop - partSize
+		al.Parts[i] = &Part{
+			Name:  fmt.Sprintf("%s.part%d", al.SuggestedFileName, i),
+			Start: start,
+			Stop:  stop,
+		}
+	}
+	al.Parts[1] = &Part{
+		Name: al.SuggestedFileName,
+		Stop: start - 1,
+	}
+}
+
+func (al *ActualLocation) concatenateParts() error {
+	fpart1, err := os.OpenFile(al.Parts[1].Name, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	buf := make([]byte, 2048)
+	for i := 2; i <= len(al.Parts); i++ {
+		if al.Parts[i].Skip {
+			continue
+		}
+		fparti, err := os.Open(al.Parts[i].Name)
+		if err != nil {
+			return err
+		}
+		for {
+			n, err := fparti.Read(buf[0:])
+			_, errw := fpart1.Write(buf[0:n])
+			if errw != nil {
+				return err
+			}
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return err
+			}
+		}
+		logIfError(fparti.Close())
+		logIfError(os.Remove(al.Parts[i].Name))
+	}
+	return fpart1.Close()
+}
+
+func (al *ActualLocation) marshalState(userURL string) error {
+	jsonFileName := al.SuggestedFileName + ".json"
+	log.Printf("writing state to %q\n", jsonFileName)
+	al.Location = userURL // preserve user provided url
+	data, err := json.Marshal(al)
+	if err != nil {
+		return err
+	}
+	dst, err := os.Create(jsonFileName)
+	if err != nil {
+		return err
+	}
+	_, err = dst.Write(data)
+	if errc := dst.Close(); err == nil {
+		err = errc
+	}
+	return err
+}
+
 func follow(userURL string, userAgent string) (*ActualLocation, error) {
 	logger := log.New(os.Stdout, "[ ", log.LstdFlags)
 	client := &http.Client{
@@ -300,6 +353,15 @@ func getResp(client *http.Client, url, userAgent string) (*http.Response, error)
 	return resp, nil
 }
 
+func onCancelSignal(cancel context.CancelFunc) {
+	defer cancel()
+	sigs := make(chan os.Signal)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-sigs
+	fmt.Println()
+	log.Printf("%v: canceling...\n", sig)
+}
+
 func parseContentDisposition(input string) string {
 	groups := contentDispositionRe.FindAllStringSubmatch(input, -1)
 	if groups == nil {
@@ -319,67 +381,6 @@ func parseContentDisposition(input string) string {
 		}
 	}
 	return ""
-}
-
-func (al *ActualLocation) concatenateParts() error {
-	fpart1, err := os.OpenFile(al.Parts[1].Name, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-
-	buf := make([]byte, 2048)
-	for i := 2; i <= len(al.Parts); i++ {
-		if al.Parts[i].Skip {
-			continue
-		}
-		fparti, err := os.Open(al.Parts[i].Name)
-		if err != nil {
-			return err
-		}
-		for {
-			n, err := fparti.Read(buf[0:])
-			_, errw := fpart1.Write(buf[0:n])
-			if errw != nil {
-				return err
-			}
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				return err
-			}
-		}
-		logIfError(fparti.Close())
-		logIfError(os.Remove(al.Parts[i].Name))
-	}
-	return fpart1.Close()
-}
-
-func onCancelSignal(cancel context.CancelFunc) {
-	defer cancel()
-	sigs := make(chan os.Signal)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-sigs
-	fmt.Printf("%v: canceling...\n", sig)
-}
-
-func (al *ActualLocation) marshalState(userURL string) error {
-	jsonFileName := al.SuggestedFileName + ".json"
-	log.Printf("writing state to %q\n", jsonFileName)
-	al.Location = userURL // preserve user provided url
-	data, err := json.Marshal(al)
-	if err != nil {
-		return err
-	}
-	dst, err := os.Create(jsonFileName)
-	if err != nil {
-		return err
-	}
-	_, err = dst.Write(data)
-	if errc := dst.Close(); err == nil {
-		err = errc
-	}
-	return err
 }
 
 func loadActualLocationFromJson(filename string) (*ActualLocation, error) {
