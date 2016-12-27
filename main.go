@@ -86,6 +86,7 @@ func main() {
 
 	var wg sync.WaitGroup
 	var al *ActualLocation
+	var userURL string
 	ctx, cancel := context.WithCancel(context.Background())
 	pb := mpb.New(ctx).SetWidth(60)
 
@@ -101,12 +102,12 @@ func main() {
 			}
 		}
 	} else if len(args) == 1 {
-		url := args[0]
-		al, err = follow(parseURL(url), userAgent)
+		userURL = parseURL(args[0]).String()
+		al, err = follow(userURL, userAgent)
 		exitOnError(err)
 		if al.AcceptRanges == "bytes" && al.StatusCode == http.StatusOK {
 			if al.SuggestedFileName == "" {
-				al.SuggestedFileName = filepath.Base(url)
+				al.SuggestedFileName = filepath.Base(userURL)
 			}
 			al.getParty(ctx, &wg, pb, options.Parts)
 		}
@@ -116,7 +117,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	go marshalOnCancel(&wg, al, cancel)
+	go marshalOnCancel(cancel, &wg, al, userURL)
 	wg.Wait()
 	pb.Stop()
 
@@ -242,14 +243,14 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	}
 }
 
-func follow(url *url.URL, userAgent string) (*ActualLocation, error) {
+func follow(userURL string, userAgent string) (*ActualLocation, error) {
 	client := &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
-	next := url.String()
-	var actualLocation *ActualLocation
+	next := userURL
+	var al *ActualLocation
 	var redirectsFollowed int
 	for {
 		resp, err := getResp(client, next, userAgent)
@@ -257,7 +258,7 @@ func follow(url *url.URL, userAgent string) (*ActualLocation, error) {
 			return nil, err
 		}
 
-		actualLocation = &ActualLocation{
+		al = &ActualLocation{
 			Location:          next,
 			SuggestedFileName: parseContentDisposition(resp.Header.Get("Content-Disposition")),
 			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
@@ -280,7 +281,7 @@ func follow(url *url.URL, userAgent string) (*ActualLocation, error) {
 		}
 		next = loc.String()
 	}
-	return actualLocation, nil
+	return al, nil
 }
 
 func getResp(client *http.Client, url, userAgent string) (*http.Response, error) {
@@ -359,23 +360,24 @@ func concatenateParts(al *ActualLocation, totalParts int) {
 	}
 }
 
-func marshalOnCancel(wg *sync.WaitGroup, al *ActualLocation, cancel context.CancelFunc) {
+func marshalOnCancel(cancel context.CancelFunc, wg *sync.WaitGroup, al *ActualLocation, userURL string) {
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
-	fmt.Println()
-	fmt.Println(sig)
 	cancel()
-	wg.Wait()
-	if al.Location == "" {
+	if userURL == "" {
 		return
 	}
+	wg.Wait()
+	jsonFileName := al.SuggestedFileName + ".json"
+	fmt.Printf("%v: marshalling state to %q\n", sig, jsonFileName)
+	al.Location = userURL // preserve user provided url
 	data, err := json.Marshal(al)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	dst, err := os.Create(al.SuggestedFileName + ".json")
+	dst, err := os.Create(jsonFileName)
 	if err != nil {
 		log.Println(err)
 		return
