@@ -98,13 +98,11 @@ func main() {
 		al.Location = temp.Location
 		for n, part := range al.Parts {
 			if !part.Skip {
-				// fmt.Printf("%d = %+v\n", n, part)
 				wg.Add(1)
 				go part.download(ctx, &wg, pb, al.Location, userAgent, n)
 			}
 		}
 	} else if len(args) == 1 {
-		fmt.Println("args len = 1")
 		userURL = parseURL(args[0]).String()
 		al, err = follow(userURL, userAgent)
 		exitOnError(errors.Wrapf(err, "cannot resolve %q", userURL))
@@ -112,7 +110,11 @@ func main() {
 			if al.SuggestedFileName == "" {
 				al.SuggestedFileName = filepath.Base(userURL)
 			}
-			al.getParty(ctx, &wg, pb, options.Parts)
+			al.calcParts(options.Parts)
+			for n, part := range al.Parts {
+				wg.Add(1)
+				go part.download(ctx, &wg, pb, al.Location, userAgent, n)
+			}
 		}
 	} else {
 		fmt.Println("Nothing to do...")
@@ -130,41 +132,45 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "totalWritten = %+v\n", totalWritten)
 	if totalWritten == al.ContentLength {
-		concatenateParts(al, options.Parts)
-		logIfError(renamePart0(al.Parts[0].Name))
+		logIfError(al.concatenateParts())
+		logIfError(os.Remove(al.Parts[1].Name + ".json"))
 	} else {
 		logIfError(al.marshalState(userURL))
 	}
 
 }
 
-func (al *ActualLocation) getParty(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, totalParts int) {
+func (al *ActualLocation) calcParts(totalParts int) {
 	partSize := al.ContentLength / int64(totalParts)
 	if partSize == 0 {
 		partSize = al.ContentLength / 2
 	}
 	al.Parts = make(map[int]*Part)
-	for i := 0; i < totalParts; i++ {
-		offset := int64(i) * partSize
-		start, stop := offset, offset+partSize-1
-		if i == totalParts-1 {
-			stop = al.ContentLength - 1
-		}
-		name := fmt.Sprintf("%s.part%d", al.SuggestedFileName, i)
-		part := &Part{
-			Name:  name,
+
+	stop := al.ContentLength
+	start := stop
+	for i := totalParts; i > 1; i-- {
+		stop = start - 1
+		start = stop - partSize
+		al.Parts[i] = &Part{
+			Name:  fmt.Sprintf("%s.part%d", al.SuggestedFileName, i),
 			Start: start,
 			Stop:  stop,
 		}
-		al.Parts[i] = part
-		wg.Add(1)
-		go part.download(ctx, wg, pb, al.Location, userAgent, i)
+		// fmt.Printf("al.Parts[%d] = %+v\n", i, al.Parts[i])
 	}
+	al.Parts[1] = &Part{
+		Name: al.SuggestedFileName,
+		Stop: start - 1,
+	}
+	// fmt.Printf("al.Parts[%d] = %+v\n", 1, al.Parts[1])
 }
 
 func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
 	defer wg.Done()
-	// fmt.Printf("%d url = %+v\n", n, url)
+	if p.Written-1 == p.Stop {
+		return
+	}
 	name := fmt.Sprintf("part#%02d:", n)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -194,7 +200,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	total := p.Stop - p.Start + 1
 	if resp.StatusCode == http.StatusOK {
 		total = resp.ContentLength
-		if n == 0 {
+		if n == 1 {
 			p.Stop = total - 1
 		} else {
 			p.Skip = true
@@ -324,44 +330,38 @@ func parseContentDisposition(input string) string {
 	return ""
 }
 
-func renamePart0(path string) error {
-	ext := filepath.Ext(path)
-	if ext == ".part0" {
-		return os.Rename(path, path[0:len(path)-len(ext)])
+func (al *ActualLocation) concatenateParts() error {
+	fpart1, err := os.OpenFile(al.Parts[1].Name, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
 	}
-	return errors.Errorf("expected *.part0, got: %s", path)
-}
 
-func concatenateParts(al *ActualLocation, totalParts int) {
-	openErrMsg := "cannot open %q"
-	writeErrMsg := "cannot write to %q"
-	readErrMsg := "cannot read from %q"
-	part0 := al.Parts[0].Name
-	if _, err := os.Stat(al.Parts[1].Name); err == nil {
-		fpart0, err := os.OpenFile(part0, os.O_APPEND|os.O_WRONLY, 0644)
-		exitOnError(errors.Wrapf(err, openErrMsg, part0))
-
-		buf := make([]byte, 2048)
-		for i := 1; i < totalParts; i++ {
-			parti := al.Parts[i].Name
-			fparti, err := os.Open(parti)
-			exitOnError(errors.Wrapf(err, openErrMsg, parti))
-			for {
-				n, err := fparti.Read(buf[0:])
-				_, errw := fpart0.Write(buf[0:n])
-				exitOnError(errors.Wrapf(errw, writeErrMsg, part0))
-				if err != nil {
-					if err == io.EOF {
-						break
-					}
-					exitOnError(errors.Wrapf(err, readErrMsg, parti))
-				}
-			}
-			logIfError(fparti.Close())
-			logIfError(os.Remove(parti))
+	buf := make([]byte, 2048)
+	for i := 2; i <= len(al.Parts); i++ {
+		if al.Parts[i].Skip {
+			continue
 		}
-		logIfError(fpart0.Close())
+		fparti, err := os.Open(al.Parts[i].Name)
+		if err != nil {
+			return err
+		}
+		for {
+			n, err := fparti.Read(buf[0:])
+			_, errw := fpart1.Write(buf[0:n])
+			if errw != nil {
+				return err
+			}
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return err
+			}
+		}
+		logIfError(fparti.Close())
+		logIfError(os.Remove(al.Parts[i].Name))
 	}
+	return fpart1.Close()
 }
 
 func onCancelSignal(cancel context.CancelFunc) {
