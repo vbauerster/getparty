@@ -18,7 +18,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -56,12 +55,12 @@ type ActualLocation struct {
 type Part struct {
 	Name                 string
 	Start, Stop, Written int64
-	Skip, Only           bool
+	Skip                 bool
 }
 
 type Options struct {
-	State string `short:"c" long:"continue" description:"resume download from last saved json state" value-name:"state.json"`
-	Parts int    `short:"p" long:"parts" default:"2" description:"number of parts"`
+	StateFileName string `short:"c" long:"continue" description:"resume download from last saved json state" value-name:"state.json"`
+	Parts         int    `short:"p" long:"parts" default:"2" description:"number of parts"`
 }
 
 func init() {
@@ -90,21 +89,25 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	pb := mpb.New(ctx).SetWidth(60)
 
-	if options.State != "" {
-		al, err = loadActualLocationFromJson(options.State)
-		exitOnError(errors.Wrapf(err, "loading %q", options.State))
-		fmt.Printf("al = %+v\n", al)
+	if options.StateFileName != "" {
+		al, err = loadActualLocationFromJson(options.StateFileName)
+		exitOnError(err)
+		userURL = al.Location
+		temp, err := follow(userURL, userAgent)
+		exitOnError(errors.Wrapf(err, "cannot resolve %q", al.Location))
+		al.Location = temp.Location
 		for n, part := range al.Parts {
 			if !part.Skip {
-				fmt.Printf("%d = %+v\n", n, part)
+				// fmt.Printf("%d = %+v\n", n, part)
 				wg.Add(1)
 				go part.download(ctx, &wg, pb, al.Location, userAgent, n)
 			}
 		}
 	} else if len(args) == 1 {
+		fmt.Println("args len = 1")
 		userURL = parseURL(args[0]).String()
 		al, err = follow(userURL, userAgent)
-		exitOnError(err)
+		exitOnError(errors.Wrapf(err, "cannot resolve %q", userURL))
 		if al.AcceptRanges == "bytes" && al.StatusCode == http.StatusOK {
 			if al.SuggestedFileName == "" {
 				al.SuggestedFileName = filepath.Base(userURL)
@@ -117,41 +120,37 @@ func main() {
 		os.Exit(1)
 	}
 
-	go marshalOnCancel(cancel, &wg, al, userURL)
+	go onCancelSignal(cancel)
 	wg.Wait()
 	pb.Stop()
-
-	if options.Parts > 1 {
-		concatenateParts(al, options.Parts)
-	}
 
 	var totalWritten int64
 	for _, p := range al.Parts {
 		totalWritten += p.Written
 	}
+	fmt.Fprintf(os.Stderr, "totalWritten = %+v\n", totalWritten)
 	if totalWritten == al.ContentLength {
-		exitOnError(renamePart0(al.Parts[0].Name))
+		concatenateParts(al, options.Parts)
+		logIfError(renamePart0(al.Parts[0].Name))
+	} else {
+		logIfError(al.marshalState(userURL))
 	}
-
-	// 	data, err := json.MarshalIndent(al, "", "	")
-	// 	if err != nil {
-	// 		log.Fatalf("JSON marshaling failed: %s", err)
-	// 	}
-	// 	fmt.Printf("%s\n", data)
 
 }
 
 func (al *ActualLocation) getParty(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, totalParts int) {
 	partSize := al.ContentLength / int64(totalParts)
-	if partSize < 0 {
+	if partSize == 0 {
 		partSize = al.ContentLength / 2
 	}
 	al.Parts = make(map[int]*Part)
 	for i := 0; i < totalParts; i++ {
 		offset := int64(i) * partSize
 		start, stop := offset, offset+partSize-1
+		if i == totalParts-1 {
+			stop = al.ContentLength - 1
+		}
 		name := fmt.Sprintf("%s.part%d", al.SuggestedFileName, i)
-		// name := fmt.Sprintf("%s.part%d", "test.tar.gz", i)
 		part := &Part{
 			Name:  name,
 			Start: start,
@@ -165,8 +164,8 @@ func (al *ActualLocation) getParty(ctx context.Context, wg *sync.WaitGroup, pb *
 
 func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
 	defer wg.Done()
-	fmt.Printf("%d url = %+v\n", n, url)
-	name := fmt.Sprintf("part#%d:", n)
+	// fmt.Printf("%d url = %+v\n", n, url)
+	name := fmt.Sprintf("part#%02d:", n)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Println(name, err)
@@ -175,16 +174,11 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 
 	start := p.Start
 	if p.Written > 0 {
-		start = start + p.Written + 1
+		start = start + p.Written
 	}
 
 	req.Header.Set("User-Agent", userAgent)
-	rangeStr := fmt.Sprintf("bytes=%d-", start)
-	if !p.Only {
-		// rangeStr = fmt.Sprintf(rangeStr+"%d", p.Stop)
-		rangeStr += strconv.FormatInt(p.Stop, 10)
-	}
-	req.Header.Set("Range", rangeStr)
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, p.Stop))
 
 	fmt.Fprintf(os.Stderr, "%s Range = %+v\n", name, req.Header.Get("Range"))
 
@@ -202,13 +196,12 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		total = resp.ContentLength
 		if n == 0 {
 			p.Stop = total - 1
-			p.Only = true
 		} else {
 			p.Skip = true
 			return
 		}
 	} else if resp.StatusCode != 206 {
-		fmt.Fprintf(os.Stderr, "status: %d", resp.StatusCode)
+		log.Printf("%s status %d\n", name, resp.StatusCode)
 		return
 	}
 
@@ -224,6 +217,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		return
 	}
 
+	fmt.Fprintf(os.Stderr, "%s total = %+v\n", name, total)
 	bar := pb.AddBar(total).
 		PrependName(name, 0).
 		PrependCounters(mpb.UnitBytes, 20).
@@ -233,7 +227,10 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	// create proxy reader
 	reader := bar.ProxyReader(resp.Body)
 	// and copy from reader
-	p.Written, err = io.Copy(dst, reader)
+	written, err := io.Copy(dst, reader)
+	fmt.Fprintf(os.Stderr, "%s written = %+v\n", name, p.Written)
+	p.Written += written
+	fmt.Fprintf(os.Stderr, "%s p.Written = %+v\n", name, p.Written)
 
 	if errc := dst.Close(); err == nil {
 		err = errc
@@ -244,6 +241,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 }
 
 func follow(userURL string, userAgent string) (*ActualLocation, error) {
+	logger := log.New(os.Stdout, "[ ", log.LstdFlags)
 	client := &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -253,9 +251,15 @@ func follow(userURL string, userAgent string) (*ActualLocation, error) {
 	var al *ActualLocation
 	var redirectsFollowed int
 	for {
+		logger.Printf("] %s\n", next)
+		fmt.Printf("HTTP request sent, awaiting response... ")
 		resp, err := getResp(client, next, userAgent)
 		if err != nil {
 			return nil, err
+		}
+		fmt.Println(resp.Status)
+		if resp.StatusCode == http.StatusOK {
+			fmt.Printf("Length: %d [%s]\n\n", resp.ContentLength, resp.Header.Get("Content-Type"))
 		}
 
 		al = &ActualLocation{
@@ -280,6 +284,7 @@ func follow(userURL string, userAgent string) (*ActualLocation, error) {
 			return nil, errors.Errorf("maximum number of redirects (%d) followed", maxRedirects)
 		}
 		next = loc.String()
+		fmt.Printf("Location: %s [following]\n", next)
 	}
 	return al, nil
 }
@@ -287,13 +292,12 @@ func follow(userURL string, userAgent string) (*ActualLocation, error) {
 func getResp(client *http.Client, url, userAgent string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.Wrapf(err, "cannot make request with %q", url)
+		return nil, err
 	}
 	req.Header.Set("User-Agent", userAgent)
-	// req.Header.Set("Range", "bytes=0-")
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, errors.Wrapf(err, "cannot get %q", url)
+		return nil, err
 	}
 	defer resp.Body.Close()
 	return resp, nil
@@ -360,33 +364,31 @@ func concatenateParts(al *ActualLocation, totalParts int) {
 	}
 }
 
-func marshalOnCancel(cancel context.CancelFunc, wg *sync.WaitGroup, al *ActualLocation, userURL string) {
+func onCancelSignal(cancel context.CancelFunc) {
+	defer cancel()
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
-	cancel()
-	if userURL == "" {
-		return
-	}
-	wg.Wait()
+	fmt.Printf("%v: canceling...\n", sig)
+}
+
+func (al *ActualLocation) marshalState(userURL string) error {
 	jsonFileName := al.SuggestedFileName + ".json"
-	fmt.Printf("%v: marshalling state to %q\n", sig, jsonFileName)
+	fmt.Printf("writing state to %q\n", jsonFileName)
 	al.Location = userURL // preserve user provided url
 	data, err := json.Marshal(al)
 	if err != nil {
-		log.Println(err)
-		return
+		return err
 	}
 	dst, err := os.Create(jsonFileName)
 	if err != nil {
-		log.Println(err)
-		return
+		return err
 	}
 	_, err = dst.Write(data)
 	if errc := dst.Close(); err == nil {
 		err = errc
 	}
-	logIfError(err)
+	return err
 }
 
 func loadActualLocationFromJson(filename string) (*ActualLocation, error) {
