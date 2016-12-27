@@ -69,6 +69,7 @@ func init() {
 	parser = flags.NewParser(&options, flags.Default)
 	parser.Name = cmdName
 	parser.Usage = "[OPTIONS] url"
+	log.SetOutput(os.Stderr)
 }
 
 func main() {
@@ -94,7 +95,7 @@ func main() {
 		exitOnError(err)
 		userURL = al.Location
 		temp, err := follow(userURL, userAgent)
-		exitOnError(errors.Wrapf(err, "cannot resolve %q", al.Location))
+		exitOnError(errors.Wrapf(err, "cannot resolve %q", userURL))
 		al.Location = temp.Location
 		for n, part := range al.Parts {
 			if !part.Skip {
@@ -130,14 +131,13 @@ func main() {
 	for _, p := range al.Parts {
 		totalWritten += p.Written
 	}
-	fmt.Fprintf(os.Stderr, "totalWritten = %+v\n", totalWritten)
+
 	if totalWritten == al.ContentLength {
 		logIfError(al.concatenateParts())
 		logIfError(os.Remove(al.Parts[1].Name + ".json"))
 	} else {
 		logIfError(al.marshalState(userURL))
 	}
-
 }
 
 func (al *ActualLocation) calcParts(totalParts int) {
@@ -157,13 +157,11 @@ func (al *ActualLocation) calcParts(totalParts int) {
 			Start: start,
 			Stop:  stop,
 		}
-		// fmt.Printf("al.Parts[%d] = %+v\n", i, al.Parts[i])
 	}
 	al.Parts[1] = &Part{
 		Name: al.SuggestedFileName,
 		Stop: start - 1,
 	}
-	// fmt.Printf("al.Parts[%d] = %+v\n", 1, al.Parts[1])
 }
 
 func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
