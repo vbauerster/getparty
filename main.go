@@ -1,3 +1,8 @@
+// url := "https://homebrew.bintray.com/bottles/youtube-dl-2016.12.12.sierra.bottle.tar.gz"
+// url := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
+// url := "http://127.0.0.1:8080/libtiff-4.0.7.sierra.bottle.tar.gz"
+// url := "http://127.0.0.1:8080/orig.txt"
+// url := "https://swtch.com/~rsc/thread/squint.pdf"
 package main
 
 import (
@@ -5,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -12,19 +18,29 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb"
 )
 
-const maxRedirects = 10
+const (
+	maxRedirects = 10
+	cmdName      = "getparty"
+	userAgent    = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
+)
 
 var (
 	version              = "devel"
 	contentDispositionRe *regexp.Regexp
+	// Command line options
+	options Options
+	// flags parser
+	parser *flags.Parser
 )
 
 type ActualLocation struct {
@@ -40,97 +56,80 @@ type ActualLocation struct {
 type Part struct {
 	Name                 string
 	Start, Stop, Written int64
-	Skip                 bool
+	Skip, Only           bool
+}
+
+type Options struct {
+	State string `short:"c" long:"continue" description:"resume download from last saved json state" value-name:"state.json"`
+	Parts int    `short:"p" long:"parts" default:"2" description:"number of parts"`
 }
 
 func init() {
 	// https://regex101.com/r/N4AovD/3
 	contentDispositionRe = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`)
+	parser = flags.NewParser(&options, flags.Default)
+	parser.Name = cmdName
+	parser.Usage = "[OPTIONS] url"
 }
 
 func main() {
-	userAgent := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
-	// url := "https://homebrew.bintray.com/bottles/youtube-dl-2016.12.12.sierra.bottle.tar.gz"
-	url := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
-	// url := "http://127.0.0.1:8080/libtiff-4.0.7.sierra.bottle.tar.gz"
-	// url := "http://127.0.0.1:8080/orig.txt"
-	// url := "https://swtch.com/~rsc/thread/squint.pdf"
-
-	al, err := follow(parseURL(url), userAgent)
+	args, err := parser.Parse()
 	if err != nil {
-		log.Fatal(err)
+		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+			os.Exit(0)
+		} else {
+			fmt.Println()
+			parser.WriteHelp(os.Stderr)
+			os.Exit(1)
+		}
 	}
 
 	var wg sync.WaitGroup
+	var al *ActualLocation
 	ctx, cancel := context.WithCancel(context.Background())
+	pb := mpb.New(ctx).SetWidth(60)
 
-	go func() {
-		// defer cancel()
-		sigs := make(chan os.Signal)
-		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-		sig := <-sigs
-		fmt.Println()
-		fmt.Println(sig)
-		cancel()
-		wg.Wait()
-		data, err := json.Marshal(al)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		name := al.SuggestedFileName
-		ext := filepath.Ext(name)
-		dst, err := os.Create(name[0:len(name)-len(ext)] + ".json")
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		_, err = dst.Write(data)
-		if errc := dst.Close(); err == nil {
-			err = errc
-		}
-		logIfError(err)
-	}()
-
-	totalParts := 2
-	if al.AcceptRanges == "bytes" && al.StatusCode == http.StatusOK {
-		if al.SuggestedFileName == "" {
-			al.SuggestedFileName = filepath.Base(url)
-		}
-		pb := mpb.New(ctx).SetWidth(60)
-		partSize := al.ContentLength / int64(totalParts)
-		if partSize < 0 {
-			partSize = al.ContentLength / 2
-		}
-		al.Parts = make(map[int]*Part)
-		for i := 0; i < totalParts; i++ {
-			offset := int64(i) * partSize
-			start, stop := offset, offset+partSize-1
-			name := fmt.Sprintf("%s.part%d", al.SuggestedFileName, i)
-			// name := fmt.Sprintf("%s.part%d", "test.tar.gz", i)
-			part := &Part{
-				Name:  name,
-				Start: start,
-				Stop:  stop,
+	if options.State != "" {
+		al, err = loadActualLocationFromJson(options.State)
+		exitOnError(errors.Wrapf(err, "loading %q", options.State))
+		fmt.Printf("al = %+v\n", al)
+		for n, part := range al.Parts {
+			if !part.Skip {
+				fmt.Printf("%d = %+v\n", n, part)
+				wg.Add(1)
+				go part.download(ctx, &wg, pb, al.Location, userAgent, n)
 			}
-			al.Parts[i] = part
-			wg.Add(1)
-			go part.download(ctx, &wg, pb, url, userAgent, i)
 		}
-		wg.Wait()
-		pb.Stop()
+	} else if len(args) == 1 {
+		url := args[0]
+		al, err = follow(parseURL(url), userAgent)
+		exitOnError(err)
+		if al.AcceptRanges == "bytes" && al.StatusCode == http.StatusOK {
+			if al.SuggestedFileName == "" {
+				al.SuggestedFileName = filepath.Base(url)
+			}
+			al.getParty(ctx, &wg, pb, options.Parts)
+		}
+	} else {
+		fmt.Println("Nothing to do...")
+		parser.WriteHelp(os.Stderr)
+		os.Exit(1)
+	}
 
-		if totalParts > 1 {
-			concatenateParts(al, totalParts)
-		}
+	go marshalOnCancel(&wg, al, cancel)
+	wg.Wait()
+	pb.Stop()
 
-		var totalWritten int64
-		for _, p := range al.Parts {
-			totalWritten += p.Written
-		}
-		if totalWritten == al.ContentLength {
-			exitOnError(renamePart0(al.Parts[0].Name))
-		}
+	if options.Parts > 1 {
+		concatenateParts(al, options.Parts)
+	}
+
+	var totalWritten int64
+	for _, p := range al.Parts {
+		totalWritten += p.Written
+	}
+	if totalWritten == al.ContentLength {
+		exitOnError(renamePart0(al.Parts[0].Name))
 	}
 
 	// 	data, err := json.MarshalIndent(al, "", "	")
@@ -141,8 +140,31 @@ func main() {
 
 }
 
+func (al *ActualLocation) getParty(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, totalParts int) {
+	partSize := al.ContentLength / int64(totalParts)
+	if partSize < 0 {
+		partSize = al.ContentLength / 2
+	}
+	al.Parts = make(map[int]*Part)
+	for i := 0; i < totalParts; i++ {
+		offset := int64(i) * partSize
+		start, stop := offset, offset+partSize-1
+		name := fmt.Sprintf("%s.part%d", al.SuggestedFileName, i)
+		// name := fmt.Sprintf("%s.part%d", "test.tar.gz", i)
+		part := &Part{
+			Name:  name,
+			Start: start,
+			Stop:  stop,
+		}
+		al.Parts[i] = part
+		wg.Add(1)
+		go part.download(ctx, wg, pb, al.Location, userAgent, i)
+	}
+}
+
 func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
 	defer wg.Done()
+	fmt.Printf("%d url = %+v\n", n, url)
 	name := fmt.Sprintf("part#%d:", n)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -156,9 +178,14 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	}
 
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, p.Stop))
+	rangeStr := fmt.Sprintf("bytes=%d-", start)
+	if !p.Only {
+		// rangeStr = fmt.Sprintf(rangeStr+"%d", p.Stop)
+		rangeStr += strconv.FormatInt(p.Stop, 10)
+	}
+	req.Header.Set("Range", rangeStr)
 
-	// fmt.Fprintf(os.Stderr, "%s Range = %+v\n", name, req.Header.Get("Range"))
+	fmt.Fprintf(os.Stderr, "%s Range = %+v\n", name, req.Header.Get("Range"))
 
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
@@ -167,16 +194,20 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	}
 	defer resp.Body.Close()
 
+	fmt.Fprintf(os.Stderr, "resp.StatusCode = %+v\n", resp.StatusCode)
+
 	total := p.Stop - p.Start + 1
 	if resp.StatusCode == http.StatusOK {
 		total = resp.ContentLength
 		if n == 0 {
 			p.Stop = total - 1
+			p.Only = true
 		} else {
 			p.Skip = true
 			return
 		}
 	} else if resp.StatusCode != 206 {
+		fmt.Fprintf(os.Stderr, "status: %d", resp.StatusCode)
 		return
 	}
 
@@ -326,6 +357,47 @@ func concatenateParts(al *ActualLocation, totalParts int) {
 		}
 		logIfError(fpart0.Close())
 	}
+}
+
+func marshalOnCancel(wg *sync.WaitGroup, al *ActualLocation, cancel context.CancelFunc) {
+	sigs := make(chan os.Signal)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-sigs
+	fmt.Println()
+	fmt.Println(sig)
+	cancel()
+	wg.Wait()
+	if al.Location == "" {
+		return
+	}
+	data, err := json.Marshal(al)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	dst, err := os.Create(al.SuggestedFileName + ".json")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	_, err = dst.Write(data)
+	if errc := dst.Close(); err == nil {
+		err = errc
+	}
+	logIfError(err)
+}
+
+func loadActualLocationFromJson(filename string) (*ActualLocation, error) {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	al := new(ActualLocation)
+	err = json.Unmarshal(data, al)
+	if err != nil {
+		return nil, err
+	}
+	return al, nil
 }
 
 func parseURL(uri string) *url.URL {
