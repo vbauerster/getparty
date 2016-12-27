@@ -184,16 +184,12 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, p.Stop))
 
-	fmt.Fprintf(os.Stderr, "%s Range = %+v\n", name, req.Header.Get("Range"))
-
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
 		log.Printf("%s %v\n", name, err)
 		return
 	}
 	defer resp.Body.Close()
-
-	fmt.Fprintf(os.Stderr, "resp.StatusCode = %+v\n", resp.StatusCode)
 
 	total := p.Stop - p.Start + 1
 	if resp.StatusCode == http.StatusOK {
@@ -221,7 +217,6 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "%s total = %+v\n", name, total)
 	bar := pb.AddBar(total).
 		PrependName(name, 0).
 		PrependCounters(mpb.UnitBytes, 20).
@@ -232,9 +227,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	reader := bar.ProxyReader(resp.Body)
 	// and copy from reader
 	written, err := io.Copy(dst, reader)
-	fmt.Fprintf(os.Stderr, "%s written = %+v\n", name, p.Written)
 	p.Written += written
-	fmt.Fprintf(os.Stderr, "%s p.Written = %+v\n", name, p.Written)
 
 	if errc := dst.Close(); err == nil {
 		err = errc
@@ -372,7 +365,7 @@ func onCancelSignal(cancel context.CancelFunc) {
 
 func (al *ActualLocation) marshalState(userURL string) error {
 	jsonFileName := al.SuggestedFileName + ".json"
-	fmt.Printf("writing state to %q\n", jsonFileName)
+	log.Printf("writing state to %q\n", jsonFileName)
 	al.Location = userURL // preserve user provided url
 	data, err := json.Marshal(al)
 	if err != nil {
