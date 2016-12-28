@@ -52,3 +52,53 @@ func TestParseContentDisposition(t *testing.T) {
 		}
 	}
 }
+
+func TestCalcParts(t *testing.T) {
+	tests := []struct {
+		contentLength int64
+		totalParts    int
+		wantRange     map[int]string
+	}{
+		{
+			contentLength: 1055406,
+			totalParts:    0,
+			wantRange:     map[int]string{1: "bytes=0-1055405"},
+		},
+		{
+			contentLength: 1055406,
+			totalParts:    1,
+			wantRange:     map[int]string{1: "bytes=0-1055405"},
+		},
+		{
+			contentLength: 1055406,
+			totalParts:    2,
+			wantRange: map[int]string{
+				1: "bytes=0-527701",
+				2: "bytes=527702-1055405",
+			},
+		},
+		{
+			contentLength: 1055406,
+			totalParts:    3,
+			wantRange: map[int]string{
+				1: "bytes=0-351799",
+				2: "bytes=351800-703602",
+				3: "bytes=703603-1055405",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		al := &ActualLocation{
+			ContentLength: test.contentLength,
+		}
+		al.calcParts(test.totalParts)
+		for n, part := range al.Parts {
+			got := part.getRange()
+			want := test.wantRange[n]
+			if got != want {
+				t.Errorf("Given: %+v\nwant: %s\ngot: %s", test, want, got)
+			}
+		}
+	}
+}

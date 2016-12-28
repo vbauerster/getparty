@@ -139,6 +139,14 @@ func main() {
 	}
 }
 
+func (p *Part) getRange() string {
+	start := p.Start
+	if p.Written > 0 {
+		start = start + p.Written
+	}
+	return fmt.Sprintf("bytes=%d-%d", start, p.Stop)
+}
+
 func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
 	defer wg.Done()
 	if p.Written-1 == p.Stop {
@@ -151,13 +159,8 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		return
 	}
 
-	start := p.Start
-	if p.Written > 0 {
-		start = start + p.Written
-	}
-
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, p.Stop))
+	req.Header.Set("Range", p.getRange())
 
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
@@ -213,6 +216,9 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 }
 
 func (al *ActualLocation) calcParts(totalParts int) {
+	if totalParts <= 0 {
+		totalParts = 1
+	}
 	partSize := al.ContentLength / int64(totalParts)
 	if partSize == 0 {
 		partSize = al.ContentLength / 2
