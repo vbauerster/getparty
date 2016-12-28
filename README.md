@@ -13,7 +13,7 @@ Or download [binary](https://github.com/vbauerster/getparty/releases/latest).
 
 ## Usage
 
-```go
+```
 Usage:
   getparty [OPTIONS] url
 
