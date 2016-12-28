@@ -37,6 +37,8 @@ var (
 	options Options
 	// flags parser
 	parser *flags.Parser
+
+	bLogger *log.Logger
 )
 
 type ActualLocation struct {
@@ -69,6 +71,7 @@ func init() {
 	parser.Name = cmdName
 	parser.Usage = "[OPTIONS] url"
 	log.SetOutput(os.Stderr)
+	bLogger = log.New(os.Stdout, "[ ", log.LstdFlags)
 }
 
 func main() {
@@ -141,6 +144,8 @@ func main() {
 		if _, err := os.Stat(json); err == nil {
 			logIfError(os.Remove(json))
 		}
+		fmt.Println()
+		bLogf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
 	} else {
 		logIfError(al.marshalState(userURL))
 	}
@@ -311,7 +316,6 @@ func (al *ActualLocation) totalWritten() int64 {
 }
 
 func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, error) {
-	logger := log.New(os.Stdout, "[ ", log.LstdFlags)
 	client := &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -321,7 +325,7 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 	var al *ActualLocation
 	var redirectsFollowed int
 	for {
-		logger.Printf("] %s\n", next)
+		bLogf("%s\n", next)
 		fmt.Printf("HTTP request sent, awaiting response... ")
 		resp, err := getResp(client, next, userAgent)
 		if err != nil {
@@ -469,4 +473,8 @@ func logIfError(err error) {
 	if err != nil {
 		log.Println(err)
 	}
+}
+
+func bLogf(format string, a ...interface{}) {
+	bLogger.Printf("] "+format, a...)
 }
