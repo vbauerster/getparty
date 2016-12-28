@@ -176,7 +176,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Range", p.getRange())
 
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	resp, err := doRequestAndRetryIfTemporary(http.DefaultClient, req.WithContext(ctx))
 	if err != nil {
 		log.Printf("%s %v\n", name, err)
 		return
@@ -329,8 +329,17 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 	for {
 		bLogf("%s\n", next)
 		fmt.Printf("HTTP request sent, awaiting response... ")
-		resp, err := getResp(client, next, userAgent)
+		req, err := http.NewRequest(http.MethodGet, next, nil)
 		if err != nil {
+			fmt.Println()
+			return nil, err
+		}
+		req.Header.Set("User-Agent", userAgent)
+
+		resp, err := doRequestAndRetryIfTemporary(client, req)
+		resp.Body.Close()
+		if err != nil {
+			fmt.Println()
 			return nil, err
 		}
 		fmt.Println(resp.Status)
@@ -385,18 +394,20 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 	return al, nil
 }
 
-func getResp(client *http.Client, url, userAgent string) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
+func doRequestAndRetryIfTemporary(client *http.Client, req *http.Request) (resp *http.Response, err error) {
+	for i := 0; i < 3; i++ {
+		resp, err = client.Do(req)
+		if err != nil {
+			resp.Body.Close()
+			if isTemporary(err) {
+				time.Sleep(1e9)
+				continue
+			}
+			return
+		}
+		return
 	}
-	req.Header.Set("User-Agent", userAgent)
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	return resp, nil
+	return
 }
 
 func onCancelSignal(cancel context.CancelFunc) {
