@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
@@ -56,6 +57,7 @@ type Part struct {
 type Options struct {
 	StateFileName string `short:"c" long:"continue" description:"resume download from last saved json state" value-name:"state.json"`
 	Parts         int    `short:"p" long:"parts" default:"2" description:"number of parts"`
+	Timeout       int    `short:"t" long:"timeout" description:"download timeout in seconds"`
 }
 
 func init() {
@@ -82,7 +84,14 @@ func main() {
 	var wg sync.WaitGroup
 	var al *ActualLocation
 	var userURL string
-	ctx, cancel := context.WithCancel(context.Background())
+	var cancel context.CancelFunc
+	ctx := context.Background()
+
+	if options.Timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(options.Timeout)*time.Second)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
 	pb := mpb.New(ctx).SetWidth(60)
 
 	if options.StateFileName != "" {
@@ -307,7 +316,9 @@ func follow(userURL string, userAgent string) (*ActualLocation, error) {
 		}
 		fmt.Println(resp.Status)
 		if resp.StatusCode == http.StatusOK {
-			fmt.Printf("Length: %d [%s]\n\n", resp.ContentLength, resp.Header.Get("Content-Type"))
+			fmt.Printf("Length: %d (%s) [%s]\n\n", resp.ContentLength,
+				mpb.Format(resp.ContentLength).To(mpb.UnitBytes),
+				resp.Header.Get("Content-Type"))
 		}
 
 		al = &ActualLocation{
