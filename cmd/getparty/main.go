@@ -209,7 +209,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 
 	bar := pb.AddBar(total).
 		PrependName(name, 0).
-		PrependFunc(countersDecorator(18)).
+		PrependFunc(countersDecorator(19)).
 		AppendETA(-6)
 	bar.Incr(int(p.Written))
 
