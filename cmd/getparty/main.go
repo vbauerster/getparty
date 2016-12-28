@@ -129,7 +129,10 @@ func main() {
 
 	if totalWritten == al.ContentLength {
 		logIfError(al.concatenateParts())
-		logIfError(os.Remove(al.Parts[1].Name + ".json"))
+		json := al.Parts[1].Name + ".json"
+		if _, err := os.Stat(json); err == nil {
+			logIfError(os.Remove(json))
+		}
 	} else {
 		logIfError(al.marshalState(userURL))
 	}
@@ -190,7 +193,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 
 	bar := pb.AddBar(total).
 		PrependName(name, 0).
-		PrependCounters(mpb.UnitBytes, 20).
+		PrependFunc(countersDecorator(20)).
 		AppendETA(-6)
 	bar.Incr(int(p.Written))
 
