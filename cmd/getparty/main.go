@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -58,6 +59,7 @@ type Options struct {
 	JsonFileName string `short:"c" long:"continue" description:"resume download from last saved json state" value-name:"state.json"`
 	Parts        int    `short:"p" long:"parts" default:"2" description:"number of parts"`
 	Timeout      int    `short:"t" long:"timeout" description:"download timeout in seconds"`
+	Version      bool   `long:"version" description:"show version"`
 }
 
 func init() {
@@ -79,6 +81,11 @@ func main() {
 			parser.WriteHelp(os.Stderr)
 			os.Exit(1)
 		}
+	}
+
+	if options.Version {
+		fmt.Printf("%s %s (runtime: %s)\n", cmdName, version, runtime.Version())
+		os.Exit(0)
 	}
 
 	var wg sync.WaitGroup
