@@ -95,7 +95,7 @@ func main() {
 		exitOnError(err)
 		userURL = al.Location
 		temp, err := follow(userURL, userAgent)
-		exitOnError(errors.Wrapf(err, "cannot resolve %q", userURL))
+		exitOnError(err)
 		al.Location = temp.Location
 		for n, part := range al.Parts {
 			if !part.Skip {
@@ -106,7 +106,7 @@ func main() {
 	} else if len(args) == 1 {
 		userURL = parseURL(args[0]).String()
 		al, err = follow(userURL, userAgent)
-		exitOnError(errors.Wrapf(err, "cannot resolve %q", userURL))
+		exitOnError(err)
 		if al.AcceptRanges == "bytes" && al.StatusCode == http.StatusOK {
 			if al.SuggestedFileName == "" {
 				al.SuggestedFileName = filepath.Base(userURL)
