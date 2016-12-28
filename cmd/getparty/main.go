@@ -1,8 +1,3 @@
-// url := "https://homebrew.bintray.com/bottles/youtube-dl-2016.12.12.sierra.bottle.tar.gz"
-// url := "https://homebrew.bintray.com/bottles/libtiff-4.0.7.sierra.bottle.tar.gz"
-// url := "http://127.0.0.1:8080/libtiff-4.0.7.sierra.bottle.tar.gz"
-// url := "http://127.0.0.1:8080/orig.txt"
-// url := "https://swtch.com/~rsc/thread/squint.pdf"
 package main
 
 import (
