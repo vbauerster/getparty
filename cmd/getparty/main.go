@@ -55,9 +55,9 @@ type Part struct {
 }
 
 type Options struct {
-	StateFileName string `short:"c" long:"continue" description:"resume download from last saved json state" value-name:"state.json"`
-	Parts         int    `short:"p" long:"parts" default:"2" description:"number of parts"`
-	Timeout       int    `short:"t" long:"timeout" description:"download timeout in seconds"`
+	JsonFileName string `short:"c" long:"continue" description:"resume download from last saved json state" value-name:"state.json"`
+	Parts        int    `short:"p" long:"parts" default:"2" description:"number of parts"`
+	Timeout      int    `short:"t" long:"timeout" description:"download timeout in seconds"`
 }
 
 func init() {
@@ -94,11 +94,11 @@ func main() {
 	}
 	pb := mpb.New(ctx).SetWidth(60)
 
-	if options.StateFileName != "" {
-		al, err = loadActualLocationFromJson(options.StateFileName)
+	if options.JsonFileName != "" {
+		al, err = loadActualLocationFromJson(options.JsonFileName)
 		exitOnError(err)
 		userURL = al.Location
-		temp, err := follow(userURL, userAgent)
+		temp, err := follow(userURL, userAgent, al.totalWritten())
 		exitOnError(err)
 		al.Location = temp.Location
 		for n, part := range al.Parts {
@@ -109,12 +109,9 @@ func main() {
 		}
 	} else if len(args) == 1 {
 		userURL = parseURL(args[0]).String()
-		al, err = follow(userURL, userAgent)
+		al, err = follow(userURL, userAgent, 0)
 		exitOnError(err)
 		if al.AcceptRanges == "bytes" && al.StatusCode == http.StatusOK {
-			if al.SuggestedFileName == "" {
-				al.SuggestedFileName = filepath.Base(userURL)
-			}
 			al.calcParts(options.Parts)
 			for n, part := range al.Parts {
 				wg.Add(1)
@@ -131,12 +128,7 @@ func main() {
 	wg.Wait()
 	pb.Stop()
 
-	var totalWritten int64
-	for _, p := range al.Parts {
-		totalWritten += p.Written
-	}
-
-	if totalWritten == al.ContentLength {
+	if al.totalWritten() == al.ContentLength {
 		logIfError(al.concatenateParts())
 		json := al.Parts[1].Name + ".json"
 		if _, err := os.Stat(json); err == nil {
@@ -297,7 +289,15 @@ func (al *ActualLocation) marshalState(userURL string) error {
 	return err
 }
 
-func follow(userURL string, userAgent string) (*ActualLocation, error) {
+func (al *ActualLocation) totalWritten() int64 {
+	var total int64
+	for _, p := range al.Parts {
+		total += p.Written
+	}
+	return total
+}
+
+func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, error) {
 	logger := log.New(os.Stdout, "[ ", log.LstdFlags)
 	client := &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
@@ -315,15 +315,15 @@ func follow(userURL string, userAgent string) (*ActualLocation, error) {
 			return nil, err
 		}
 		fmt.Println(resp.Status)
-		if resp.StatusCode == http.StatusOK {
-			fmt.Printf("Length: %d (%s) [%s]\n\n", resp.ContentLength,
-				mpb.Format(resp.ContentLength).To(mpb.UnitBytes),
-				resp.Header.Get("Content-Type"))
+
+		suggestedFileName := parseContentDisposition(resp.Header.Get("Content-Disposition"))
+		if suggestedFileName == "" {
+			suggestedFileName = filepath.Base(userURL)
 		}
 
 		al = &ActualLocation{
 			Location:          next,
-			SuggestedFileName: parseContentDisposition(resp.Header.Get("Content-Disposition")),
+			SuggestedFileName: suggestedFileName,
 			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
 			StatusCode:        resp.StatusCode,
 			ContentLength:     resp.ContentLength,
@@ -331,6 +331,24 @@ func follow(userURL string, userAgent string) (*ActualLocation, error) {
 		}
 
 		if !isRedirect(resp.StatusCode) {
+			if resp.StatusCode == http.StatusOK {
+				humanSize := mpb.Format(resp.ContentLength).To(mpb.UnitBytes)
+				if totalWritten > 0 {
+					remaining := resp.ContentLength - totalWritten
+					fmt.Printf("Length: %d (%s), %d (%s) remaining [%s]\n",
+						resp.ContentLength,
+						humanSize,
+						remaining,
+						mpb.Format(remaining).To(mpb.UnitBytes),
+						resp.Header.Get("Content-Type"))
+				} else {
+					fmt.Printf("Length: %d (%s) [%s]\n",
+						resp.ContentLength,
+						humanSize,
+						resp.Header.Get("Content-Type"))
+				}
+				fmt.Printf("Saving to: %q\n\n", suggestedFileName)
+			}
 			break
 		}
 
