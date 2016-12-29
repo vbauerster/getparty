@@ -104,7 +104,7 @@ func main() {
 	} else {
 		ctx, cancel = context.WithCancel(ctx)
 	}
-	pb := mpb.New(ctx).SetWidth(60)
+	pb := mpb.New(ctx).RefreshRate(111 * time.Millisecond).SetWidth(62)
 
 	if options.JsonFileName != "" {
 		al, err = loadActualLocationFromJson(options.JsonFileName)
@@ -213,7 +213,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		PrependName(name, 0).
 		PrependFunc(countersDecorator(19)).
 		AppendETA(-6)
-	bar.Incr(int(p.Written))
+	bar.IncrWithReFill(int(p.Written), '+')
 
 	// create proxy reader
 	reader := bar.ProxyReader(resp.Body)
