@@ -344,9 +344,9 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 		}
 		fmt.Println(resp.Status)
 
-		suggestedFileName := parseContentDisposition(resp.Header.Get("Content-Disposition"))
+		suggestedFileName := trimFileName(parseContentDisposition(resp.Header.Get("Content-Disposition")))
 		if suggestedFileName == "" {
-			suggestedFileName = filepath.Base(userURL)
+			suggestedFileName = trimFileName(filepath.Base(userURL))
 		}
 
 		al = &ActualLocation{
@@ -470,6 +470,12 @@ func parseURL(uri string) *url.URL {
 		}
 	}
 	return url
+}
+
+func trimFileName(name string) string {
+	name = strings.Split(name, "?")[0]
+	name = strings.Trim(name, " ")
+	return name
 }
 
 func isRedirect(status int) bool {
