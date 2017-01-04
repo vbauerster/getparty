@@ -105,7 +105,7 @@ func main() {
 	pb := mpb.New(ctx).RefreshRate(111 * time.Millisecond).SetWidth(62)
 
 	if options.JsonFileName != "" {
-		al, err = loadActualLocationFromJson(options.JsonFileName)
+		al, err = loadActualLocationFromJSON(options.JsonFileName)
 		exitOnError(err)
 		userURL = al.Location
 		temp, err := follow(userURL, userAgent, al.totalWritten())
@@ -438,7 +438,7 @@ func parseContentDisposition(input string) string {
 	return ""
 }
 
-func loadActualLocationFromJson(filename string) (*ActualLocation, error) {
+func loadActualLocationFromJSON(filename string) (*ActualLocation, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
