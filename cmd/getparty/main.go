@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,7 +15,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -413,7 +411,7 @@ func doRequestAndRetryIfTemporary(client *http.Client, req *http.Request) (resp 
 func onCancelSignal(cancel context.CancelFunc) {
 	defer cancel()
 	sigs := make(chan os.Signal)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, os.Interrupt, os.Kill)
 	sig := <-sigs
 	fmt.Println()
 	log.Printf("%v: canceling...\n", sig)
@@ -441,16 +439,18 @@ func parseContentDisposition(input string) string {
 }
 
 func loadActualLocationFromJson(filename string) (*ActualLocation, error) {
-	data, err := ioutil.ReadFile(filename)
+	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
+
+	decoder := json.NewDecoder(file)
 	al := new(ActualLocation)
-	err = json.Unmarshal(data, al)
-	if err != nil {
-		return nil, err
+	err = decoder.Decode(al)
+	if errc := file.Close(); err == nil {
+		err = errc
 	}
-	return al, nil
+	return al, err
 }
 
 func parseURL(uri string) *url.URL {
