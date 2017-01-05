@@ -121,7 +121,7 @@ func main() {
 		userURL = parseURL(args[0]).String()
 		al, err = follow(userURL, userAgent, 0)
 		exitOnError(err)
-		if al.AcceptRanges == "bytes" && al.StatusCode == http.StatusOK {
+		if al.StatusCode == http.StatusOK {
 			al.calcParts(options.Parts)
 			for n, part := range al.Parts {
 				wg.Add(1)
@@ -147,6 +147,7 @@ func main() {
 		fmt.Println()
 		bLogf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
 	} else {
+		al.deleteUnnecessaryParts()
 		logIfError(al.marshalState(userURL))
 	}
 }
@@ -195,23 +196,23 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		return
 	}
 
+	bar := pb.AddBar(total).
+		PrependName(name, 0).
+		PrependFunc(countersDecorator(19)).
+		AppendETA(-6)
 	var dst *os.File
-	if p.Written > 0 {
+	if p.Written > 0 && resp.StatusCode != http.StatusOK {
 		dst, err = os.OpenFile(p.Name, os.O_APPEND|os.O_WRONLY, 0644)
+		bar.IncrWithReFill(int(p.Written), '+')
 	} else {
 		dst, err = os.Create(p.Name)
+		p.Written = 0
 	}
 
 	if err != nil {
 		log.Println(name, err)
 		return
 	}
-
-	bar := pb.AddBar(total).
-		PrependName(name, 0).
-		PrependFunc(countersDecorator(19)).
-		AppendETA(-6)
-	bar.IncrWithReFill(int(p.Written), '+')
 
 	// create proxy reader
 	reader := bar.ProxyReader(resp.Body)
@@ -288,6 +289,14 @@ func (al *ActualLocation) concatenateParts() error {
 	return fpart1.Close()
 }
 
+func (al *ActualLocation) deleteUnnecessaryParts() {
+	for k, v := range al.Parts {
+		if v.Skip {
+			delete(al.Parts, k)
+		}
+	}
+}
+
 func (al *ActualLocation) marshalState(userURL string) error {
 	jsonFileName := al.SuggestedFileName + ".json"
 	log.Printf("writing state to %q\n", jsonFileName)
@@ -359,7 +368,7 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 		if !isRedirect(resp.StatusCode) {
 			if resp.StatusCode == http.StatusOK {
 				humanSize := mpb.Format(resp.ContentLength).To(mpb.UnitBytes)
-				if totalWritten > 0 {
+				if totalWritten > 0 && al.AcceptRanges != "" {
 					remaining := resp.ContentLength - totalWritten
 					fmt.Printf("Length: %d (%s), %d (%s) remaining [%s]\n",
 						resp.ContentLength,
@@ -372,6 +381,9 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 						resp.ContentLength,
 						humanSize,
 						resp.Header.Get("Content-Type"))
+				}
+				if al.AcceptRanges == "" {
+					fmt.Println("Looks like server doesn't support ranges (no party, no resume)")
 				}
 				fmt.Printf("Saving to: %q\n\n", suggestedFileName)
 			}
