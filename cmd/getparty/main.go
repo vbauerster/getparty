@@ -344,11 +344,11 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 		req.Header.Set("User-Agent", userAgent)
 
 		resp, err := doRequestAndRetryIfTemporary(client, req)
-		resp.Body.Close()
 		if err != nil {
 			fmt.Println()
 			return nil, err
 		}
+		defer resp.Body.Close()
 		fmt.Println(resp.Status)
 
 		suggestedFileName := trimFileName(parseContentDisposition(resp.Header.Get("Content-Disposition")))
@@ -408,7 +408,6 @@ func doRequestAndRetryIfTemporary(client *http.Client, req *http.Request) (resp 
 	for i := 0; i < 3; i++ {
 		resp, err = client.Do(req)
 		if err != nil {
-			resp.Body.Close()
 			if isTemporary(err) {
 				time.Sleep(1e9)
 				continue
