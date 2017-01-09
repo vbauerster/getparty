@@ -136,6 +136,7 @@ func main() {
 
 	go onCancelSignal(cancel)
 	wg.Wait()
+	cancel()
 	pb.Stop()
 
 	if al.totalWritten() == al.ContentLength {
@@ -165,22 +166,22 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	if p.Written-1 == p.Stop {
 		return
 	}
+
 	name := fmt.Sprintf("part#%02d:", n)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Println(name, err)
 		return
 	}
-
+	req = req.WithContext(ctx)
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Range", p.getRange())
 
-	resp, err := doRequestAndRetryIfTemporary(http.DefaultClient, req.WithContext(ctx))
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("%s %v\n", name, err)
 		return
 	}
-	defer resp.Body.Close()
 
 	total := p.Stop - p.Start + 1
 	if resp.StatusCode == http.StatusOK {
@@ -200,6 +201,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		PrependName(name, 0).
 		PrependFunc(countersDecorator(19)).
 		AppendETA(-6)
+
 	var dst *os.File
 	if p.Written > 0 && resp.StatusCode != http.StatusOK {
 		dst, err = os.OpenFile(p.Name, os.O_APPEND|os.O_WRONLY, 0644)
@@ -208,23 +210,40 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		dst, err = os.Create(p.Name)
 		p.Written = 0
 	}
-
 	if err != nil {
 		log.Println(name, err)
 		return
 	}
+	defer dst.Close()
 
-	// create proxy reader
-	reader := bar.ProxyReader(resp.Body)
-	// and copy from reader
-	written, err := io.Copy(dst, reader)
-	p.Written += written
+	for i := 0; i < 3; i++ {
+		if i > 0 {
+			req.Header.Set("Range", p.getRange())
+			resp, err = http.DefaultClient.Do(req)
+			if err != nil {
+				time.Sleep(1e9)
+				break
+			}
+		}
 
-	if errc := dst.Close(); err == nil {
-		err = errc
-	}
-	if err != nil {
-		log.Println(name, err)
+		reader := bar.ProxyReader(resp.Body)
+
+		for i := 0; i < 3; i++ {
+			written, err := io.Copy(dst, reader)
+			p.Written += written
+			if isTemporary(err) {
+				time.Sleep(1e9)
+				continue
+			}
+			break
+		}
+
+		logIfError(resp.Body.Close())
+
+		if err == nil || err == context.Canceled || err == context.DeadlineExceeded {
+			break
+		}
+		time.Sleep(1e9)
 	}
 }
 
@@ -343,7 +362,7 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 		}
 		req.Header.Set("User-Agent", userAgent)
 
-		resp, err := doRequestAndRetryIfTemporary(client, req)
+		resp, err := client.Do(req)
 		if err != nil {
 			fmt.Println()
 			return nil, err
@@ -402,21 +421,6 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 		fmt.Printf("Location: %s [following]\n", next)
 	}
 	return al, nil
-}
-
-func doRequestAndRetryIfTemporary(client *http.Client, req *http.Request) (resp *http.Response, err error) {
-	for i := 0; i < 3; i++ {
-		resp, err = client.Do(req)
-		if err != nil {
-			if isTemporary(err) {
-				time.Sleep(1e9)
-				continue
-			}
-			return
-		}
-		return
-	}
-	return
 }
 
 func onCancelSignal(cancel context.CancelFunc) {
