@@ -222,7 +222,8 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		p.Written = 0
 	}
 	if err != nil {
-		log.Println(name, err)
+		p.fail = true
+		displayErr(err, bar, messageCh, padding)
 		return
 	}
 	defer dst.Close()
