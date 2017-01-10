@@ -27,6 +27,7 @@ const (
 	cmdName      = "getparty"
 	userAgent    = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
 	projectHome  = "https://github.com/vbauerster/getparty"
+	rr           = 111
 )
 
 var (
@@ -54,6 +55,7 @@ type Part struct {
 	Name                 string
 	Start, Stop, Written int64
 	Skip                 bool
+	fail                 bool
 }
 
 type Options struct {
@@ -102,7 +104,7 @@ func main() {
 	} else {
 		ctx, cancel = context.WithCancel(ctx)
 	}
-	pb := mpb.New(ctx).RefreshRate(111 * time.Millisecond).SetWidth(62)
+	pb := mpb.New(ctx).RefreshRate(rr * time.Millisecond).SetWidth(62)
 
 	if options.JsonFileName != "" {
 		al, err = loadActualLocationFromJSON(options.JsonFileName)
@@ -136,7 +138,13 @@ func main() {
 
 	go onCancelSignal(cancel)
 	wg.Wait()
-	cancel()
+	for _, part := range al.Parts {
+		if part.fail {
+			time.Sleep(rr * time.Millisecond)
+			cancel()
+			break
+		}
+	}
 	pb.Stop()
 
 	if al.totalWritten() == al.ContentLength {
@@ -197,9 +205,12 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		return
 	}
 
+	messageCh := make(chan string, 1)
+
+	padding := 18
 	bar := pb.AddBar(total).
 		PrependName(name, 0).
-		PrependFunc(countersDecorator(19)).
+		PrependFunc(countersDecorator(messageCh, padding)).
 		AppendETA(-6)
 
 	var dst *os.File
@@ -216,22 +227,28 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	}
 	defer dst.Close()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i <= 3; i++ {
 		if i > 0 {
+			time.Sleep(2 * time.Second)
+			messageCh <- "Retrying..."
 			req.Header.Set("Range", p.getRange())
 			resp, err = http.DefaultClient.Do(req)
 			if err != nil {
-				time.Sleep(1e9)
-				break
+				if i == 3 {
+					p.fail = true
+					displayErr(err, bar, messageCh, padding)
+				}
+				continue
 			}
 		}
 
 		reader := bar.ProxyReader(resp.Body)
 
 		for i := 0; i < 3; i++ {
-			written, err := io.Copy(dst, reader)
+			var written int64
+			written, err = io.Copy(dst, reader)
 			p.Written += written
-			if isTemporary(err) {
+			if err != nil && isTemporary(err) {
 				time.Sleep(1e9)
 				continue
 			}
@@ -243,7 +260,13 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		if err == nil || err == context.Canceled || err == context.DeadlineExceeded {
 			break
 		}
-		time.Sleep(1e9)
+
+		if i == 3 {
+			p.fail = true
+			displayErr(err, bar, messageCh, padding)
+		} else {
+			messageCh <- "Error..."
+		}
 	}
 }
 
@@ -373,6 +396,7 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 		suggestedFileName := trimFileName(parseContentDisposition(resp.Header.Get("Content-Disposition")))
 		if suggestedFileName == "" {
 			suggestedFileName = trimFileName(filepath.Base(userURL))
+			suggestedFileName, _ = url.QueryUnescape(suggestedFileName)
 		}
 
 		al = &ActualLocation{
