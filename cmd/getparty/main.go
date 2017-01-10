@@ -257,8 +257,8 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 
 		logIfError(resp.Body.Close())
 
-		if err == nil || err == context.Canceled || err == context.DeadlineExceeded {
-			break
+		if err == nil || ctx.Err() != nil {
+			return
 		}
 
 		if i == 3 {
