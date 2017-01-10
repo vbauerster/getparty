@@ -29,15 +29,6 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 	}
 }
 
-func displayErr(err error, bar *mpb.Bar, ch chan<- string, padding int) {
-	message := err.Error()
-	if len(message) > padding-2 {
-		bar.TrimLeftSpace()
-		message = message[:padding-2] + "..."
-	}
-	ch <- message
-}
-
 func percentage(total, current int64, ratio int) float64 {
 	return float64(ratio) * float64(current) / float64(total)
 }

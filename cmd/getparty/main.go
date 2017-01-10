@@ -223,13 +223,15 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	}
 	if err != nil {
 		p.fail = true
-		displayErr(err, bar, messageCh, padding)
+		bar.RemoveAllAppenders()
+		messageCh <- err.Error()
 		return
 	}
 	defer dst.Close()
 
 	for i := 0; i <= 3; i++ {
 		if i > 0 {
+			bar.RemoveAllAppenders()
 			time.Sleep(2 * time.Second)
 			messageCh <- "Retrying..."
 			req.Header.Set("Range", p.getRange())
@@ -237,10 +239,11 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 			if err != nil {
 				if i == 3 {
 					p.fail = true
-					displayErr(err, bar, messageCh, padding)
+					messageCh <- err.Error()
 				}
 				continue
 			}
+			bar.AppendETA(-6)
 		}
 
 		reader := bar.ProxyReader(resp.Body)
@@ -264,7 +267,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 
 		if i == 3 {
 			p.fail = true
-			displayErr(err, bar, messageCh, padding)
+			messageCh <- err.Error()
 		} else {
 			messageCh <- "Error..."
 		}
