@@ -97,14 +97,22 @@ func main() {
 	var al *ActualLocation
 	var userURL string
 	var cancel context.CancelFunc
-	ctx := context.Background()
 
+	ctx := context.Background()
 	if options.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(options.Timeout)*time.Second)
 	} else {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 	pb := mpb.New(ctx).RefreshRate(rr * time.Millisecond).SetWidth(62)
+
+	recoverIfAnyPanic := func(id int) {
+		e := recover()
+		if e != nil {
+			log.Printf("Unexpected panic in part %d: %+v\n", id, e)
+		}
+		wg.Done()
+	}
 
 	if options.JsonFileName != "" {
 		al, err = loadActualLocationFromJSON(options.JsonFileName)
@@ -116,7 +124,10 @@ func main() {
 		for n, part := range al.Parts {
 			if !part.Skip {
 				wg.Add(1)
-				go part.download(ctx, &wg, pb, al.Location, userAgent, n)
+				go func(n int, part *Part) {
+					defer recoverIfAnyPanic(n)
+					part.download(ctx, pb, al.Location, n)
+				}(n, part)
 			}
 		}
 	} else if len(args) == 1 {
@@ -127,7 +138,10 @@ func main() {
 			al.calcParts(options.Parts)
 			for n, part := range al.Parts {
 				wg.Add(1)
-				go part.download(ctx, &wg, pb, al.Location, userAgent, n)
+				go func(n int, part *Part) {
+					defer recoverIfAnyPanic(n)
+					part.download(ctx, pb, al.Location, n)
+				}(n, part)
 			}
 		}
 	} else {
@@ -169,8 +183,7 @@ func (p *Part) getRange() string {
 	return fmt.Sprintf("bytes=%d-%d", start, p.Stop)
 }
 
-func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progress, url, userAgent string, n int) {
-	defer wg.Done()
+func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int) {
 	if p.Written-1 == p.Stop {
 		return
 	}
@@ -249,7 +262,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 			}
 		}
 
-		reader := bar.ProxyReader(n, resp.Body)
+		reader := bar.ProxyReader(resp.Body)
 
 		for i := 0; i < 3; i++ {
 			var written int64
