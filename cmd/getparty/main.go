@@ -187,7 +187,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("%s %v\n", name, err)
+		log.Println(name, err)
 		return
 	}
 
@@ -206,12 +206,20 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 	}
 
 	messageCh := make(chan string, 1)
+	failureCh := make(chan struct{})
+
+	fail := func(err error) {
+		close(failureCh)
+		p.fail = true
+		errs := strings.Split(err.Error(), ":")
+		messageCh <- errs[len(errs)-1]
+	}
 
 	padding := 18
 	bar := pb.AddBar(total).
 		PrependName(name, 0).
 		PrependFunc(countersDecorator(messageCh, padding)).
-		AppendETA(-6)
+		AppendFunc(etaDecorator(failureCh))
 
 	var dst *os.File
 	if p.Written > 0 && resp.StatusCode != http.StatusOK {
@@ -222,31 +230,26 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		p.Written = 0
 	}
 	if err != nil {
-		p.fail = true
-		bar.RemoveAllAppenders()
-		messageCh <- err.Error()
+		fail(err)
 		return
 	}
 	defer dst.Close()
 
 	for i := 0; i <= 3; i++ {
 		if i > 0 {
-			bar.RemoveAllAppenders()
 			time.Sleep(2 * time.Second)
-			messageCh <- "Retrying..."
+			messageCh <- formRetryMsg(i)
 			req.Header.Set("Range", p.getRange())
 			resp, err = http.DefaultClient.Do(req)
 			if err != nil {
 				if i == 3 {
-					p.fail = true
-					messageCh <- err.Error()
+					fail(err)
 				}
 				continue
 			}
-			bar.AppendETA(-6)
 		}
 
-		reader := bar.ProxyReader(resp.Body)
+		reader := bar.ProxyReader(n, resp.Body)
 
 		for i := 0; i < 3; i++ {
 			var written int64
@@ -266,8 +269,7 @@ func (p *Part) download(ctx context.Context, wg *sync.WaitGroup, pb *mpb.Progres
 		}
 
 		if i == 3 {
-			p.fail = true
-			messageCh <- err.Error()
+			fail(err)
 		} else {
 			messageCh <- "Error..."
 		}
@@ -535,6 +537,21 @@ func logIfError(err error) {
 	if err != nil {
 		log.Println(err)
 	}
+}
+
+func formRetryMsg(n int) string {
+	var nth string
+	switch n {
+	case 1:
+		nth = "st"
+	case 2:
+		nth = "nd"
+	case 3:
+		nth = "rd"
+	default:
+		nth = "th"
+	}
+	return fmt.Sprintf("%d%s retry...", n, nth)
 }
 
 func bLogf(format string, a ...interface{}) {
