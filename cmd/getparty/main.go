@@ -104,7 +104,7 @@ func main() {
 	} else {
 		ctx, cancel = context.WithCancel(ctx)
 	}
-	pb := mpb.New(ctx).RefreshRate(rr * time.Millisecond).SetWidth(62)
+	pb := mpb.New(ctx).RefreshRate(rr * time.Millisecond).SetWidth(60)
 
 	recoverIfAnyPanic := func(id int) {
 		e := recover()
@@ -135,6 +135,9 @@ func main() {
 		al, err = follow(userURL, userAgent, 0)
 		exitOnError(err)
 		if al.StatusCode == http.StatusOK {
+			if al.ContentLength <= 0 {
+				options.Parts = 1
+			}
 			al.calcParts(options.Parts)
 			for n, part := range al.Parts {
 				wg.Add(1)
@@ -176,6 +179,9 @@ func main() {
 }
 
 func (p *Part) getRange() string {
+	if p.Stop < 0 {
+		return "bytes=0-"
+	}
 	start := p.Start
 	if p.Written > 0 {
 		start = start + p.Written
@@ -206,13 +212,12 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 
 	total := p.Stop - p.Start + 1
 	if resp.StatusCode == http.StatusOK {
-		total = resp.ContentLength
-		if n == 1 {
-			p.Stop = total - 1
-		} else {
+		if n > 1 {
 			p.Skip = true
 			return
 		}
+		total = resp.ContentLength
+		p.Stop = total - 1
 	} else if resp.StatusCode != 206 {
 		log.Printf("%s status %d\n", name, resp.StatusCode)
 		return
@@ -231,8 +236,11 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	padding := 18
 	bar := pb.AddBar(total).
 		PrependName(name, 0).
-		PrependFunc(countersDecorator(messageCh, padding)).
-		AppendFunc(etaDecorator(failureCh))
+		PrependFunc(countersDecorator(messageCh, padding))
+
+	if total > 0 {
+		bar.AppendFunc(etaDecorator(failureCh))
+	}
 
 	var dst *os.File
 	if p.Written > 0 && resp.StatusCode != http.StatusOK {
@@ -278,6 +286,9 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 		logIfError(resp.Body.Close())
 
 		if err == nil || ctx.Err() != nil {
+			if total <= 0 {
+				bar.Completed()
+			}
 			return
 		}
 
@@ -430,6 +441,7 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 		if !isRedirect(resp.StatusCode) {
 			if resp.StatusCode == http.StatusOK {
 				humanSize := mpb.Format(resp.ContentLength).To(mpb.UnitBytes)
+				contentType := resp.Header.Get("Content-Type")
 				if totalWritten > 0 && al.AcceptRanges != "" {
 					remaining := resp.ContentLength - totalWritten
 					fmt.Printf("Length: %d (%s), %d (%s) remaining [%s]\n",
@@ -437,12 +449,14 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 						humanSize,
 						remaining,
 						mpb.Format(remaining).To(mpb.UnitBytes),
-						resp.Header.Get("Content-Type"))
+						contentType)
+				} else if resp.ContentLength < 0 {
+					fmt.Printf("Length: unknown [%s]\n", contentType)
 				} else {
 					fmt.Printf("Length: %d (%s) [%s]\n",
 						resp.ContentLength,
 						humanSize,
-						resp.Header.Get("Content-Type"))
+						contentType)
 				}
 				if al.AcceptRanges == "" {
 					fmt.Println("Looks like server doesn't support ranges (no party, no resume)")

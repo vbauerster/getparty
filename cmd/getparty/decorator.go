@@ -24,6 +24,10 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 			return fmt.Sprintf(layout, message)
 		}
 
+		if s.Total <= 0 {
+			return fmt.Sprintf("%10s", mpb.Format(s.Current).To(mpb.UnitBytes))
+		}
+
 		total := mpb.Format(s.Total).To(mpb.UnitBytes)
 		completed := percentage(s.Total, s.Current, 100)
 		counters := fmt.Sprintf("%.1f%% of %s", completed, total)

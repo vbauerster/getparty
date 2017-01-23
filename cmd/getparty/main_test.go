@@ -60,6 +60,11 @@ func TestCalcParts(t *testing.T) {
 		wantRange     map[int]string
 	}{
 		{
+			contentLength: -1,
+			totalParts:    1,
+			wantRange:     map[int]string{1: "bytes=0-"},
+		},
+		{
 			contentLength: 1055406,
 			totalParts:    0,
 			wantRange:     map[int]string{1: "bytes=0-1055405"},
