@@ -172,7 +172,7 @@ func main() {
 		}
 		fmt.Println()
 		bLogf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
-	} else {
+	} else if al.ContentLength > 0 {
 		al.deleteUnnecessaryParts()
 		logIfError(al.marshalState(userURL))
 	}
@@ -441,23 +441,21 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 		if !isRedirect(resp.StatusCode) {
 			if resp.StatusCode == http.StatusOK {
 				humanSize := mpb.Format(resp.ContentLength).To(mpb.UnitBytes)
-				contentType := resp.Header.Get("Content-Type")
+				format := fmt.Sprintf("Length: %%s [%s]\n", resp.Header.Get("Content-Type"))
+				var length string
 				if totalWritten > 0 && al.AcceptRanges != "" {
 					remaining := resp.ContentLength - totalWritten
-					fmt.Printf("Length: %d (%s), %d (%s) remaining [%s]\n",
+					length = fmt.Sprintf("%d (%s), %d (%s) remaining",
 						resp.ContentLength,
 						humanSize,
 						remaining,
-						mpb.Format(remaining).To(mpb.UnitBytes),
-						contentType)
+						mpb.Format(remaining).To(mpb.UnitBytes))
 				} else if resp.ContentLength < 0 {
-					fmt.Printf("Length: unknown [%s]\n", contentType)
+					length = "unknown"
 				} else {
-					fmt.Printf("Length: %d (%s) [%s]\n",
-						resp.ContentLength,
-						humanSize,
-						contentType)
+					length = fmt.Sprintf("%d (%s)", resp.ContentLength, humanSize)
 				}
+				fmt.Printf(format, length)
 				if al.AcceptRanges == "" {
 					fmt.Println("Looks like server doesn't support ranges (no party, no resume)")
 				}
