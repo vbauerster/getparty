@@ -106,9 +106,8 @@ func main() {
 	}
 	pb := mpb.New(ctx).RefreshRate(rr * time.Millisecond).SetWidth(60)
 
-	recoverIfAnyPanic := func(id int) {
-		e := recover()
-		if e != nil {
+	recoverIfPanic := func(id int) {
+		if e := recover(); e != nil {
 			log.Printf("Unexpected panic in part %d: %+v\n", id, e)
 		}
 		wg.Done()
@@ -125,7 +124,7 @@ func main() {
 			if !part.Skip {
 				wg.Add(1)
 				go func(n int, part *Part) {
-					defer recoverIfAnyPanic(n)
+					defer recoverIfPanic(n)
 					part.download(ctx, pb, al.Location, n)
 				}(n, part)
 			}
@@ -142,7 +141,7 @@ func main() {
 			for n, part := range al.Parts {
 				wg.Add(1)
 				go func(n int, part *Part) {
-					defer recoverIfAnyPanic(n)
+					defer recoverIfPanic(n)
 					part.download(ctx, pb, al.Location, n)
 				}(n, part)
 			}
