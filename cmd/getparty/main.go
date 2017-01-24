@@ -217,7 +217,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 		}
 		total = resp.ContentLength
 		p.Stop = total - 1
-	} else if resp.StatusCode != 206 {
+	} else if resp.StatusCode != http.StatusPartialContent {
 		log.Printf("%s status %d\n", name, resp.StatusCode)
 		return
 	}
