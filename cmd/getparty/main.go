@@ -74,7 +74,6 @@ func init() {
 	parser = flags.NewParser(&options, flags.Default)
 	parser.Name = cmdName
 	parser.Usage = "[OPTIONS] url"
-	log.SetOutput(os.Stderr)
 	bLogger = log.New(os.Stdout, "[ ", log.LstdFlags)
 }
 
