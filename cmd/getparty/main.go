@@ -191,7 +191,7 @@ func (p *Part) getRange() string {
 }
 
 func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int) {
-	if p.Written-1 == p.Stop {
+	if p.Stop-p.Start == p.Written-1 {
 		return
 	}
 
