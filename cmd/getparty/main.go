@@ -40,6 +40,8 @@ var (
 	bLogger *log.Logger
 )
 
+// ActualLocation represents server's status 200 or 206 response meta data
+// It never holds redirect responses
 type ActualLocation struct {
 	Location          string
 	SuggestedFileName string
@@ -50,6 +52,7 @@ type ActualLocation struct {
 	Parts             map[int]*Part
 }
 
+// Part represents state of each download part
 type Part struct {
 	Name                 string
 	Start, Stop, Written int64
@@ -57,6 +60,7 @@ type Part struct {
 	fail                 bool
 }
 
+// Options struct, represents cmd line options
 type Options struct {
 	JsonFileName string `short:"c" long:"continue" description:"resume download from last saved json state" value-name:"state.json"`
 	Parts        int    `short:"p" long:"parts" default:"2" description:"number of parts"`
