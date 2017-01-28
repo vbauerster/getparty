@@ -30,7 +30,7 @@ Help Options:
 
 #### Best mirror example:
 
-`getparty -p 8 -m` [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt)
+`getparty -p 8 -m` [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/cmd/getparty/mirrors.txt)
 
 ## License
 
