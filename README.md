@@ -18,14 +18,19 @@ Usage:
   getparty [OPTIONS] url
 
 Application Options:
-  -c, --continue=state.json    resume download from last saved json state
-  -p, --parts=                 number of parts (default: 2)
-  -t, --timeout=               download timeout in seconds
-      --version                show version
+  -c, --continue=state.json     resume download from last saved json state
+  -m, --best-mirror=list.txt    pickup the fastest mirror from provided list
+  -p, --parts=                  number of parts (default: 2)
+  -t, --timeout=                download timeout in seconds
+      --version                 show version
 
 Help Options:
-  -h, --help                   Show this help message
+  -h, --help                    Show this help message
 ```
+
+#### Best mirror example:
+
+`getparty -p 8 -m` [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt)
 
 ## License
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -62,7 +63,8 @@ type Part struct {
 
 // Options struct, represents cmd line options
 type Options struct {
-	JsonFileName string `short:"c" long:"continue" description:"resume download from last saved json state" value-name:"state.json"`
+	JsonFileName string `short:"c" long:"continue" value-name:"state.json" description:"resume download from last saved json state"`
+	Mirrors      string `short:"m" long:"best-mirror" value-name:"list.txt" description:"pickup the fastest mirror from provided list"`
 	Parts        int    `short:"p" long:"parts" default:"2" description:"number of parts"`
 	Timeout      int    `short:"t" long:"timeout" description:"download timeout in seconds"`
 	Version      bool   `long:"version" description:"show version"`
@@ -96,24 +98,36 @@ func main() {
 	}
 
 	var wg sync.WaitGroup
-	var al *ActualLocation
-	var userURL string
-	var cancel context.CancelFunc
-
-	ctx := context.Background()
-	if options.Timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(options.Timeout)*time.Second)
-	} else {
-		ctx, cancel = context.WithCancel(ctx)
-	}
-	pb := mpb.New(ctx).SetWidth(60)
-
 	recoverIfPanic := func(id int) {
 		if e := recover(); e != nil {
 			log.Printf("Unexpected panic in part %d: %+v\n", id, e)
 		}
 		wg.Done()
 	}
+	var al *ActualLocation
+	var userURL string
+	var cancel context.CancelFunc
+	ctx := context.Background()
+
+	if options.Mirrors != "" {
+		mirrors, err := readLines(options.Mirrors)
+		exitOnError(err)
+		mctx, mcancel := context.WithCancel(ctx)
+		first := make(chan string, len(mirrors))
+		for _, url := range mirrors {
+			go fetch(mctx, url, first)
+		}
+		args = append(args, <-first)
+		mcancel()
+	}
+
+	if options.Timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(options.Timeout)*time.Second)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
+
+	pb := mpb.New(ctx).SetWidth(60)
 
 	if options.JsonFileName != "" {
 		al, err = loadActualLocationFromJSON(options.JsonFileName)
@@ -578,6 +592,34 @@ func formRetryMsg(n int) string {
 		nth = "th"
 	}
 	return fmt.Sprintf("%d%s retry...", n, nth)
+}
+
+func fetch(ctx context.Context, url string, first chan<- string) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return
+	}
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	first <- url
+}
+
+func readLines(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
 }
 
 func bLogf(format string, a ...interface{}) {

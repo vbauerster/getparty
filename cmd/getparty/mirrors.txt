@@ -1,0 +1,8 @@
+http://de.releases.ubuntu.com/16.10/ubuntu-16.10-desktop-amd64.iso
+http://releases.ubuntu.mirror.rafal.ca/16.10/ubuntu-16.10-desktop-amd64.iso
+http://mirror.lzu.edu.cn/ubuntu-releases/16.10/ubuntu-16.10-desktop-amd64.iso
+http://mirror.pnl.gov/releases/16.10/ubuntu-16.10-desktop-amd64.iso
+http://ubuntu.cica.es/releases/16.10/ubuntu-16.10-desktop-amd64.iso
+http://tw.archive.ubuntu.com/ubuntu-cd/16.10/ubuntu-16.10-desktop-amd64.iso
+http://mirror.rasanegar.com/ubuntu/cd/16.10/ubuntu-16.10-desktop-amd64.iso
+http://linux.nsu.ru/ubuntu-releases/16.10/ubuntu-16.10-desktop-amd64.iso
