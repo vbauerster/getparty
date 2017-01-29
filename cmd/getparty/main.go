@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/jessevdk/go-flags"
-	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb"
 )
 
@@ -482,11 +481,11 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 
 		loc, err := resp.Location()
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to follow redirect")
+			return nil, err
 		}
 		redirectsFollowed++
 		if redirectsFollowed > maxRedirects {
-			return nil, errors.Errorf("maximum number of redirects (%d) followed", maxRedirects)
+			return nil, fmt.Errorf("maximum number of redirects (%d) followed", maxRedirects)
 		}
 		next = loc.String()
 		fmt.Printf("Location: %s [following]\n", next)
