@@ -348,7 +348,7 @@ func (al *ActualLocation) concatenateParts() error {
 		return err
 	}
 
-	buf := make([]byte, 2048)
+	buf := make([]byte, 2*1024)
 	for i := 2; i <= len(al.Parts); i++ {
 		if al.Parts[i].Skip {
 			continue
@@ -358,8 +358,8 @@ func (al *ActualLocation) concatenateParts() error {
 			return err
 		}
 		for {
-			n, err := fparti.Read(buf[0:])
-			_, errw := fpart1.Write(buf[0:n])
+			n, err := fparti.Read(buf[:])
+			_, errw := fpart1.Write(buf[:n])
 			if errw != nil {
 				return err
 			}
