@@ -64,9 +64,9 @@ type Part struct {
 // Options struct, represents cmd line options
 type Options struct {
 	JsonFileName string `short:"c" long:"continue" value-name:"state.json" description:"resume download from last saved json state"`
-	Mirrors      string `short:"m" long:"best-mirror" value-name:"list.txt" description:"pickup the fastest mirror from provided list"`
 	Parts        int    `short:"p" long:"parts" default:"2" description:"number of parts"`
 	Timeout      int    `short:"t" long:"timeout" description:"download timeout in seconds"`
+	Mirrors      bool   `short:"m" long:"best-mirror" description:"pickup the fastest mirror. Will read from stdin"`
 	Version      bool   `long:"version" description:"show version"`
 }
 
@@ -109,15 +109,15 @@ func main() {
 	var cancel context.CancelFunc
 	ctx := context.Background()
 
-	if options.Mirrors != "" {
-		mirrors, err := readLines(options.Mirrors)
+	if options.Mirrors {
+		lines, err := readLines(os.Stdin)
 		exitOnError(err)
 		mctx, mcancel := context.WithCancel(ctx)
-		first := make(chan string, len(mirrors))
-		for _, url := range mirrors {
+		first := make(chan string, len(args))
+		for _, url := range lines {
 			go fetch(mctx, url, first)
 		}
-		args = append(args, <-first)
+		args = []string{<-first}
 		mcancel()
 	}
 
@@ -129,23 +129,7 @@ func main() {
 
 	pb := mpb.New(ctx).SetWidth(60)
 
-	if options.JsonFileName != "" {
-		al, err = loadActualLocationFromJSON(options.JsonFileName)
-		exitOnError(err)
-		userURL = al.Location
-		temp, err := follow(userURL, userAgent, al.totalWritten())
-		exitOnError(err)
-		al.Location = temp.Location
-		for n, part := range al.Parts {
-			if !part.Skip {
-				wg.Add(1)
-				go func(n int, part *Part) {
-					defer recoverIfPanic(n)
-					part.download(ctx, pb, al.Location, n)
-				}(n, part)
-			}
-		}
-	} else if len(args) == 1 {
+	if len(args) > 0 {
 		userURL = parseURL(args[0]).String()
 		al, err = follow(userURL, userAgent, 0)
 		exitOnError(err)
@@ -162,6 +146,22 @@ func main() {
 				}(n, part)
 			}
 		}
+	} else if options.JsonFileName != "" {
+		al, err = loadActualLocationFromJSON(options.JsonFileName)
+		exitOnError(err)
+		userURL = al.Location
+		temp, err := follow(userURL, userAgent, al.totalWritten())
+		exitOnError(err)
+		al.Location = temp.Location
+		for n, part := range al.Parts {
+			if !part.Skip {
+				wg.Add(1)
+				go func(n int, part *Part) {
+					defer recoverIfPanic(n)
+					part.download(ctx, pb, al.Location, n)
+				}(n, part)
+			}
+		}
 	} else {
 		fmt.Println("Nothing to do...")
 		parser.WriteHelp(os.Stderr)
@@ -169,6 +169,7 @@ func main() {
 	}
 
 	go onCancelSignal(cancel)
+
 	wg.Wait()
 	for _, part := range al.Parts {
 		if part.fail {
@@ -607,15 +608,12 @@ func fetch(ctx context.Context, url string, first chan<- string) {
 	first <- url
 }
 
-func readLines(path string) ([]string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
+func readLines(r io.Reader) ([]string, error) {
+	if closer, ok := r.(io.Closer); ok {
+		defer closer.Close()
 	}
-	defer file.Close()
-
 	var lines []string
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
