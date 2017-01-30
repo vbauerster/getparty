@@ -2,12 +2,31 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/vbauerster/mpb"
 )
+
+type barSlice []*mpb.Bar
+
+func (bs barSlice) Len() int { return len(bs) }
+
+func (bs barSlice) Less(i, j int) bool {
+	iapp := bs[i].GetPrependers()
+	japp := bs[j].GetPrependers()
+	return iapp[0](nil) < japp[0](nil)
+}
+
+func (bs barSlice) Swap(i, j int) { bs[i], bs[j] = bs[j], bs[i] }
+
+func sortByBarNameFunc() mpb.BeforeRender {
+	return func(bars []*mpb.Bar) {
+		sort.Sort(barSlice(bars))
+	}
+}
 
 func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 	layout := "%" + strconv.Itoa(padding) + "s"

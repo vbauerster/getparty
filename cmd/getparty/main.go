@@ -126,7 +126,7 @@ func main() {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 
-	pb := mpb.New(ctx).SetWidth(60)
+	pb := mpb.New(ctx).SetWidth(60).BeforeRenderFunc(sortByBarNameFunc())
 
 	if len(args) > 0 {
 		userURL = parseURL(args[0]).String()
