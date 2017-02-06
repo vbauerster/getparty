@@ -15,9 +15,7 @@ type barSlice []*mpb.Bar
 func (bs barSlice) Len() int { return len(bs) }
 
 func (bs barSlice) Less(i, j int) bool {
-	iapp := bs[i].GetPrependers()
-	japp := bs[j].GetPrependers()
-	return iapp[0](nil) < japp[0](nil)
+	return bs[i].GetID() < bs[j].GetID()
 }
 
 func (bs barSlice) Swap(i, j int) { bs[i], bs[j] = bs[j], bs[i] }

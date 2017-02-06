@@ -249,7 +249,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	}
 
 	padding := 18
-	bar := pb.AddBar(total).
+	bar := pb.AddBarWithID(total, n).
 		PrependName(name, 0).
 		PrependFunc(countersDecorator(messageCh, padding))
 
