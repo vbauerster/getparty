@@ -35,8 +35,3 @@ Help Options:
 ## License
 
 [MIT](https://github.com/vbauerster/getparty/blob/master/LICENSE)
-
-## Author
-
-[vbauerster](https://github.com/vbauerster)
-
