@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	rr           = 120
 	maxRedirects = 10
 	cmdName      = "getparty"
 	userAgent    = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
@@ -126,7 +127,9 @@ func main() {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 
-	pb := mpb.New(ctx).SetWidth(60).BeforeRenderFunc(sortByBarNameFunc())
+	pb := mpb.New(ctx).SetWidth(64).
+		RefreshRate(rr * time.Millisecond).
+		BeforeRenderFunc(sortByBarNameFunc())
 
 	if len(args) > 0 {
 		userURL = parseURL(args[0]).String()
@@ -172,7 +175,7 @@ func main() {
 	wg.Wait()
 	for _, part := range al.Parts {
 		if part.fail {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(rr * time.Millisecond)
 			cancel()
 			break
 		}
@@ -249,7 +252,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	}
 
 	padding := 18
-	bar := pb.AddBarWithID(total, n).
+	bar := pb.AddBarWithID(n, total).
 		PrependName(name, 0).
 		PrependFunc(countersDecorator(messageCh, padding))
 
