@@ -127,7 +127,7 @@ func main() {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 
-	pb := mpb.New(ctx).SetWidth(64).
+	pb := mpb.New().SetWidth(64).WithContext(ctx).
 		RefreshRate(rr * time.Millisecond).
 		BeforeRenderFunc(sortByBarNameFunc())
 
@@ -253,7 +253,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 
 	padding := 18
 	bar := pb.AddBarWithID(n, total).
-		PrependName(name, 0).
+		PrependName(name, 0, 0).
 		PrependFunc(countersDecorator(messageCh, padding))
 
 	if total > 0 {

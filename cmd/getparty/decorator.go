@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/vbauerster/mpb"
 )
@@ -30,7 +31,7 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 	layout := "%" + strconv.Itoa(padding) + "s"
 	var message string
 	var current int64
-	return func(s *mpb.Statistics) string {
+	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
 		select {
 		case message = <-ch:
 			current = s.Current
@@ -48,13 +49,16 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 		total := mpb.Format(s.Total).To(mpb.UnitBytes)
 		completed := percentage(s.Total, s.Current, 100)
 		counters := fmt.Sprintf("%.1f%% of %s", completed, total)
+		myWidth <- utf8.RuneCountInString(counters)
+		max := <-maxWidth
+		layout = "%" + strconv.Itoa(max+1) + "s"
 		return fmt.Sprintf(layout, counters)
 	}
 }
 
 func etaDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 	format := "ETA %02d:%02d:%02d"
-	return func(s *mpb.Statistics) string {
+	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
 		select {
 		case <-failure:
 			etaLen := len(fmt.Sprintf(format, 0, 0, 0))
