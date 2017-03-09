@@ -76,5 +76,8 @@ func etaDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 }
 
 func percentage(total, current int64, ratio int) float64 {
+	if current > total {
+		return 0
+	}
 	return float64(ratio) * float64(current) / float64(total)
 }
