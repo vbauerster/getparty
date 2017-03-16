@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -28,10 +27,14 @@ func sortByBarNameFunc() mpb.BeforeRender {
 }
 
 func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
-	layout := "%" + strconv.Itoa(padding) + "s"
+	format := "%%%ds"
 	var message string
 	var current int64
 	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
+		if s.Total <= 0 {
+			return fmt.Sprintf(fmt.Sprintf(format, padding), mpb.Format(s.Current).To(mpb.UnitBytes))
+		}
+
 		select {
 		case message = <-ch:
 			current = s.Current
@@ -39,11 +42,9 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 		}
 
 		if message != "" && current == s.Current {
-			return fmt.Sprintf(layout, message)
-		}
-
-		if s.Total <= 0 {
-			return fmt.Sprintf("%10s", mpb.Format(s.Current).To(mpb.UnitBytes))
+			myWidth <- utf8.RuneCountInString(message)
+			max := <-maxWidth
+			return fmt.Sprintf(fmt.Sprintf(format, max+1), message)
 		}
 
 		total := mpb.Format(s.Total).To(mpb.UnitBytes)
@@ -51,8 +52,7 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 		counters := fmt.Sprintf("%.1f%% of %s", completed, total)
 		myWidth <- utf8.RuneCountInString(counters)
 		max := <-maxWidth
-		layout = "%" + strconv.Itoa(max+1) + "s"
-		return fmt.Sprintf(layout, counters)
+		return fmt.Sprintf(fmt.Sprintf(format, max+1), counters)
 	}
 }
 
