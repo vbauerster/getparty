@@ -190,7 +190,7 @@ func main() {
 		}
 		fmt.Println()
 		bLogf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
-	} else if al.ContentLength > 0 {
+	} else if al.ContentLength > 0 && al.StatusCode != http.StatusNotFound {
 		al.deleteUnnecessaryParts()
 		logIfError(al.marshalState(userURL))
 	}
