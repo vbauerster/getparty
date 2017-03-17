@@ -277,7 +277,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	for i := 0; i <= 3; i++ {
 		if i > 0 {
 			time.Sleep(2 * time.Second)
-			messageCh <- formRetryMsg(i)
+			messageCh <- fmt.Sprintf("Retrying (%d)", i)
 			req.Header.Set("Range", p.getRange())
 			resp, err = http.DefaultClient.Do(req)
 			if err != nil {
@@ -580,21 +580,6 @@ func logIfError(err error) {
 	if err != nil {
 		log.Println(err)
 	}
-}
-
-func formRetryMsg(n int) string {
-	var nth string
-	switch n {
-	case 1:
-		nth = "st"
-	case 2:
-		nth = "nd"
-	case 3:
-		nth = "rd"
-	default:
-		nth = "th"
-	}
-	return fmt.Sprintf("%d%s retry...", n, nth)
 }
 
 func fetch(ctx context.Context, url string, first chan<- string) {
