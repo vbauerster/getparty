@@ -132,7 +132,9 @@ func main() {
 		BeforeRenderFunc(sortByBarNameFunc())
 
 	if len(args) > 0 {
-		userURL = parseURL(args[0]).String()
+		url, err := parseURL(args[0])
+		exitOnError(err)
+		userURL = url.String()
 		al, err = follow(userURL, userAgent, 0)
 		exitOnError(err)
 		if al.StatusCode == http.StatusOK {
@@ -541,14 +543,14 @@ func loadActualLocationFromJSON(filename string) (*ActualLocation, error) {
 	return al, err
 }
 
-func parseURL(uri string) *url.URL {
+func parseURL(uri string) (*url.URL, error) {
 	if !strings.Contains(uri, "://") && !strings.HasPrefix(uri, "//") {
 		uri = "//" + uri
 	}
 
 	url, err := url.Parse(uri)
 	if err != nil {
-		log.Fatalf("could not parse url %q: %v", uri, err)
+		return nil, err
 	}
 
 	if url.Scheme == "" {
@@ -557,7 +559,7 @@ func parseURL(uri string) *url.URL {
 			url.Scheme += "s"
 		}
 	}
-	return url
+	return url, nil
 }
 
 func trimFileName(name string) string {

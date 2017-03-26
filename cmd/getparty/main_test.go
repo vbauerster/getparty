@@ -135,7 +135,7 @@ func TestParseURL(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		u := parseURL(test.in)
+		u, _ := parseURL(test.in)
 		if u.String() != test.want {
 			t.Errorf("Given: %s\nwant: %s\ngot: %s", test.in, test.want, u.String())
 		}
