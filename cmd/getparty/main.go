@@ -64,7 +64,7 @@ type Part struct {
 // Options struct, represents cmd line options
 type Options struct {
 	JsonFileName string `short:"c" long:"continue" value-name:"state.json" description:"resume download from last saved json state"`
-	Parts        int    `short:"p" long:"parts" default:"2" description:"number of parts"`
+	Parts        uint   `short:"p" long:"parts" default:"2" description:"number of parts"`
 	Timeout      int    `short:"t" long:"timeout" description:"download timeout in seconds"`
 	Mirrors      bool   `short:"m" long:"best-mirror" description:"pickup the fastest mirror. Will read from stdin"`
 	Version      bool   `long:"version" description:"show version"`
@@ -138,10 +138,7 @@ func main() {
 		al, err = follow(userURL, userAgent, 0)
 		exitOnError(err)
 		if al.StatusCode == http.StatusOK {
-			if al.ContentLength <= 0 {
-				options.Parts = 1
-			}
-			al.calcParts(options.Parts)
+			al.calcParts(int(options.Parts))
 			for n, part := range al.Parts {
 				wg.Add(1)
 				go func(n int, part *Part) {
@@ -199,7 +196,7 @@ func main() {
 }
 
 func (p *Part) getRange() string {
-	if p.Stop < 0 {
+	if p.Stop <= 0 {
 		return "bytes=0-"
 	}
 	start := p.Start
@@ -214,11 +211,9 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 		return
 	}
 
-	name := fmt.Sprintf("part#%02d:", n)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		log.Println(name, err)
-		return
+		panic(err)
 	}
 	req = req.WithContext(ctx)
 	req.Header.Set("User-Agent", userAgent)
@@ -226,8 +221,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Println(name, err)
-		return
+		panic(err)
 	}
 
 	total := p.Stop - p.Start + 1
@@ -239,7 +233,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 		total = resp.ContentLength
 		p.Stop = total - 1
 	} else if resp.StatusCode != http.StatusPartialContent {
-		log.Printf("%s status %d\n", name, resp.StatusCode)
 		return
 	}
 
@@ -255,7 +248,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 
 	padding := 18
 	bar := pb.AddBarWithID(n, total).
-		PrependName(name, 0, 0).
+		PrependName(fmt.Sprintf("part#%02d:", n), 0, 0).
 		PrependFunc(countersDecorator(messageCh, padding))
 
 	if total > 0 {
@@ -277,6 +270,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	defer dst.Close()
 
 	for i := 0; i <= 3; i++ {
+		defer resp.Body.Close()
 		if i > 0 {
 			time.Sleep(2 * time.Second)
 			messageCh <- fmt.Sprintf("Retrying (%d)", i)
@@ -303,8 +297,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 			break
 		}
 
-		logIfError(resp.Body.Close())
-
 		if err == nil || ctx.Err() != nil {
 			if total <= 0 {
 				bar.Completed()
@@ -320,19 +312,19 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	}
 }
 
-func (al *ActualLocation) calcParts(totalParts int) {
-	if totalParts <= 0 {
-		totalParts = 1
+func (al *ActualLocation) calcParts(parts int) {
+	if parts == 0 {
+		return
 	}
-	partSize := al.ContentLength / int64(totalParts)
-	if partSize == 0 {
-		partSize = al.ContentLength / 2
+	partSize := al.ContentLength / int64(parts)
+	if partSize <= 0 {
+		parts = 1
 	}
 	al.Parts = make(map[int]*Part)
 
 	stop := al.ContentLength
 	start := stop
-	for i := totalParts; i > 1; i-- {
+	for i := parts; i > 1; i-- {
 		stop = start - 1
 		start = stop - partSize
 		al.Parts[i] = &Part{
@@ -341,9 +333,13 @@ func (al *ActualLocation) calcParts(totalParts int) {
 			Stop:  stop,
 		}
 	}
+	stop = start - 1
+	if stop < 0 {
+		stop = 0
+	}
 	al.Parts[1] = &Part{
 		Name: al.SuggestedFileName,
-		Stop: start - 1,
+		Stop: stop,
 	}
 }
 

@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestParseContentDisposition(t *testing.T) {
 	tests := []struct {
@@ -62,7 +64,7 @@ func TestCalcParts(t *testing.T) {
 		{
 			contentLength: -1,
 			totalParts:    0,
-			wantRange:     map[int]string{1: "bytes=0-"},
+			// wantRange:     map[int]string{1: "bytes=0-"},
 		},
 		{
 			contentLength: -1,
@@ -72,15 +74,22 @@ func TestCalcParts(t *testing.T) {
 		{
 			contentLength: -1,
 			totalParts:    2,
-			wantRange: map[int]string{
-				1: "bytes=0-",
-				2: "bytes=0-",
-			},
+			wantRange:     map[int]string{1: "bytes=0-"},
+		},
+		{
+			contentLength: 0,
+			totalParts:    1,
+			wantRange:     map[int]string{1: "bytes=0-"},
+		},
+		{
+			contentLength: 0,
+			totalParts:    2,
+			wantRange:     map[int]string{1: "bytes=0-"},
 		},
 		{
 			contentLength: 1055406,
 			totalParts:    0,
-			wantRange:     map[int]string{1: "bytes=0-1055405"},
+			// wantRange:     map[int]string{1: "bytes=0-1055405"},
 		},
 		{
 			contentLength: 1055406,
@@ -111,6 +120,9 @@ func TestCalcParts(t *testing.T) {
 			ContentLength: test.contentLength,
 		}
 		al.calcParts(test.totalParts)
+		if len(al.Parts) != len(test.wantRange) {
+			t.Errorf("Expected al.Parts len: %d, got: %d\n", len(test.wantRange), len(al.Parts))
+		}
 		for n, part := range al.Parts {
 			got := part.getRange()
 			want := test.wantRange[n]
