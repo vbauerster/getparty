@@ -50,7 +50,7 @@ type ActualLocation struct {
 	AcceptRanges      string
 	StatusCode        int
 	ContentLength     int64
-	Parts             map[int]*Part
+	Parts             []*Part
 }
 
 // Part represents state of each download part
@@ -100,7 +100,7 @@ func main() {
 	var wg sync.WaitGroup
 	recoverIfPanic := func(id int) {
 		if e := recover(); e != nil {
-			log.Printf("Unexpected panic in part %d: %+v\n", id, e)
+			log.Printf("Part %d: %+v\n", id, e)
 		}
 		wg.Done()
 	}
@@ -181,29 +181,18 @@ func main() {
 	}
 	pb.Stop()
 
+	al.deleteUnnecessaryParts()
 	if al.totalWritten() == al.ContentLength {
 		logIfError(al.concatenateParts())
-		json := al.Parts[1].Name + ".json"
-		if _, err := os.Stat(json); err == nil {
+		json := al.Parts[0].Name + ".json"
+		if _, err := os.Stat(json); err == nil { // if exists
 			logIfError(os.Remove(json))
 		}
 		fmt.Println()
 		bLogf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
 	} else if al.ContentLength > 0 && al.StatusCode != http.StatusNotFound {
-		al.deleteUnnecessaryParts()
 		logIfError(al.marshalState(userURL))
 	}
-}
-
-func (p *Part) getRange() string {
-	if p.Stop <= 0 {
-		return "bytes=0-"
-	}
-	start := p.Start
-	if p.Written > 0 {
-		start = start + p.Written
-	}
-	return fmt.Sprintf("bytes=%d-%d", start, p.Stop)
 }
 
 func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int) {
@@ -217,7 +206,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	}
 	req = req.WithContext(ctx)
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Range", p.getRange())
+	setRangeHeader(req, p.getRange())
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -248,7 +237,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 
 	padding := 18
 	bar := pb.AddBarWithID(n, total).
-		PrependName(fmt.Sprintf("part#%02d:", n), 0, 0).
+		PrependName(fmt.Sprintf("part#%02d:", n+1), 0, 0).
 		PrependFunc(countersDecorator(messageCh, padding))
 
 	if total > 0 {
@@ -274,7 +263,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 		if i > 0 {
 			time.Sleep(2 * time.Second)
 			messageCh <- fmt.Sprintf("Retrying (%d)", i)
-			req.Header.Set("Range", p.getRange())
+			setRangeHeader(req, p.getRange())
 			resp, err = http.DefaultClient.Do(req)
 			if err != nil {
 				if i == 3 {
@@ -312,6 +301,17 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	}
 }
 
+func (p *Part) getRange() string {
+	if p.Stop <= 0 {
+		return ""
+	}
+	start := p.Start
+	if p.Written > 0 {
+		start = start + p.Written
+	}
+	return fmt.Sprintf("bytes=%d-%d", start, p.Stop)
+}
+
 func (al *ActualLocation) calcParts(parts int) {
 	if parts == 0 {
 		return
@@ -320,11 +320,11 @@ func (al *ActualLocation) calcParts(parts int) {
 	if partSize <= 0 {
 		parts = 1
 	}
-	al.Parts = make(map[int]*Part)
+	al.Parts = make([]*Part, parts)
 
 	stop := al.ContentLength
 	start := stop
-	for i := parts; i > 1; i-- {
+	for i := parts - 1; i > 0; i-- {
 		stop = start - 1
 		start = stop - partSize
 		al.Parts[i] = &Part{
@@ -337,30 +337,27 @@ func (al *ActualLocation) calcParts(parts int) {
 	if stop < 0 {
 		stop = 0
 	}
-	al.Parts[1] = &Part{
+	al.Parts[0] = &Part{
 		Name: al.SuggestedFileName,
 		Stop: stop,
 	}
 }
 
 func (al *ActualLocation) concatenateParts() error {
-	fpart1, err := os.OpenFile(al.Parts[1].Name, os.O_APPEND|os.O_WRONLY, 0644)
+	fpart0, err := os.OpenFile(al.Parts[0].Name, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 
 	buf := make([]byte, 2*1024)
-	for i := 2; i <= len(al.Parts); i++ {
-		if al.Parts[i].Skip {
-			continue
-		}
+	for i := 1; i < len(al.Parts); i++ {
 		fparti, err := os.Open(al.Parts[i].Name)
 		if err != nil {
 			return err
 		}
 		for {
 			n, err := fparti.Read(buf[:])
-			_, errw := fpart1.Write(buf[:n])
+			_, errw := fpart0.Write(buf[:n])
 			if errw != nil {
 				return err
 			}
@@ -374,13 +371,13 @@ func (al *ActualLocation) concatenateParts() error {
 		logIfError(fparti.Close())
 		logIfError(os.Remove(al.Parts[i].Name))
 	}
-	return fpart1.Close()
+	return fpart0.Close()
 }
 
 func (al *ActualLocation) deleteUnnecessaryParts() {
-	for k, v := range al.Parts {
-		if v.Skip {
-			delete(al.Parts, k)
+	for i, p := range al.Parts {
+		if p.Skip {
+			al.Parts = append(al.Parts[:i], al.Parts[i+1:]...)
 		}
 	}
 }
@@ -410,6 +407,12 @@ func (al *ActualLocation) totalWritten() int64 {
 		total += p.Written
 	}
 	return total
+}
+
+func setRangeHeader(r *http.Request, h string) {
+	if h != "" {
+		r.Header.Set("Range", h)
+	}
 }
 
 func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, error) {
