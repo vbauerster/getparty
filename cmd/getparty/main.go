@@ -206,7 +206,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	}
 	req = req.WithContext(ctx)
 	req.Header.Set("User-Agent", userAgent)
-	setRangeHeader(req, p.getRange())
+	req.Header.Set("Range", p.getRange())
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -263,7 +263,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 		if i > 0 {
 			time.Sleep(2 * time.Second)
 			messageCh <- fmt.Sprintf("Retrying (%d)", i)
-			setRangeHeader(req, p.getRange())
+			req.Header.Set("Range", p.getRange())
 			resp, err = http.DefaultClient.Do(req)
 			if err != nil {
 				if i == 3 {
@@ -407,12 +407,6 @@ func (al *ActualLocation) totalWritten() int64 {
 		total += p.Written
 	}
 	return total
-}
-
-func setRangeHeader(r *http.Request, h string) {
-	if h != "" {
-		r.Header.Set("Range", h)
-	}
 }
 
 func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, error) {
