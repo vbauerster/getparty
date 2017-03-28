@@ -63,9 +63,9 @@ type Part struct {
 
 // Options struct, represents cmd line options
 type Options struct {
-	JsonFileName string `short:"c" long:"continue" value-name:"state.json" description:"resume download from last saved json state"`
+	JSONFileName string `short:"c" long:"continue" value-name:"state.json" description:"resume download from last saved json state"`
 	Parts        uint   `short:"p" long:"parts" default:"2" description:"number of parts"`
-	Timeout      int    `short:"t" long:"timeout" description:"download timeout in seconds"`
+	Timeout      uint   `short:"t" long:"timeout" description:"download timeout in seconds"`
 	Mirrors      bool   `short:"m" long:"best-mirror" description:"pickup the fastest mirror. Will read from stdin"`
 	Version      bool   `long:"version" description:"show version"`
 }
@@ -147,8 +147,8 @@ func main() {
 				}(n, part)
 			}
 		}
-	} else if options.JsonFileName != "" {
-		al, err = loadActualLocationFromJSON(options.JsonFileName)
+	} else if options.JSONFileName != "" {
+		al, err = loadActualLocationFromJSON(options.JSONFileName)
 		exitOnError(err)
 		userURL = al.Location
 		temp, err := follow(userURL, userAgent, al.totalWritten())
@@ -383,14 +383,14 @@ func (al *ActualLocation) deleteUnnecessaryParts() {
 }
 
 func (al *ActualLocation) marshalState(userURL string) error {
-	jsonFileName := al.SuggestedFileName + ".json"
-	log.Printf("writing state to %q\n", jsonFileName)
+	state := al.SuggestedFileName + ".json"
+	log.Printf("writing state to %q\n", state)
 	al.Location = userURL // preserve user provided url
 	data, err := json.Marshal(al)
 	if err != nil {
 		return err
 	}
-	dst, err := os.Create(jsonFileName)
+	dst, err := os.Create(state)
 	if err != nil {
 		return err
 	}
