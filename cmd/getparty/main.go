@@ -139,12 +139,12 @@ func main() {
 		exitOnError(err)
 		if al.StatusCode == http.StatusOK {
 			al.calcParts(int(options.Parts))
-			for n, part := range al.Parts {
+			for i, p := range al.Parts {
 				wg.Add(1)
 				go func(n int, part *Part) {
 					defer recoverIfPanic(n)
 					part.download(ctx, pb, al.Location, n)
-				}(n, part)
+				}(i, p)
 			}
 		}
 	} else if options.JSONFileName != "" {
@@ -154,13 +154,13 @@ func main() {
 		temp, err := follow(userURL, userAgent, al.totalWritten())
 		exitOnError(err)
 		al.Location = temp.Location
-		for n, part := range al.Parts {
-			if !part.Skip {
+		for i, p := range al.Parts {
+			if !p.Skip {
 				wg.Add(1)
 				go func(n int, part *Part) {
 					defer recoverIfPanic(n)
 					part.download(ctx, pb, al.Location, n)
-				}(n, part)
+				}(i, p)
 			}
 		}
 	} else {
@@ -215,7 +215,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 
 	total := p.Stop - p.Start + 1
 	if resp.StatusCode == http.StatusOK {
-		if n > 1 {
+		if n > 0 {
 			p.Skip = true
 			return
 		}
