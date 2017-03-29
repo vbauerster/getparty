@@ -286,6 +286,13 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 			break
 		}
 
+		if err == nil || ctx.Err() != nil {
+			if total <= 0 {
+				bar.Completed()
+			}
+			return
+		}
+
 		if i == 3 {
 			fail(err)
 		} else {
