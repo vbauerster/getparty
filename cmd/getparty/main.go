@@ -113,7 +113,7 @@ func main() {
 		lines, err := readLines(os.Stdin)
 		exitOnError(err)
 		mctx, mcancel := context.WithCancel(ctx)
-		first := make(chan string, len(args))
+		first := make(chan string, len(lines))
 		for _, url := range lines {
 			go fetch(mctx, url, first)
 		}
