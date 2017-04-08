@@ -35,4 +35,4 @@ Help Options:
 
 ## License
 
-[MIT](https://github.com/vbauerster/getparty/blob/master/LICENSE)
+[BSD 3-Clause License](https://opensource.org/licenses/BSD-3-Clause)
