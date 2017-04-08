@@ -18,14 +18,15 @@ Usage:
   getparty [OPTIONS] url
 
 Application Options:
-  -c, --continue=state.json    resume download from last saved json state
-  -p, --parts=                 number of parts (default: 2)
-  -t, --timeout=               download timeout in seconds
-  -m, --best-mirror            pickup the fastest mirror. Will read from stdin
-      --version                show version
+  -p, --parts=              number of parts (default: 2)
+  -t, --timeout=            download timeout in seconds
+  -o, --output-file=NAME    force output file name
+  -c, --continue=JSON       resume download from the last saved json file
+  -m, --best-mirror         pickup the fastest mirror. Will read from stdin
+      --version             show version
 
 Help Options:
-  -h, --help                   Show this help message
+  -h, --help                Show this help message
 ```
 
 #### Best mirror example:

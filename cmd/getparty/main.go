@@ -63,9 +63,10 @@ type Part struct {
 
 // Options struct, represents cmd line options
 type Options struct {
-	JSONFileName string `short:"c" long:"continue" value-name:"state.json" description:"resume download from last saved json state"`
 	Parts        uint   `short:"p" long:"parts" default:"2" description:"number of parts"`
 	Timeout      uint   `short:"t" long:"timeout" description:"download timeout in seconds"`
+	OutFileName  string `short:"o" long:"output-file" value-name:"NAME" description:"force output file name"`
+	JSONFileName string `short:"c" long:"continue" value-name:"JSON" description:"resume download from the last saved json file"`
 	Mirrors      bool   `short:"m" long:"best-mirror" description:"pickup the fastest mirror. Will read from stdin"`
 	Version      bool   `long:"version" description:"show version"`
 }
@@ -135,7 +136,7 @@ func main() {
 		url, err := parseURL(args[0])
 		exitOnError(err)
 		userURL = url.String()
-		al, err = follow(userURL, userAgent, 0)
+		al, err = follow(userURL, userAgent, options.OutFileName, 0)
 		exitOnError(err)
 		if al.StatusCode == http.StatusOK {
 			al.calcParts(int(options.Parts))
@@ -151,8 +152,11 @@ func main() {
 		al, err = loadActualLocationFromJSON(options.JSONFileName)
 		exitOnError(err)
 		userURL = al.Location
-		temp, err := follow(userURL, userAgent, al.totalWritten())
+		temp, err := follow(userURL, userAgent, al.SuggestedFileName, al.totalWritten())
 		exitOnError(err)
+		if al.ContentLength != temp.ContentLength {
+			log.Fatalf("ContentLength mismatch: expected %d, got %d", al.ContentLength, temp.ContentLength)
+		}
 		al.Location = temp.Location
 		for i, p := range al.Parts {
 			if !p.Skip {
@@ -409,7 +413,7 @@ func (al *ActualLocation) totalWritten() int64 {
 	return total
 }
 
-func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, error) {
+func follow(userURL, userAgent, outFileName string, totalWritten int64) (*ActualLocation, error) {
 	client := &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -436,15 +440,17 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 		defer resp.Body.Close()
 		fmt.Println(resp.Status)
 
-		suggestedFileName := trimFileName(parseContentDisposition(resp.Header.Get("Content-Disposition")))
-		if suggestedFileName == "" {
-			suggestedFileName = trimFileName(filepath.Base(userURL))
-			suggestedFileName, _ = url.QueryUnescape(suggestedFileName)
+		if outFileName == "" {
+			outFileName = trimFileName(parseContentDisposition(resp.Header.Get("Content-Disposition")))
+			if outFileName == "" {
+				outFileName = trimFileName(filepath.Base(userURL))
+				outFileName, _ = url.QueryUnescape(outFileName)
+			}
 		}
 
 		al = &ActualLocation{
 			Location:          next,
-			SuggestedFileName: suggestedFileName,
+			SuggestedFileName: outFileName,
 			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
 			StatusCode:        resp.StatusCode,
 			ContentLength:     resp.ContentLength,
@@ -472,7 +478,7 @@ func follow(userURL, userAgent string, totalWritten int64) (*ActualLocation, err
 				if al.AcceptRanges == "" {
 					fmt.Println("Looks like server doesn't support ranges (no party, no resume)")
 				}
-				fmt.Printf("Saving to: %q\n\n", suggestedFileName)
+				fmt.Printf("Saving to: %q\n\n", outFileName)
 			}
 			break
 		}
