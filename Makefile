@@ -3,7 +3,7 @@ TARGETS = linux-386 linux-amd64 linux-arm linux-arm64 darwin-amd64 windows-386 w
 COMMAND_NAME = getparty
 PACKAGE_NAME = github.com/vbauerster/$(COMMAND_NAME)/cmd/$(COMMAND_NAME)
 LDFLAGS = -ldflags=-X=main.version=$(VERSION)
-OBJECTS = $(patsubst $(COMMAND_NAME)-windows-amd64%,$(COMMAND_NAME)-windows-amd64%.exe, $(patsubst $(COMMAND_NAME)-windows-386%,$(COMMAND_NAME)-windows-386%.exe, $(patsubst %,$(COMMAND_NAME)-%-$(VERSION), $(TARGETS))))
+OBJECTS = $(patsubst $(COMMAND_NAME)%-windows-amd64,$(COMMAND_NAME)%-windows-amd64.exe, $(patsubst $(COMMAND_NAME)%-windows-386,$(COMMAND_NAME)%-windows-386.exe, $(patsubst %,$(COMMAND_NAME)-$(VERSION)-%, $(TARGETS))))
 
 release: check-env $(OBJECTS) ## Build release binaries (requires VERSION)
 
@@ -11,7 +11,7 @@ clean: check-env ## Remove release binaries
 	rm $(OBJECTS)
 
 $(OBJECTS): $(wildcard *.go)
-	env GOOS=`echo $@ | cut -d'-' -f2` GOARCH=`echo $@ | cut -d'-' -f3 | cut -d'.' -f 1` go build -o $@ $(LDFLAGS) $(PACKAGE_NAME)
+	env GOOS=`echo $@ | cut -d'-' -f3` GOARCH=`echo $@ | cut -d'-' -f4 | cut -d'.' -f 1` go build -o $@ $(LDFLAGS) $(PACKAGE_NAME)
 
 .PHONY: help check-env
 
