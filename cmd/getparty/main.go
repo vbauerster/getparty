@@ -384,11 +384,10 @@ func (al *ActualLocation) concatenateParts() error {
 }
 
 func (al *ActualLocation) deleteUnnecessaryParts() {
-	for i, c, length := 0, 0, len(al.Parts); i < length; i++ {
-		j := i - c
+	for i, length := 0, len(al.Parts); i < length; i++ {
+		j := i - (length - len(al.Parts))
 		if al.Parts[j].Skip {
 			al.Parts = append(al.Parts[:j], al.Parts[j+1:]...)
-			c++
 		}
 	}
 }
