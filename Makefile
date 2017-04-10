@@ -5,20 +5,15 @@ PACKAGE_NAME = github.com/vbauerster/$(COMMAND_NAME)/cmd/$(COMMAND_NAME)
 LDFLAGS = -ldflags=-X=main.version=$(VERSION)
 OBJECTS = $(patsubst $(COMMAND_NAME)%_windows_amd64,$(COMMAND_NAME)%_windows_amd64.exe, $(patsubst $(COMMAND_NAME)%_windows_386,$(COMMAND_NAME)%_windows_386.exe, $(patsubst %,$(COMMAND_NAME)_$(VERSION)_%, $(TARGETS))))
 
-release: check-env $(OBJECTS) ## Build release binaries (requires VERSION)
+release: $(OBJECTS) ## Build release binaries
 
-clean: check-env ## Remove release binaries
-	rm $(OBJECTS)
+clean:
+	rm -rf bin
 
 $(OBJECTS): $(wildcard *.go)
-	env GOOS=`echo $@ | cut -d'_' -f3` GOARCH=`echo $@ | cut -d'_' -f4 | cut -d'.' -f 1` go build -o $@ $(LDFLAGS) $(PACKAGE_NAME)
+	env GOOS=`echo $@ | cut -d'_' -f3` GOARCH=`echo $@ | cut -d'_' -f4 | cut -d'.' -f 1` go build -o bin/$@ $(LDFLAGS) $(PACKAGE_NAME)
 
-.PHONY: help check-env
-
-check-env:
-ifndef VERSION
-	$(error VERSION is undefined)
-endif
+.PHONY: help
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
