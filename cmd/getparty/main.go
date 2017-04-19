@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	rr           = 120
+	rr           = 130
 	maxRedirects = 10
 	cmdName      = "getparty"
 	userAgent    = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
@@ -246,8 +246,9 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 
 	padding := 18
 	bar := pb.AddBarWithID(n, total).
-		PrependName(fmt.Sprintf("part#%02d:", n+1), 0, 0).
-		PrependFunc(countersDecorator(messageCh, padding))
+		PrependName(fmt.Sprintf("p#%02d:", n+1), 0, 0).
+		PrependFunc(countersDecorator(messageCh, padding)).
+		AppendFunc(speedDecorator())
 
 	if total > 0 {
 		bar.AppendFunc(etaDecorator(failureCh))

@@ -60,8 +60,22 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 	}
 }
 
+func speedDecorator() mpb.DecoratorFunc {
+	var nowTime time.Time
+	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
+		if !s.Completed {
+			nowTime = time.Now()
+		}
+		totTime := nowTime.Sub(s.StartTime)
+		spd := fmt.Sprintf("%0.2fKiB/s", float64(s.Current/1024)/totTime.Seconds())
+		myWidth <- utf8.RuneCountInString(spd)
+		max := <-maxWidth
+		return fmt.Sprintf(fmt.Sprintf("%%%ds ", max), spd)
+	}
+}
+
 func etaDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
-	format := "ETA %02d:%02d:%02d"
+	format := "ETA %02d:%02d"
 	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
 		select {
 		case <-failure:
@@ -75,12 +89,16 @@ func etaDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 		minutes := int64((eta / time.Minute) % 60)
 		seconds := int64((eta / time.Second) % 60)
 
-		return fmt.Sprintf(format, hours, minutes, seconds)
+		if hours > 0 {
+			return fmt.Sprintf(format+":%02d", hours, minutes, seconds)
+		}
+
+		return fmt.Sprintf(format, minutes, seconds)
 	}
 }
 
 func percentage(total, current int64, ratio int) float64 {
-	if current > total {
+	if total == 0 || current > total {
 		return 0
 	}
 	return float64(ratio) * float64(current) / float64(total)
