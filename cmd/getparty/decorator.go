@@ -86,8 +86,8 @@ func etaDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
 		select {
 		case <-failure:
-			etaLen := len(fmt.Sprintf(format, 0, 0, 0))
-			return "--" + strings.Repeat(" ", etaLen-2)
+			eta := fmt.Sprintf(format, 0, 0)
+			return fmt.Sprint(strings.Replace(eta, "0", "-", -1))
 		default:
 		}
 
@@ -96,11 +96,17 @@ func etaDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 		minutes := int64((eta / time.Minute) % 60)
 		seconds := int64((eta / time.Second) % 60)
 
+		var fmtEta string
 		if hours > 0 {
-			return fmt.Sprintf(format+":%02d", hours, minutes, seconds)
+			fmtEta = fmt.Sprintf(format+":%02d", hours, minutes, seconds)
+		} else {
+			fmtEta = fmt.Sprintf(format, minutes, seconds)
 		}
 
-		return fmt.Sprintf(format, minutes, seconds)
+		myWidth <- utf8.RuneCountInString(fmtEta)
+		max := <-maxWidth
+
+		return fmt.Sprintf(fmt.Sprintf("%%-%ds", max), fmtEta)
 	}
 }
 
