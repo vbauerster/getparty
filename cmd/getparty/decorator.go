@@ -62,7 +62,7 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 
 func speedDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 	var nowTime time.Time
-	format := "%0.2fKiB/s"
+	format := "%0.2f KiB/s"
 	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
 		var str string
 		select {
