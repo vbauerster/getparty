@@ -61,52 +61,62 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 	}
 }
 
-func speedDecorator() mpb.DecoratorFunc {
+func speedDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 	var nowTime time.Time
 	var prevSpd float64
+	format := "%0.2fKiB/s"
 	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
-		if !s.Completed {
-			nowTime = time.Now()
+		var str string
+		select {
+		case <-failure:
+			str = strings.Replace(fmt.Sprintf(format, .0), "0", "-", -1)
+		default:
 		}
-		totTime := nowTime.Sub(s.StartTime)
-		spd := float64(s.Current/1024) / totTime.Seconds()
-		if math.Abs(prevSpd-spd) < 1 {
-			spd = prevSpd // discard low delta spd
+
+		if str == "" {
+			if !s.Completed {
+				nowTime = time.Now()
+			}
+			totTime := nowTime.Sub(s.StartTime)
+			spd := float64(s.Current/1024) / totTime.Seconds()
+			if math.Abs(prevSpd-spd) < 1 {
+				spd = prevSpd // discard low delta spd
+			}
+			str = fmt.Sprintf(format, spd)
+			prevSpd = spd
 		}
-		fmtSpd := fmt.Sprintf("%0.2fKiB/s", spd)
-		prevSpd = spd
-		myWidth <- utf8.RuneCountInString(fmtSpd)
-		max := <-maxWidth
-		return fmt.Sprintf(fmt.Sprintf("%%%ds ", max), fmtSpd)
+
+		myWidth <- utf8.RuneCountInString(str)
+
+		return fmt.Sprintf(fmt.Sprintf("%%%ds ", <-maxWidth), str)
 	}
 }
 
 func etaDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 	format := "ETA %02d:%02d"
 	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
+		var str string
 		select {
 		case <-failure:
-			eta := fmt.Sprintf(format, 0, 0)
-			return fmt.Sprint(strings.Replace(eta, "0", "-", -1))
+			str = strings.Replace(fmt.Sprintf(format, 0, 0), "0", "-", -1)
 		default:
 		}
 
-		eta := s.Eta()
-		hours := int64((eta / time.Hour) % 60)
-		minutes := int64((eta / time.Minute) % 60)
-		seconds := int64((eta / time.Second) % 60)
-
-		var fmtEta string
-		if hours > 0 {
-			fmtEta = fmt.Sprintf(format+":%02d", hours, minutes, seconds)
-		} else {
-			fmtEta = fmt.Sprintf(format, minutes, seconds)
+		if str == "" {
+			eta := s.Eta()
+			hours := int64((eta / time.Hour) % 60)
+			minutes := int64((eta / time.Minute) % 60)
+			seconds := int64((eta / time.Second) % 60)
+			if hours > 0 {
+				str = fmt.Sprintf(format+":%02d", hours, minutes, seconds)
+			} else {
+				str = fmt.Sprintf(format, minutes, seconds)
+			}
 		}
 
-		myWidth <- utf8.RuneCountInString(fmtEta)
-		max := <-maxWidth
+		myWidth <- utf8.RuneCountInString(str)
 
-		return fmt.Sprintf(fmt.Sprintf("%%-%ds", max), fmtEta)
+		return fmt.Sprintf(fmt.Sprintf("%%-%ds", <-maxWidth), str)
 	}
 }
 
