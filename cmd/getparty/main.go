@@ -250,10 +250,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 		PrependFunc(countersDecorator(messageCh, padding)).
 		AppendFunc(speedDecorator(failureCh))
 
-	if total > 0 {
-		bar.AppendFunc(etaDecorator(failureCh))
-	}
-
 	var dst *os.File
 	if p.Written > 0 && resp.StatusCode != http.StatusOK {
 		dst, err = os.OpenFile(p.Name, os.O_APPEND|os.O_WRONLY, 0644)

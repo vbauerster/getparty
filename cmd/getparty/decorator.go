@@ -86,34 +86,6 @@ func speedDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 	}
 }
 
-func etaDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
-	format := "ETA %02d:%02d"
-	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
-		var str string
-		select {
-		case <-failure:
-			str = strings.Replace(fmt.Sprintf(format, 0, 0), "0", "-", -1)
-		default:
-		}
-
-		if str == "" {
-			eta := s.Eta()
-			hours := int64((eta / time.Hour) % 60)
-			minutes := int64((eta / time.Minute) % 60)
-			seconds := int64((eta / time.Second) % 60)
-			if hours > 0 {
-				str = fmt.Sprintf(format+":%02d", hours, minutes, seconds)
-			} else {
-				str = fmt.Sprintf(format, minutes, seconds)
-			}
-		}
-
-		myWidth <- utf8.RuneCountInString(str)
-
-		return fmt.Sprintf(fmt.Sprintf("%%-%ds", <-maxWidth), str)
-	}
-}
-
 func percentage(total, current int64, ratio int) float64 {
 	if total == 0 || current > total {
 		return 0
