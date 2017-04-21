@@ -6,7 +6,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 	"time"
@@ -63,7 +62,6 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 
 func speedDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 	var nowTime time.Time
-	var prevSpd float64
 	format := "%0.2fKiB/s"
 	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
 		var str string
@@ -79,11 +77,7 @@ func speedDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
 			}
 			totTime := nowTime.Sub(s.StartTime)
 			spd := float64(s.Current/1024) / totTime.Seconds()
-			if math.Abs(prevSpd-spd) < 1 {
-				spd = prevSpd // discard low delta spd
-			}
 			str = fmt.Sprintf(format, spd)
-			prevSpd = spd
 		}
 
 		myWidth <- utf8.RuneCountInString(str)
