@@ -265,7 +265,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	defer dst.Close()
 
 	for i := 0; i <= 3; i++ {
-		defer resp.Body.Close()
 		if i > 0 {
 			time.Sleep(2 * time.Second)
 			messageCh <- fmt.Sprintf("Retrying (%d)", i)
@@ -279,18 +278,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 			}
 		}
 
-		reader := bar.ProxyReader(resp.Body)
-
-		for i := 0; i < 3; i++ {
-			var written int64
-			written, err = io.Copy(dst, reader)
-			p.Written += written
-			if err != nil && isTemporary(err) {
-				time.Sleep(1e9)
-				continue
-			}
-			break
-		}
+		err = p.writeToFile(dst, resp, bar)
 
 		if err == nil || ctx.Err() != nil {
 			if total <= 0 {
@@ -305,6 +293,25 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 			messageCh <- "Error..."
 		}
 	}
+}
+
+func (p *Part) writeToFile(dst *os.File, resp *http.Response, bar *mpb.Bar) (err error) {
+	defer resp.Body.Close()
+
+	reader := bar.ProxyReader(resp.Body)
+
+	for i := 0; i < 3; i++ {
+		var written int64
+		written, err = io.Copy(dst, reader)
+		p.Written += written
+		if err != nil && isTemporary(err) {
+			time.Sleep(1e9)
+			continue
+		}
+		break
+	}
+
+	return
 }
 
 func (p *Part) getRange() string {
