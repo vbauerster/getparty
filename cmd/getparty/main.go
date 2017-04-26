@@ -271,6 +271,9 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 			req.Header.Set("Range", p.getRange())
 			resp, err = http.DefaultClient.Do(req)
 			if err != nil {
+				if resp != nil {
+					resp.Body.Close()
+				}
 				if i == 3 {
 					fail(err)
 				}
@@ -427,6 +430,7 @@ func follow(userURL, userAgent, outFileName string, totalWritten int64) (*Actual
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
+		Transport: &http.Transport{DisableKeepAlives: true},
 	}
 	next := userURL
 	var al *ActualLocation
@@ -442,11 +446,15 @@ func follow(userURL, userAgent, outFileName string, totalWritten int64) (*Actual
 		req.Header.Set("User-Agent", userAgent)
 
 		resp, err := client.Do(req)
+		// if redirection failure, both resp and err are non-nil
+		if resp != nil {
+			defer resp.Body.Close()
+		}
+
 		if err != nil {
 			fmt.Println()
 			return nil, err
 		}
-		defer resp.Body.Close()
 		fmt.Println(resp.Status)
 
 		if outFileName == "" {
