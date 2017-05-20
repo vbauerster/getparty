@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -516,8 +517,8 @@ func follow(userURL, userAgent, outFileName string, totalWritten int64) (*Actual
 
 func onCancelSignal(cancel context.CancelFunc) {
 	defer cancel()
-	sigs := make(chan os.Signal)
-	signal.Notify(sigs, os.Interrupt, os.Kill)
+	sigs := make(chan os.Signal, 2)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
 	fmt.Println()
 	log.Printf("%v: canceling...\n", sig)
