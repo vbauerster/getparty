@@ -254,7 +254,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	var dst *os.File
 	if p.Written > 0 && resp.StatusCode != http.StatusOK {
 		dst, err = os.OpenFile(p.Name, os.O_APPEND|os.O_WRONLY, 0644)
-		bar.IncrWithReFill(int(p.Written), '+')
+		bar.IncrWithReFill(int(p.Written), &mpb.Refill{Char: '+'})
 	} else {
 		dst, err = os.Create(p.Name)
 		p.Written = 0
