@@ -286,7 +286,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 
 		if err == nil || ctx.Err() != nil {
 			if total <= 0 {
-				bar.Completed()
+				bar.Complete()
 			}
 			return
 		}
