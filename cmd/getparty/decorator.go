@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vbauerster/mpb"
+	"github.com/vbauerster/mpb/decor"
 )
 
 type barSlice []*mpb.Bar
@@ -19,7 +20,7 @@ type barSlice []*mpb.Bar
 func (bs barSlice) Len() int { return len(bs) }
 
 func (bs barSlice) Less(i, j int) bool {
-	return bs[i].GetID() < bs[j].GetID()
+	return bs[i].ID() < bs[j].ID()
 }
 
 func (bs barSlice) Swap(i, j int) { bs[i], bs[j] = bs[j], bs[i] }
@@ -30,13 +31,13 @@ func sortByBarNameFunc() mpb.BeforeRender {
 	}
 }
 
-func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
+func countersDecorator(ch <-chan string, padding int) decor.DecoratorFunc {
 	format := "%%%ds"
 	var message string
 	var current int64
-	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
+	return func(s *decor.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
 		if s.Total <= 0 {
-			return fmt.Sprintf(fmt.Sprintf(format, padding), mpb.Format(s.Current).To(mpb.UnitBytes))
+			return fmt.Sprintf(fmt.Sprintf(format, padding), decor.Format(s.Current).To(decor.Unit_KiB))
 		}
 
 		select {
@@ -51,7 +52,7 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 			return fmt.Sprintf(fmt.Sprintf(format, max+1), message)
 		}
 
-		total := mpb.Format(s.Total).To(mpb.UnitBytes)
+		total := decor.Format(s.Total).To(decor.Unit_KiB)
 		completed := percentage(s.Total, s.Current, 100)
 		counters := fmt.Sprintf("%.1f%% of %s", completed, total)
 		myWidth <- utf8.RuneCountInString(counters)
@@ -60,10 +61,10 @@ func countersDecorator(ch <-chan string, padding int) mpb.DecoratorFunc {
 	}
 }
 
-func speedDecorator(failure <-chan struct{}) mpb.DecoratorFunc {
+func speedDecorator(failure <-chan struct{}) decor.DecoratorFunc {
 	var nowTime time.Time
 	format := "%0.2f KiB/s"
-	return func(s *mpb.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
+	return func(s *decor.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
 		var str string
 		select {
 		case <-failure:

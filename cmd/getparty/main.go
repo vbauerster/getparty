@@ -26,10 +26,11 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"github.com/vbauerster/mpb"
+	"github.com/vbauerster/mpb/decor"
 )
 
 const (
-	rr           = 120
+	rr           = 120 * time.Microsecond
 	maxRedirects = 10
 	cmdName      = "getparty"
 	userAgent    = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
@@ -134,9 +135,10 @@ func main() {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 
-	pb := mpb.New().SetWidth(64).WithContext(ctx).
-		RefreshRate(rr * time.Millisecond).
-		BeforeRenderFunc(sortByBarNameFunc())
+	pb := mpb.New(mpb.WithWidth(64),
+		mpb.WithRefreshRate(rr),
+		mpb.WithContext(ctx),
+		mpb.WithBeforeRenderFunc(sortByBarNameFunc()))
 
 	if len(args) > 0 {
 		url, err := parseURL(args[0])
@@ -246,15 +248,19 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	}
 
 	padding := 18
-	bar := pb.AddBarWithID(n, total).
-		PrependName(fmt.Sprintf("p#%02d:", n+1), 0, 0).
-		PrependFunc(countersDecorator(messageCh, padding)).
-		AppendFunc(speedDecorator(failureCh))
+	bar := pb.AddBar(total, mpb.BarID(n),
+		mpb.PrependDecorators(
+			decor.Name(fmt.Sprintf("p#%02d:", n+1), 0, 0),
+			countersDecorator(messageCh, padding),
+		),
+		mpb.AppendDecorators(speedDecorator(failureCh)),
+	)
 
 	var dst *os.File
 	if p.Written > 0 && resp.StatusCode != http.StatusOK {
 		dst, err = os.OpenFile(p.Name, os.O_APPEND|os.O_WRONLY, 0644)
-		bar.IncrWithReFill(int(p.Written), &mpb.Refill{Char: '+'})
+		bar.ResumeFill('+', p.Written)
+		bar.Incr(int(p.Written))
 	} else {
 		dst, err = os.Create(p.Name)
 		p.Written = 0
@@ -477,7 +483,7 @@ func follow(userURL, userAgent, outFileName string, totalWritten int64) (*Actual
 
 		if !isRedirect(resp.StatusCode) {
 			if resp.StatusCode == http.StatusOK {
-				humanSize := mpb.Format(resp.ContentLength).To(mpb.UnitBytes)
+				humanSize := decor.Format(resp.ContentLength).To(decor.Unit_KiB)
 				format := fmt.Sprintf("Length: %%s [%s]\n", resp.Header.Get("Content-Type"))
 				var length string
 				if totalWritten > 0 && al.AcceptRanges != "" {
@@ -486,7 +492,7 @@ func follow(userURL, userAgent, outFileName string, totalWritten int64) (*Actual
 						resp.ContentLength,
 						humanSize,
 						remaining,
-						mpb.Format(remaining).To(mpb.UnitBytes))
+						decor.Format(remaining).To(decor.Unit_KiB))
 				} else if resp.ContentLength < 0 {
 					length = "unknown"
 				} else {
