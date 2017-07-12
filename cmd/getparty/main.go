@@ -250,7 +250,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	padding := 18
 	bar := pb.AddBar(total, mpb.BarID(n),
 		mpb.PrependDecorators(
-			decor.Name(fmt.Sprintf("p#%02d:", n+1), 0, 0),
+			decor.StaticName(fmt.Sprintf("p#%02d:", n+1), 0, 0),
 			countersDecorator(messageCh, padding),
 		),
 		mpb.AppendDecorators(speedDecorator(failureCh)),
