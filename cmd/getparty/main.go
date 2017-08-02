@@ -465,10 +465,13 @@ func follow(userURL, userAgent, outFileName string, totalWritten int64) (*Actual
 		fmt.Println(resp.Status)
 
 		if outFileName == "" {
-			outFileName = trimFileName(parseContentDisposition(resp.Header.Get("Content-Disposition")))
+			outFileName = parseContentDisposition(resp.Header.Get("Content-Disposition"))
 			if outFileName == "" {
-				outFileName = trimFileName(filepath.Base(userURL))
-				outFileName, _ = url.QueryUnescape(outFileName)
+				if path, err := url.QueryUnescape(userURL); err == nil {
+					outFileName = filepath.Base(path)
+				} else {
+					outFileName = filepath.Base(userURL)
+				}
 			}
 		}
 
@@ -532,9 +535,6 @@ func onCancelSignal(cancel context.CancelFunc) {
 
 func parseContentDisposition(input string) string {
 	groups := contentDispositionRe.FindAllStringSubmatch(input, -1)
-	if groups == nil {
-		return ""
-	}
 	for _, group := range groups {
 		if group[2] != "" {
 			return group[2]
@@ -583,12 +583,6 @@ func parseURL(uri string) (*url.URL, error) {
 		}
 	}
 	return url, nil
-}
-
-func trimFileName(name string) string {
-	name = strings.Split(name, "?")[0]
-	name = strings.Trim(name, " ")
-	return name
 }
 
 func isRedirect(status int) bool {
