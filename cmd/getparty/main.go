@@ -440,6 +440,7 @@ func follow(userURL, userAgent, outFileName string, totalWritten int64) (*Actual
 		Transport: &http.Transport{DisableKeepAlives: true},
 	}
 	next := userURL
+	autoName := outFileName == ""
 	var al *ActualLocation
 	var redirectsFollowed int
 	for {
@@ -464,13 +465,13 @@ func follow(userURL, userAgent, outFileName string, totalWritten int64) (*Actual
 		}
 		fmt.Println(resp.Status)
 
-		if outFileName == "" {
+		if autoName {
 			outFileName = parseContentDisposition(resp.Header.Get("Content-Disposition"))
 			if outFileName == "" {
-				if path, err := url.QueryUnescape(userURL); err == nil {
+				if path, err := url.QueryUnescape(next); err == nil {
 					outFileName = filepath.Base(path)
 				} else {
-					outFileName = filepath.Base(userURL)
+					outFileName = filepath.Base(next)
 				}
 			}
 		}
