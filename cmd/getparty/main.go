@@ -487,20 +487,20 @@ func follow(userURL, userAgent, outFileName string, totalWritten int64) (*Actual
 
 		if !isRedirect(resp.StatusCode) {
 			if resp.StatusCode == http.StatusOK {
-				humanSize := decor.Format(resp.ContentLength).To(decor.Unit_KiB)
+				humanSize := decor.CounterKiB(resp.ContentLength)
 				format := fmt.Sprintf("Length: %%s [%s]\n", resp.Header.Get("Content-Type"))
 				var length string
 				if totalWritten > 0 && al.AcceptRanges != "" {
 					remaining := resp.ContentLength - totalWritten
-					length = fmt.Sprintf("%d (%s), %d (%s) remaining",
+					length = fmt.Sprintf("%d (% .2f), %d (% .2f) remaining",
 						resp.ContentLength,
 						humanSize,
 						remaining,
-						decor.Format(remaining).To(decor.Unit_KiB))
+						decor.CounterKiB(remaining))
 				} else if resp.ContentLength < 0 {
 					length = "unknown"
 				} else {
-					length = fmt.Sprintf("%d (%s)", resp.ContentLength, humanSize)
+					length = fmt.Sprintf("%d (% .2f)", resp.ContentLength, humanSize)
 				}
 				fmt.Printf(format, length)
 				if al.AcceptRanges == "" {

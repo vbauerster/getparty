@@ -36,10 +36,6 @@ func countersDecorator(ch <-chan string, padding int) decor.DecoratorFunc {
 	var message string
 	var current int64
 	return func(s *decor.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
-		if s.Total <= 0 {
-			return fmt.Sprintf(fmt.Sprintf(format, padding), decor.Format(s.Current).To(decor.Unit_KiB))
-		}
-
 		select {
 		case message = <-ch:
 			current = s.Current
@@ -52,9 +48,8 @@ func countersDecorator(ch <-chan string, padding int) decor.DecoratorFunc {
 			return fmt.Sprintf(fmt.Sprintf(format, max+1), message)
 		}
 
-		total := decor.Format(s.Total).To(decor.Unit_KiB)
 		completed := percentage(s.Total, s.Current, 100)
-		counters := fmt.Sprintf("%.1f%% of %s", completed, total)
+		counters := fmt.Sprintf("%.1f%% of % .2f", completed, decor.CounterKiB(s.Total))
 		myWidth <- utf8.RuneCountInString(counters)
 		max := <-maxWidth
 		return fmt.Sprintf(fmt.Sprintf(format, max+1), counters)
