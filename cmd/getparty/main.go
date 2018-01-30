@@ -135,10 +135,7 @@ func main() {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 
-	pb := mpb.New(mpb.WithWidth(64),
-		mpb.WithRefreshRate(rr),
-		mpb.WithContext(ctx),
-		mpb.WithBeforeRenderFunc(sortByBarNameFunc()))
+	pb := mpb.New(mpb.WithWidth(64), mpb.WithRefreshRate(rr), mpb.WithContext(ctx))
 
 	if len(args) > 0 {
 		url, err := parseURL(args[0])
@@ -248,13 +245,14 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, url string, n int
 	}
 
 	padding := 18
-	bar := pb.AddBar(total, mpb.BarID(n),
+	bar := pb.AddBar(total,
 		mpb.PrependDecorators(
 			decor.StaticName(fmt.Sprintf("p#%02d:", n+1), 0, 0),
 			countersDecorator(messageCh, padding),
 		),
 		mpb.AppendDecorators(speedDecorator(failureCh)),
 	)
+	pb.UpdateBarPriority(bar, n)
 
 	var dst *os.File
 	if p.Written > 0 && resp.StatusCode != http.StatusOK {

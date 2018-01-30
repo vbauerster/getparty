@@ -6,30 +6,12 @@ package main
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/vbauerster/mpb"
 	"github.com/vbauerster/mpb/decor"
 )
-
-type barSlice []*mpb.Bar
-
-func (bs barSlice) Len() int { return len(bs) }
-
-func (bs barSlice) Less(i, j int) bool {
-	return bs[i].ID() < bs[j].ID()
-}
-
-func (bs barSlice) Swap(i, j int) { bs[i], bs[j] = bs[j], bs[i] }
-
-func sortByBarNameFunc() mpb.BeforeRender {
-	return func(bars []*mpb.Bar) {
-		sort.Sort(barSlice(bars))
-	}
-}
 
 func countersDecorator(ch <-chan string, padding int) decor.DecoratorFunc {
 	format := "%%%ds"
