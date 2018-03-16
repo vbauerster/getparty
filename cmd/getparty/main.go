@@ -30,7 +30,6 @@ import (
 )
 
 const (
-	rr           = 120 * time.Millisecond
 	maxRedirects = 10
 	cmdName      = "getparty"
 	userAgent    = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
@@ -135,7 +134,7 @@ func main() {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 
-	pb := mpb.New(mpb.WithWidth(64), mpb.WithRefreshRate(rr), mpb.WithContext(ctx))
+	pb := mpb.New(mpb.WithWidth(64), mpb.WithContext(ctx))
 
 	if len(args) > 0 {
 		url, err := parseURL(args[0])
@@ -183,12 +182,11 @@ func main() {
 	wg.Wait()
 	for _, part := range al.Parts {
 		if part.fail {
-			time.Sleep(rr * time.Millisecond)
 			cancel()
 			break
 		}
 	}
-	pb.Stop()
+	pb.Wait()
 
 	al.deleteUnnecessaryParts()
 	if al.totalWritten() == al.ContentLength {
