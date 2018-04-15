@@ -7,9 +7,8 @@ Console download manager
 ## Installation
 `getparty` requires Go 1.7 or later.
 ```
-$ go install github.com/vbauerster/getparty/cmd/getparty
+$ go get github.com/vbauerster/getparty
 ```
-Or download [binary](https://github.com/vbauerster/getparty/releases/latest).
 
 ## Usage
 
@@ -19,10 +18,9 @@ Usage:
 
 Application Options:
   -p, --parts=              number of parts (default: 2)
-  -t, --timeout=            download timeout in seconds
   -o, --output-file=NAME    force output file name
   -c, --continue=JSON       resume download from the last saved json file
-  -m, --best-mirror         pickup the fastest mirror. Will read from stdin
+  -b, --best-mirror         pickup the fastest mirror. Will read from stdin
       --version             show version
 
 Help Options:
@@ -31,7 +29,7 @@ Help Options:
 
 #### Best mirror example:
 
-`cat` [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/cmd/getparty/mirrors.txt) `| getparty -p 8 -m`
+`cat` [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt) `| getparty -p 8 -m`
 
 ## License
 
