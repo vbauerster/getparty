@@ -35,4 +35,5 @@ func main() {
 	default:
 		fmt.Fprintf(os.Stderr, "unexpected error: %+v\n", err)
 	}
+	os.Exit(1)
 }
