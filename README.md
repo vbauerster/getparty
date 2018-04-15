@@ -29,7 +29,7 @@ Help Options:
 
 #### Best mirror example:
 
-`cat` [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt) `| getparty -p 8 -m`
+`cat` [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt) `| getparty -p 8 -b`
 
 ## License
 
