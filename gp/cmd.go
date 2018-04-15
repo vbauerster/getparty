@@ -50,7 +50,6 @@ type Part struct {
 	FileName             string
 	Start, Stop, Written int64
 	Skip                 bool
-	// fail                 bool
 }
 
 // Options struct, represents cmd line options
