@@ -2,24 +2,23 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package gp
 
 import (
 	"fmt"
-	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/vbauerster/mpb/decor"
 )
 
-func countersDecorator(ch <-chan string, padding int) decor.DecoratorFunc {
+func countersDecorator(msgCh <-chan string, padding int) decor.DecoratorFunc {
 	format := "%%%ds"
 	var message string
 	var current int64
 	return func(s *decor.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
 		select {
-		case message = <-ch:
+		case message = <-msgCh:
 			current = s.Current
 		default:
 		}
@@ -38,25 +37,16 @@ func countersDecorator(ch <-chan string, padding int) decor.DecoratorFunc {
 	}
 }
 
-func speedDecorator(failure <-chan struct{}) decor.DecoratorFunc {
+func speedDecorator() decor.DecoratorFunc {
 	var nowTime time.Time
 	format := "%0.2f KiB/s"
 	return func(s *decor.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
-		var str string
-		select {
-		case <-failure:
-			str = strings.Replace(fmt.Sprintf(format, .0), "0", "-", -1)
-		default:
+		if !s.Completed {
+			nowTime = time.Now()
 		}
-
-		if str == "" {
-			if !s.Completed {
-				nowTime = time.Now()
-			}
-			totTime := nowTime.Sub(s.StartTime)
-			spd := float64(s.Current/1024) / totTime.Seconds()
-			str = fmt.Sprintf(format, spd)
-		}
+		totTime := nowTime.Sub(s.StartTime)
+		spd := float64(s.Current/1024) / totTime.Seconds()
+		str := fmt.Sprintf(format, spd)
 
 		myWidth <- utf8.RuneCountInString(str)
 
