@@ -1,6 +1,7 @@
 package gp
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
@@ -56,7 +58,7 @@ type Options struct {
 	Parts        uint   `short:"p" long:"parts" default:"2" description:"number of parts"`
 	OutFileName  string `short:"o" long:"output-file" value-name:"NAME" description:"force output file name"`
 	JSONFileName string `short:"c" long:"continue" value-name:"JSON" description:"resume download from the last saved json file"`
-	Mirrors      bool   `short:"m" long:"best-mirror" description:"pickup the fastest mirror. Will read from stdin"`
+	BestMirror   bool   `short:"b" long:"best-mirror" description:"pickup the fastest mirror. Will read from stdin"`
 	Version      bool   `long:"version" description:"show version"`
 }
 
@@ -85,7 +87,7 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 		return help, nil
 	}
 
-	if len(args) == 0 && options.JSONFileName == "" {
+	if len(args) == 0 && options.JSONFileName == "" && !options.BestMirror {
 		return help, new(flags.Error)
 	}
 
@@ -94,6 +96,26 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.quitHandler(cancel)
+
+	if options.BestMirror {
+		lines, err := readLines(os.Stdin)
+		if err != nil {
+			return help, errors.WithMessage(errors.Wrap(Error{err}, "unable read from stdin"), "best-mirror")
+		}
+		mctx, mcancel := context.WithCancel(ctx)
+		first := make(chan string, len(lines))
+		for _, u := range lines {
+			go fetch(mctx, s.errLogger, u, first)
+		}
+		select {
+		case murl := <-first:
+			mcancel()
+			args = []string{murl}
+		case <-time.After(3 * time.Second):
+			mcancel()
+			return help, errors.Wrap(Error{errors.New("timeout")}, "best-mirror")
+		}
+	}
 
 	var al *ActualLocation
 	var userURL string
@@ -386,4 +408,36 @@ func parseContentDisposition(input string) string {
 
 func isRedirect(status int) bool {
 	return status > 299 && status < 400
+}
+
+func fetch(ctx context.Context, errLogger *log.Logger, url string, first chan<- string) {
+	req, err := http.NewRequest(http.MethodHead, url, nil)
+	if err != nil {
+		errLogger.Println(err)
+		return
+	}
+	req.Close = true
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	if err != nil {
+		errLogger.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		errLogger.Printf("%s %q\n", resp.Status, url)
+		return
+	}
+	first <- url
+}
+
+func readLines(r io.Reader) ([]string, error) {
+	if closer, ok := r.(io.Closer); ok {
+		defer closer.Close()
+	}
+	var lines []string
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
 }
