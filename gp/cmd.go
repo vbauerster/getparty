@@ -74,10 +74,9 @@ func (s *Cmd) Run(args []string, version string) (errHandler func() int) {
 		case *flags.Error:
 			if e.Type == flags.ErrHelp {
 				return 0
-			} else {
-				parser.WriteHelp(s.Err)
-				return 2
 			}
+			parser.WriteHelp(s.Err)
+			return 2
 		case Error:
 			if options.Debug {
 				s.dlogger.Printf("exit error: %+v\n", err)
