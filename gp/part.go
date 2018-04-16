@@ -54,7 +54,7 @@ func (p *Part) download(ctx context.Context, dlogger *log.Logger, pb *mpb.Progre
 	defer func() {
 		if resp.Body != nil {
 			if err := resp.Body.Close(); err != nil {
-				client.Logger.Printf("%s %s resp.Body.Close() failed: %v", pname, rawUrl, err)
+				dlogger.Printf("%s %s resp.Body.Close() failed: %v", pname, rawUrl, err)
 			}
 		}
 	}()
@@ -100,7 +100,7 @@ func (p *Part) download(ctx context.Context, dlogger *log.Logger, pb *mpb.Progre
 	}
 	defer func() {
 		if err := dst.Close(); err != nil {
-			client.Logger.Printf("%s closing %q failed: %v", pname, p.FileName, err)
+			dlogger.Printf("%s closing %q failed: %v", pname, p.FileName, err)
 		}
 	}()
 
