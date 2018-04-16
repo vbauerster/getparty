@@ -114,7 +114,6 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 	}
 
 	s.logger = log.New(s.Out, "", log.LstdFlags)
-
 	if options.Debug {
 		s.dlogger = log.New(s.Err, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
 	} else {
@@ -124,28 +123,6 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.quitHandler(cancel)
 
-	if options.BestMirror {
-		lines, e := readLines(os.Stdin)
-		if e != nil {
-			err = errors.WithMessage(errors.Wrap(Error{e}, "unable to read from stdin"), "best-mirror")
-			return
-		}
-		mctx, mcancel := context.WithCancel(ctx)
-		first := make(chan string, len(lines))
-		for _, u := range lines {
-			go s.fetch(mctx, u, first)
-		}
-		select {
-		case murl := <-first:
-			mcancel()
-			args = []string{murl}
-		case <-time.After(3 * time.Second):
-			mcancel()
-			err = errors.Wrap(Error{errors.New("timeout")}, "best-mirror")
-			return
-		}
-	}
-
 	var al *ActualLocation
 	var userInfo *url.Userinfo
 	var userUrl string
@@ -154,17 +131,25 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		if options.AuthPass == "" {
 			options.AuthPass, err = s.readPassword()
 			if err != nil {
-				err = errors.WithMessage(errors.Wrap(Error{err}, "unable to read password"), "Run")
+				err = errors.WithMessage(errors.Wrap(err, "unable to read password"), "run")
 				return
 			}
 		}
 		userInfo = url.UserPassword(options.AuthUser, options.AuthPass)
 	}
 
+	if options.BestMirror {
+		args, err = s.bestMirror(ctx, userInfo)
+		if err != nil {
+			err = errors.WithMessage(err, "run")
+			return
+		}
+	}
+
 	if options.JSONFileName != "" {
 		al, err = s.loadActualLocation(options.JSONFileName)
 		if err != nil {
-			err = errors.WithMessage(errors.Wrap(Error{err}, "load state failed"), "Run")
+			err = errors.WithMessage(errors.Wrap(Error{err}, "load state failed"), "run")
 			return
 		}
 		userUrl = al.Location
@@ -176,7 +161,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		if al.ContentLength != temp.ContentLength {
 			err = errors.Wrap(Error{
 				errors.Errorf("ContentLength mismatch: expected %d, got %d", al.ContentLength, temp.ContentLength),
-			}, "Run")
+			}, "run")
 			return
 		}
 		al.Location = temp.Location
@@ -226,7 +211,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 	}
 
 	if ctx.Err() != nil && err != nil {
-		err = errors.Wrap(Error{err}, "Run")
+		err = errors.Wrap(Error{err}, "run")
 	}
 	return
 }
@@ -273,12 +258,11 @@ func (s *Cmd) follow(ctx context.Context, userInfo *url.Userinfo, userUrl, userA
 		if err != nil {
 			return nil, err
 		}
-		req = req.WithContext(ctx)
 		req.Close = true
 		req.URL.User = userInfo
 		req.Header.Set("User-Agent", userAgent)
 
-		resp, err := client.Do(req)
+		resp, err := client.Do(req.WithContext(ctx))
 		if err != nil {
 			return nil, err
 		}
@@ -341,23 +325,36 @@ func (s *Cmd) follow(ctx context.Context, userInfo *url.Userinfo, userUrl, userA
 	}
 }
 
-func (s *Cmd) readPassword() (string, error) {
-	fmt.Fprint(s.Out, "Enter Password: ")
-	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+func (s *Cmd) bestMirror(ctx context.Context, userInfo *url.Userinfo) ([]string, error) {
+	lines, err := readLines(os.Stdin)
 	if err != nil {
-		return "", err
+		return nil, errors.WithMessage(
+			errors.Wrap(Error{err}, "unable to read from stdin"),
+			"best-mirror",
+		)
 	}
-	fmt.Fprintln(s.Out)
-	return string(bytePassword), nil
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	first := make(chan string, len(lines))
+	for _, url := range lines {
+		go s.fetch(ctx, userInfo, url, first)
+	}
+	select {
+	case u := <-first:
+		return []string{u}, nil
+	case <-time.After(3 * time.Second):
+		return nil, errors.Wrap(Error{errors.New("timeout")}, "best-mirror")
+	}
 }
 
-func (s *Cmd) fetch(ctx context.Context, rawUrl string, first chan<- string) {
+func (s *Cmd) fetch(ctx context.Context, userInfo *url.Userinfo, rawUrl string, first chan<- string) {
 	req, err := http.NewRequest(http.MethodHead, rawUrl, nil)
 	if err != nil {
 		s.dlogger.Println("fetch:", err)
 		return
 	}
 	req.Close = true
+	req.URL.User = userInfo
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
 		s.dlogger.Println("fetch:", err)
@@ -376,6 +373,16 @@ func (s *Cmd) fetch(ctx context.Context, rawUrl string, first chan<- string) {
 		return
 	}
 	first <- rawUrl
+}
+
+func (s *Cmd) readPassword() (string, error) {
+	fmt.Fprint(s.Out, "Enter Password: ")
+	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintln(s.Out)
+	return string(bytePassword), nil
 }
 
 func parseContentDisposition(input string) string {

@@ -33,7 +33,6 @@ func (p *Part) download(ctx context.Context, userInfo *url.Userinfo, pb *mpb.Pro
 	if err != nil {
 		return err
 	}
-	req = req.WithContext(ctx)
 	req.URL.User = userInfo
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Range", p.getRange())
@@ -49,7 +48,7 @@ func (p *Part) download(ctx context.Context, userInfo *url.Userinfo, pb *mpb.Pro
 		messageCh <- fmt.Sprintf("Retrying (%d)", i)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return err
 	}
