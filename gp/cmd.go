@@ -22,6 +22,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb"
+	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -48,7 +49,9 @@ type Options struct {
 	Parts        uint   `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
 	OutFileName  string `short:"o" long:"output-file" value-name:"name" description:"force output file name"`
 	JSONFileName string `short:"c" long:"continue" value-name:"state" description:"resume download from the last saved state file"`
-	BestMirror   bool   `short:"b" long:"best-mirror" description:"pickup the fastest mirror, will read from stdin"`
+	AuthUser     string `long:"auth-user" value-name:"username" description:"basic auth username"`
+	AuthPass     string `long:"auth-pass" value-name:"password" description:"basic auth password"`
+	BestMirror   bool   `long:"best-mirror" description:"pickup the fastest mirror, will read from stdin"`
 	Debug        bool   `long:"debug" description:"enable debug to stderr"`
 	Version      bool   `long:"version" description:"show version"`
 }
@@ -59,14 +62,14 @@ type Cmd struct {
 	dlogger  *log.Logger
 }
 
-func (s *Cmd) Run(args []string, version string) (errHandler func() int) {
+func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 	options := new(Options)
 	parser := flags.NewParser(options, flags.Default)
 	parser.Name = cmdName
 	parser.Usage = "[OPTIONS] url"
 
 	var err error
-	errHandler = func() int {
+	exitHandler = func() int {
 		if err == nil {
 			return 0
 		}
@@ -124,7 +127,7 @@ func (s *Cmd) Run(args []string, version string) (errHandler func() int) {
 	if options.BestMirror {
 		lines, e := readLines(os.Stdin)
 		if e != nil {
-			err = errors.WithMessage(errors.Wrap(Error{e}, "unable read from stdin"), "best-mirror")
+			err = errors.WithMessage(errors.Wrap(Error{e}, "unable to read from stdin"), "best-mirror")
 			return
 		}
 		mctx, mcancel := context.WithCancel(ctx)
@@ -144,7 +147,19 @@ func (s *Cmd) Run(args []string, version string) (errHandler func() int) {
 	}
 
 	var al *ActualLocation
-	var userURL string
+	var userInfo *url.Userinfo
+	var userUrl string
+
+	if options.AuthUser != "" {
+		if options.AuthPass == "" {
+			options.AuthPass, err = s.readPassword()
+			if err != nil {
+				err = errors.WithMessage(errors.Wrap(Error{err}, "unable to read password"), "Run")
+				return
+			}
+		}
+		userInfo = url.UserPassword(options.AuthUser, options.AuthPass)
+	}
 
 	if options.JSONFileName != "" {
 		al, err = s.loadActualLocation(options.JSONFileName)
@@ -152,8 +167,8 @@ func (s *Cmd) Run(args []string, version string) (errHandler func() int) {
 			err = errors.WithMessage(errors.Wrap(Error{err}, "load state failed"), "Run")
 			return
 		}
-		userURL = al.Location
-		temp, e := s.follow(ctx, userURL, userAgent, al.SuggestedFileName)
+		userUrl = al.Location
+		temp, e := s.follow(ctx, userInfo, userUrl, userAgent, al.SuggestedFileName)
 		if e != nil {
 			err = e
 			return
@@ -166,8 +181,8 @@ func (s *Cmd) Run(args []string, version string) (errHandler func() int) {
 		}
 		al.Location = temp.Location
 	} else {
-		userURL = args[0]
-		al, err = s.follow(ctx, userURL, userAgent, options.OutFileName)
+		userUrl = args[0]
+		al, err = s.follow(ctx, userInfo, userUrl, userAgent, options.OutFileName)
 		if err != nil {
 			return
 		}
@@ -183,7 +198,7 @@ func (s *Cmd) Run(args []string, version string) (errHandler func() int) {
 		p := p
 		i := i
 		eg.Go(func() error {
-			return p.download(ctx, s.dlogger, pb, al.Location, i)
+			return p.download(ctx, userInfo, pb, s.dlogger, al.Location, i)
 		})
 	}
 
@@ -203,7 +218,7 @@ func (s *Cmd) Run(args []string, version string) (errHandler func() int) {
 		}
 		s.logger.Printf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
 	} else if al.ContentLength > 0 && al.StatusCode < 300 {
-		name, e := al.marshalState(userURL)
+		name, e := al.marshalState(userUrl)
 		if err == nil {
 			err = e
 		}
@@ -244,14 +259,14 @@ func (s *Cmd) loadActualLocation(filename string) (*ActualLocation, error) {
 	return al, err
 }
 
-func (s *Cmd) follow(ctx context.Context, userURL, userAgent, outFileName string) (*ActualLocation, error) {
+func (s *Cmd) follow(ctx context.Context, userInfo *url.Userinfo, userUrl, userAgent, outFileName string) (*ActualLocation, error) {
 	client := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
-	next := userURL
-	var redirectsFollowed int
+	next := userUrl
+	var redirectCount int
 	for {
 		s.logger.Printf("GET: %s\n", next)
 		req, err := http.NewRequest(http.MethodGet, next, nil)
@@ -260,6 +275,7 @@ func (s *Cmd) follow(ctx context.Context, userURL, userAgent, outFileName string
 		}
 		req = req.WithContext(ctx)
 		req.Close = true
+		req.URL.User = userInfo
 		req.Header.Set("User-Agent", userAgent)
 
 		resp, err := client.Do(req)
@@ -273,13 +289,15 @@ func (s *Cmd) follow(ctx context.Context, userURL, userAgent, outFileName string
 			if err != nil {
 				return nil, err
 			}
-			redirectsFollowed++
-			if redirectsFollowed > maxRedirects {
+			redirectCount++
+			if redirectCount > maxRedirects {
 				return nil, errors.Wrap(Error{
 					errors.Errorf("maximum number of redirects (%d) followed", maxRedirects),
 				}, "follow")
 			}
 			next = loc.String()
+			// don't bother closing resp.Body here,
+			// it will be closed by underlying RoundTripper
 			continue
 		}
 
@@ -321,6 +339,16 @@ func (s *Cmd) follow(ctx context.Context, userURL, userAgent, outFileName string
 		}
 		return al, nil
 	}
+}
+
+func (s *Cmd) readPassword() (string, error) {
+	fmt.Fprint(s.Out, "Enter Password: ")
+	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintln(s.Out)
+	return string(bytePassword), nil
 }
 
 func parseContentDisposition(input string) string {

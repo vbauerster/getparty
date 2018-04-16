@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/pkg/errors"
@@ -21,7 +22,7 @@ type Part struct {
 	Skip                 bool
 }
 
-func (p *Part) download(ctx context.Context, dlogger *log.Logger, pb *mpb.Progress, rawUrl string, n int) error {
+func (p *Part) download(ctx context.Context, userInfo *url.Userinfo, pb *mpb.Progress, dlogger *log.Logger, rawUrl string, n int) error {
 	if p.Stop-p.Start == p.Written-1 {
 		return nil
 	}
@@ -33,6 +34,7 @@ func (p *Part) download(ctx context.Context, dlogger *log.Logger, pb *mpb.Progre
 		return err
 	}
 	req = req.WithContext(ctx)
+	req.URL.User = userInfo
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Range", p.getRange())
 
