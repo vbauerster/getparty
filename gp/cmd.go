@@ -59,39 +59,56 @@ type Cmd struct {
 	dlogger  *log.Logger
 }
 
-func (s *Cmd) Run(args []string, version string) (help func(), err error) {
+func (s *Cmd) Run(args []string, version string) (errHandler func() int) {
 	options := new(Options)
 	parser := flags.NewParser(options, flags.Default)
 	parser.Name = cmdName
 	parser.Usage = "[OPTIONS] url"
 
-	defer func() {
-		if _, ok := err.(*flags.Error); ok {
-			help = func() { parser.WriteHelp(s.Err) }
-			return
+	var err error
+	errHandler = func() int {
+		if err == nil {
+			return 0
 		}
-		help = func() {
+		switch e := errors.Cause(err).(type) {
+		case *flags.Error:
+			if e.Type == flags.ErrHelp {
+				return 0
+			} else {
+				parser.WriteHelp(s.Err)
+				return 2
+			}
+		case Error:
 			if options.Debug {
 				s.dlogger.Printf("exit error: %+v\n", err)
-				return
+			} else {
+				fmt.Fprintf(s.Err, "exit error: %v\n", err)
 			}
-			fmt.Fprintf(s.Err, "exit error: %v\n", err)
+			return 1
+		default:
+			if options.Debug {
+				s.dlogger.Printf("unexpected error: %+v\n", err)
+			} else {
+				fmt.Fprintf(s.Err, "unexpected error: %v\n", err)
+			}
+			return 3
 		}
-	}()
+	}
 
 	args, err = parser.ParseArgs(args)
 	if err != nil {
-		return help, err
+		return
 	}
 
 	if options.Version {
 		fmt.Fprintf(s.Out, "%s: %s (runtime: %s)\n", cmdName, version, runtime.Version())
 		fmt.Fprintf(s.Out, "Project home: %s\n", projectHome)
-		return help, nil
+		return
 	}
 
 	if len(args) == 0 && options.JSONFileName == "" && !options.BestMirror {
-		return help, new(flags.Error)
+		err = new(flags.Error)
+		return
 	}
 
 	s.logger = log.New(s.Out, "", log.LstdFlags)
@@ -106,12 +123,10 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 	s.quitHandler(cancel)
 
 	if options.BestMirror {
-		lines, err := readLines(os.Stdin)
-		if err != nil {
-			return help, errors.WithMessage(
-				errors.Wrap(Error{err}, "unable read from stdin"),
-				"best-mirror",
-			)
+		lines, e := readLines(os.Stdin)
+		if e != nil {
+			err = errors.WithMessage(errors.Wrap(Error{e}, "unable read from stdin"), "best-mirror")
+			return
 		}
 		mctx, mcancel := context.WithCancel(ctx)
 		first := make(chan string, len(lines))
@@ -124,7 +139,8 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 			args = []string{murl}
 		case <-time.After(3 * time.Second):
 			mcancel()
-			return help, errors.Wrap(Error{errors.New("timeout")}, "best-mirror")
+			err = errors.Wrap(Error{errors.New("timeout")}, "best-mirror")
+			return
 		}
 	}
 
@@ -134,24 +150,27 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 	if options.JSONFileName != "" {
 		al, err = s.loadActualLocation(options.JSONFileName)
 		if err != nil {
-			return help, errors.WithMessage(errors.Wrap(Error{err}, "load state failed"), "Run")
+			err = errors.WithMessage(errors.Wrap(Error{err}, "load state failed"), "Run")
+			return
 		}
 		userURL = al.Location
-		temp, err := s.follow(ctx, userURL, userAgent, al.SuggestedFileName)
-		if err != nil {
-			return help, err
+		temp, e := s.follow(ctx, userURL, userAgent, al.SuggestedFileName)
+		if e != nil {
+			err = e
+			return
 		}
 		if al.ContentLength != temp.ContentLength {
-			return help, errors.Wrap(Error{
+			err = errors.Wrap(Error{
 				errors.Errorf("ContentLength mismatch: expected %d, got %d", al.ContentLength, temp.ContentLength),
 			}, "Run")
+			return
 		}
 		al.Location = temp.Location
 	} else {
 		userURL = args[0]
 		al, err = s.follow(ctx, userURL, userAgent, options.OutFileName)
 		if err != nil {
-			return help, err
+			return
 		}
 		al.calcParts(int(options.Parts))
 	}
@@ -195,7 +214,7 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 	if ctx.Err() != nil && err != nil {
 		err = errors.Wrap(Error{err}, "Run")
 	}
-	return help, err
+	return
 }
 
 func (s *Cmd) quitHandler(cancel context.CancelFunc) {
