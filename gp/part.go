@@ -21,14 +21,14 @@ type Part struct {
 	Skip                 bool
 }
 
-func (p *Part) download(ctx context.Context, dlogger *log.Logger, pb *mpb.Progress, url string, n int) error {
+func (p *Part) download(ctx context.Context, dlogger *log.Logger, pb *mpb.Progress, rawUrl string, n int) error {
 	if p.Stop-p.Start == p.Written-1 {
 		return nil
 	}
 
 	pname := fmt.Sprintf("p#%02d:", n+1)
 
-	req, err := rhttp.NewRequest(http.MethodGet, url, nil)
+	req, err := rhttp.NewRequest(http.MethodGet, rawUrl, nil)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (p *Part) download(ctx context.Context, dlogger *log.Logger, pb *mpb.Progre
 	defer func() {
 		if resp.Body != nil {
 			if err := resp.Body.Close(); err != nil {
-				client.Logger.Printf("[DEBUG] %s resp.Body.Close() failed: %v", pname, err)
+				client.Logger.Printf("%s %s resp.Body.Close() failed: %v", pname, rawUrl, err)
 			}
 		}
 	}()
@@ -93,11 +93,14 @@ func (p *Part) download(ctx context.Context, dlogger *log.Logger, pb *mpb.Progre
 		dst, err = os.Create(p.FileName)
 	}
 	if err != nil {
-		return errors.Wrapf(Error{err}, "unable to write to %q", p.FileName)
+		return errors.WithMessage(
+			errors.Wrapf(Error{err}, "%s unable to write to %q", pname, p.FileName),
+			"download",
+		)
 	}
 	defer func() {
 		if err := dst.Close(); err != nil {
-			client.Logger.Printf("[DEBUG] %s closing %q failed: %v", pname, p.FileName, err)
+			client.Logger.Printf("%s closing %q failed: %v", pname, p.FileName, err)
 		}
 	}()
 
