@@ -293,11 +293,17 @@ func (s *Cmd) follow(ctx context.Context, userURL, userAgent, outFileName string
 			outFileName = parseContentDisposition(resp.Header.Get("Content-Disposition"))
 		}
 		if outFileName == "" {
-			if path, err := url.QueryUnescape(next); err == nil {
-				outFileName = filepath.Base(path)
+			var path string
+			if nURL, err := url.Parse(next); err == nil {
+				nURL.RawQuery = ""
+				path, err = url.QueryUnescape(nURL.String())
+				if err != nil {
+					path = nURL.String()
+				}
 			} else {
-				outFileName = filepath.Base(next)
+				path = next
 			}
+			outFileName = filepath.Base(path)
 		}
 
 		al := &ActualLocation{
