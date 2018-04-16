@@ -6,7 +6,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
 
 	"github.com/jessevdk/go-flags"
@@ -31,9 +31,9 @@ func main() {
 			os.Exit(2)
 		}
 	case gp.Error:
-		fmt.Fprintf(os.Stderr, "exit error: %v\n", err)
+		help()
+		os.Exit(1)
 	default:
-		fmt.Fprintf(os.Stderr, "unexpected error: %+v\n", err)
+		log.Fatalf("unexpected error: %v\n", err)
 	}
-	os.Exit(1)
 }

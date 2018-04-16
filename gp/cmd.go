@@ -45,10 +45,10 @@ func (e Error) Error() string {
 
 // Options struct, represents cmd line options
 type Options struct {
-	Parts        uint   `short:"p" long:"parts" default:"2" description:"number of parts"`
-	OutFileName  string `short:"o" long:"output-file" value-name:"NAME" description:"force output file name"`
-	JSONFileName string `short:"c" long:"continue" value-name:"JSON" description:"resume download from the last saved json file"`
-	BestMirror   bool   `short:"b" long:"best-mirror" description:"pickup the fastest mirror. Will read from stdin"`
+	Parts        uint   `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
+	OutFileName  string `short:"o" long:"output-file" value-name:"name" description:"force output file name"`
+	JSONFileName string `short:"c" long:"continue" value-name:"state" description:"resume download from the last saved state file"`
+	BestMirror   bool   `short:"b" long:"best-mirror" description:"pickup the fastest mirror, will read from stdin"`
 	Debug        bool   `long:"debug" description:"enable debug to stderr"`
 	Version      bool   `long:"version" description:"show version"`
 }
@@ -65,7 +65,19 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 	parser.Name = cmdName
 	parser.Usage = "[OPTIONS] url"
 
-	help = func() { parser.WriteHelp(s.Err) }
+	defer func() {
+		if _, ok := err.(*flags.Error); ok {
+			help = func() { parser.WriteHelp(s.Err) }
+			return
+		}
+		help = func() {
+			if options.Debug {
+				s.dlogger.Printf("exit error: %+v\n", err)
+				return
+			}
+			fmt.Fprintf(s.Err, "exit error: %v\n", err)
+		}
+	}()
 
 	args, err = parser.ParseArgs(args)
 	if err != nil {
@@ -96,7 +108,10 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 	if options.BestMirror {
 		lines, err := readLines(os.Stdin)
 		if err != nil {
-			return help, errors.WithMessage(errors.Wrap(Error{err}, "unable read from stdin"), "best-mirror")
+			return help, errors.WithMessage(
+				errors.Wrap(Error{err}, "unable read from stdin"),
+				"best-mirror",
+			)
 		}
 		mctx, mcancel := context.WithCancel(ctx)
 		first := make(chan string, len(lines))
