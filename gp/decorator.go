@@ -12,19 +12,19 @@ import (
 	"github.com/vbauerster/mpb/decor"
 )
 
-func countersDecorator(msgCh <-chan string, padding int) decor.DecoratorFunc {
+func countersDecorator(msgCh <-chan string, msgTimes, padding int) decor.DecoratorFunc {
 	format := "%%%ds"
 	var message string
-	var msgTimes int
+	var msgCount int
 	return func(s *decor.Statistics, widthAccumulator chan<- int, widthDistributor <-chan int) string {
 		select {
 		case message = <-msgCh:
-			msgTimes = 3
+			msgCount = msgTimes
 		default:
 		}
 
-		if msgTimes != 0 {
-			msgTimes--
+		if msgCount != 0 {
+			msgCount--
 			widthAccumulator <- utf8.RuneCountInString(message)
 			max := <-widthDistributor
 			return fmt.Sprintf(fmt.Sprintf(format, max+1), message)
