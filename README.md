@@ -17,14 +17,17 @@ Usage:
   getparty [OPTIONS] url
 
 Application Options:
-  -p, --parts=              number of parts (default: 2)
-  -o, --output-file=NAME    force output file name
-  -c, --continue=JSON       resume download from the last saved json file
-  -b, --best-mirror         pickup the fastest mirror. Will read from stdin
-      --version             show version
+  -p, --parts=n            number of parts (default: 2)
+  -o, --output=filename    user defined output
+  -c, --continue=state     resume download from the last saved state file
+  -b, --best-mirror        pickup the fastest mirror, will read from stdin
+      --username=          basic http auth username
+      --password=          basic http auth password
+      --debug              enable debug to stderr
+      --version            show version
 
 Help Options:
-  -h, --help                Show this help message
+  -h, --help               Show this help message
 ```
 
 #### Best mirror example:

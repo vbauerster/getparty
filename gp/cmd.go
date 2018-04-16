@@ -47,11 +47,11 @@ func (e Error) Error() string {
 // Options struct, represents cmd line options
 type Options struct {
 	Parts        uint   `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
-	OutFileName  string `short:"o" long:"output-file" value-name:"name" description:"user defined output file name"`
+	OutFileName  string `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName string `short:"c" long:"continue" value-name:"state" description:"resume download from the last saved state file"`
 	BestMirror   bool   `short:"b" long:"best-mirror" description:"pickup the fastest mirror, will read from stdin"`
-	AuthUser     string `long:"username" description:"basic auth username"`
-	AuthPass     string `long:"password" description:"basic auth password"`
+	AuthUser     string `long:"username" description:"basic http auth username"`
+	AuthPass     string `long:"password" description:"basic http auth password"`
 	Debug        bool   `long:"debug" description:"enable debug to stderr"`
 	Version      bool   `long:"version" description:"show version"`
 }
