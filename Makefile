@@ -1,7 +1,7 @@
 VERSION = $(shell git describe --tags)
 TARGETS = linux_386 linux_amd64 linux_arm linux_arm64 darwin_amd64 windows_386 windows_amd64
 COMMAND_NAME = getparty
-PACKAGE_NAME = github.com/vbauerster/$(COMMAND_NAME)/cmd/$(COMMAND_NAME)
+PACKAGE_NAME = github.com/vbauerster/$(COMMAND_NAME)
 LDFLAGS = -ldflags=-X=main.version=$(VERSION)
 OBJECTS = $(patsubst $(COMMAND_NAME)%_windows_amd64,$(COMMAND_NAME)%_windows_amd64.exe, $(patsubst $(COMMAND_NAME)%_windows_386,$(COMMAND_NAME)%_windows_386.exe, $(patsubst %,$(COMMAND_NAME)_$(VERSION)_%, $(TARGETS))))
 
