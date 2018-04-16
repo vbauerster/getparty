@@ -15,24 +15,25 @@ import (
 func countersDecorator(msgCh <-chan string, padding int) decor.DecoratorFunc {
 	format := "%%%ds"
 	var message string
-	var current int64
-	return func(s *decor.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
+	var msgTimes int
+	return func(s *decor.Statistics, widthAccumulator chan<- int, widthDistributor <-chan int) string {
 		select {
 		case message = <-msgCh:
-			current = s.Current
+			msgTimes = 3
 		default:
 		}
 
-		if message != "" && current == s.Current {
-			myWidth <- utf8.RuneCountInString(message)
-			max := <-maxWidth
+		if msgTimes != 0 {
+			msgTimes--
+			widthAccumulator <- utf8.RuneCountInString(message)
+			max := <-widthDistributor
 			return fmt.Sprintf(fmt.Sprintf(format, max+1), message)
 		}
 
 		completed := percentage(s.Total, s.Current, 100)
 		counters := fmt.Sprintf("%.1f%% of % .2f", completed, decor.CounterKiB(s.Total))
-		myWidth <- utf8.RuneCountInString(counters)
-		max := <-maxWidth
+		widthAccumulator <- utf8.RuneCountInString(counters)
+		max := <-widthDistributor
 		return fmt.Sprintf(fmt.Sprintf(format, max+1), counters)
 	}
 }
@@ -40,7 +41,7 @@ func countersDecorator(msgCh <-chan string, padding int) decor.DecoratorFunc {
 func speedDecorator() decor.DecoratorFunc {
 	var nowTime time.Time
 	format := "%0.2f KiB/s"
-	return func(s *decor.Statistics, myWidth chan<- int, maxWidth <-chan int) string {
+	return func(s *decor.Statistics, widthAccumulator chan<- int, widthDistributor <-chan int) string {
 		if !s.Completed {
 			nowTime = time.Now()
 		}
@@ -48,15 +49,18 @@ func speedDecorator() decor.DecoratorFunc {
 		spd := float64(s.Current/1024) / totTime.Seconds()
 		str := fmt.Sprintf(format, spd)
 
-		myWidth <- utf8.RuneCountInString(str)
+		widthAccumulator <- utf8.RuneCountInString(str)
 
-		return fmt.Sprintf(fmt.Sprintf("%%%ds ", <-maxWidth), str)
+		return fmt.Sprintf(fmt.Sprintf("%%%ds ", <-widthDistributor), str)
 	}
 }
 
-func percentage(total, current int64, ratio int) float64 {
-	if total == 0 || current > total {
+func percentage(total, current, ratio int64) float64 {
+	if total <= 0 {
 		return 0
+	}
+	if current > total {
+		current = total
 	}
 	return float64(ratio) * float64(current) / float64(total)
 }
