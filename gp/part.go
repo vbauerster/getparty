@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -22,7 +21,7 @@ type Part struct {
 	Skip                 bool
 }
 
-func (p *Part) download(ctx context.Context, errLogger *log.Logger, pb *mpb.Progress, url string, n int) error {
+func (p *Part) download(ctx context.Context, dlogger *log.Logger, pb *mpb.Progress, url string, n int) error {
 	if p.Stop-p.Start == p.Written-1 {
 		return nil
 	}
@@ -39,22 +38,23 @@ func (p *Part) download(ctx context.Context, errLogger *log.Logger, pb *mpb.Prog
 
 	messageCh := make(chan string, 1)
 	client := rhttp.NewClient()
-	client.Logger = log.New(ioutil.Discard, "", 0)
+	client.Logger = dlogger
+	client.Logger.Printf("%s %#v", pname, p)
 	client.RequestLogHook = func(_ *log.Logger, _ *http.Request, i int) {
 		if i == 0 {
 			return
 		}
 		messageCh <- fmt.Sprintf("Retrying (%d)", i)
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
-
 	defer func() {
 		if resp.Body != nil {
 			if err := resp.Body.Close(); err != nil {
-				errLogger.Printf("%s resp.Body.Close() failed: %v", pname, err)
+				client.Logger.Printf("[DEBUG] %s resp.Body.Close() failed: %v", pname, err)
 			}
 		}
 	}()
@@ -78,7 +78,7 @@ func (p *Part) download(ctx context.Context, errLogger *log.Logger, pb *mpb.Prog
 	bar := pb.AddBar(total,
 		mpb.PrependDecorators(
 			decor.StaticName(pname, 0, 0),
-			countersDecorator(messageCh, 18),
+			countersDecorator(messageCh, 6, 18),
 		),
 		mpb.AppendDecorators(speedDecorator()),
 	)
@@ -97,7 +97,7 @@ func (p *Part) download(ctx context.Context, errLogger *log.Logger, pb *mpb.Prog
 	}
 	defer func() {
 		if err := dst.Close(); err != nil {
-			errLogger.Printf("%s closing %q failed: %v", pname, p.FileName, err)
+			client.Logger.Printf("[DEBUG] %s closing %q failed: %v", pname, p.FileName, err)
 		}
 	}()
 

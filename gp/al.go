@@ -60,7 +60,7 @@ func (al *ActualLocation) concatenateParts(errLogger *log.Logger) error {
 		return err
 	}
 
-	buf := make([]byte, 2*1024)
+	buf := make([]byte, 1<<12)
 	for i := 1; i < len(al.Parts); i++ {
 		fparti, err := os.Open(al.Parts[i].FileName)
 		if err != nil {
@@ -79,9 +79,9 @@ func (al *ActualLocation) concatenateParts(errLogger *log.Logger) error {
 				return err
 			}
 		}
-		for _, err := range [...]error{fparti.Close(), os.Remove(al.Parts[i].FileName)} {
+		for _, err := range [...]error{fparti.Close(), os.Remove(fparti.Name())} {
 			if err != nil {
-				errLogger.Printf("concatenateParts: %v\n", err)
+				errLogger.Printf("concatenateParts: %q %v\n", fparti.Name(), err)
 			}
 		}
 	}

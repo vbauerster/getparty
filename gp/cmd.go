@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -48,13 +49,14 @@ type Options struct {
 	OutFileName  string `short:"o" long:"output-file" value-name:"NAME" description:"force output file name"`
 	JSONFileName string `short:"c" long:"continue" value-name:"JSON" description:"resume download from the last saved json file"`
 	BestMirror   bool   `short:"b" long:"best-mirror" description:"pickup the fastest mirror. Will read from stdin"`
+	Debug        bool   `long:"debug" description:"enable debug to stderr"`
 	Version      bool   `long:"version" description:"show version"`
 }
 
 type Cmd struct {
-	Out, Err  io.Writer
-	logger    *log.Logger
-	errLogger *log.Logger
+	Out, Err io.Writer
+	logger   *log.Logger
+	dlogger  *log.Logger
 }
 
 func (s *Cmd) Run(args []string, version string) (help func(), err error) {
@@ -81,7 +83,12 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 	}
 
 	s.logger = log.New(s.Out, "", log.LstdFlags)
-	s.errLogger = log.New(s.Err, "[ERR] ", log.LstdFlags)
+
+	if options.Debug {
+		s.dlogger = log.New(s.Err, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
+	} else {
+		s.dlogger = log.New(ioutil.Discard, "", 0)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.quitHandler(cancel)
@@ -94,7 +101,7 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 		mctx, mcancel := context.WithCancel(ctx)
 		first := make(chan string, len(lines))
 		for _, u := range lines {
-			go fetch(mctx, s.errLogger, u, first)
+			go fetch(mctx, s.dlogger, u, first)
 		}
 		select {
 		case murl := <-first:
@@ -112,7 +119,7 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 	if options.JSONFileName != "" {
 		al, err = s.loadActualLocation(options.JSONFileName)
 		if err != nil {
-			return help, errors.Wrap(Error{err}, "load state failed")
+			return help, errors.WithMessage(errors.Wrap(Error{err}, "load state failed"), "Run")
 		}
 		userURL = al.Location
 		temp, err := s.follow(ctx, userURL, userAgent, al.SuggestedFileName)
@@ -138,25 +145,21 @@ func (s *Cmd) Run(args []string, version string) (help func(), err error) {
 
 	eg, ctx := errgroup.WithContext(ctx)
 	pb := mpb.New(mpb.Output(s.Out), mpb.WithWidth(64), mpb.WithContext(ctx))
+	al.deleteUnnecessaryParts()
 	for i, p := range al.Parts {
-		if p.Skip {
-			s.errLogger.Printf("skip: %#v", p)
-			continue
-		}
 		p := p
 		i := i
 		eg.Go(func() error {
-			return p.download(ctx, s.errLogger, pb, al.Location, i)
+			return p.download(ctx, s.dlogger, pb, al.Location, i)
 		})
 	}
 
 	err = eg.Wait()
-	al.deleteUnnecessaryParts()
 	pb.Wait()
 
 	fmt.Fprintln(s.Out)
 	if al.totalWritten() == al.ContentLength {
-		if e := al.concatenateParts(s.errLogger); err == nil {
+		if e := al.concatenateParts(s.dlogger); err == nil {
 			err = e
 		}
 		state := al.Parts[0].FileName + ".json"
@@ -198,7 +201,7 @@ func (s *Cmd) loadActualLocation(filename string) (*ActualLocation, error) {
 	}
 	defer func() {
 		if e := fd.Close(); e != nil {
-			s.errLogger.Printf("close file %q: %v", filename, e)
+			s.dlogger.Printf("close %q: %v", fd.Name(), e)
 		}
 	}()
 
@@ -275,7 +278,7 @@ func (s *Cmd) follow(ctx context.Context, userURL, userAgent, outFileName string
 		}
 
 		if err := resp.Body.Close(); err != nil {
-			s.errLogger.Printf("close resp body failed: %v\n", err)
+			s.dlogger.Printf("%s resp.Body.Close() failed: %v\n", next, err)
 		}
 		return al, nil
 	}
@@ -303,24 +306,31 @@ func isRedirect(status int) bool {
 	return status > 299 && status < 400
 }
 
-func fetch(ctx context.Context, errLogger *log.Logger, url string, first chan<- string) {
-	req, err := http.NewRequest(http.MethodHead, url, nil)
+func fetch(ctx context.Context, errLogger *log.Logger, rawUrl string, first chan<- string) {
+	req, err := http.NewRequest(http.MethodHead, rawUrl, nil)
 	if err != nil {
-		errLogger.Println(err)
+		errLogger.Println("fetch:", err)
 		return
 	}
 	req.Close = true
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
-		errLogger.Println(err)
+		errLogger.Println("fetch:", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if resp.Body != nil {
+			if err := resp.Body.Close(); err != nil {
+				errLogger.Printf("%s resp.Body.Close() failed: %v\n", rawUrl, err)
+			}
+		}
+	}()
+
 	if resp.StatusCode != http.StatusOK {
-		errLogger.Printf("%s %q\n", resp.Status, url)
+		errLogger.Printf("%s %q\n", resp.Status, rawUrl)
 		return
 	}
-	first <- url
+	first <- rawUrl
 }
 
 func readLines(r io.Reader) ([]string, error) {
