@@ -47,11 +47,11 @@ func (e Error) Error() string {
 // Options struct, represents cmd line options
 type Options struct {
 	Parts        uint   `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
-	OutFileName  string `short:"o" long:"output-file" value-name:"name" description:"force output file name"`
+	OutFileName  string `short:"o" long:"output-file" value-name:"name" description:"user defined output file name"`
 	JSONFileName string `short:"c" long:"continue" value-name:"state" description:"resume download from the last saved state file"`
-	AuthUser     string `long:"auth-user" value-name:"username" description:"basic auth username"`
-	AuthPass     string `long:"auth-pass" value-name:"password" description:"basic auth password"`
-	BestMirror   bool   `long:"best-mirror" description:"pickup the fastest mirror, will read from stdin"`
+	BestMirror   bool   `short:"b" long:"best-mirror" description:"pickup the fastest mirror, will read from stdin"`
+	AuthUser     string `long:"username" description:"basic auth username"`
+	AuthPass     string `long:"password" description:"basic auth password"`
 	Debug        bool   `long:"debug" description:"enable debug to stderr"`
 	Version      bool   `long:"version" description:"show version"`
 }
@@ -133,7 +133,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		mctx, mcancel := context.WithCancel(ctx)
 		first := make(chan string, len(lines))
 		for _, u := range lines {
-			go fetch(mctx, s.dlogger, u, first)
+			go s.fetch(mctx, u, first)
 		}
 		select {
 		case murl := <-first:
@@ -351,6 +351,33 @@ func (s *Cmd) readPassword() (string, error) {
 	return string(bytePassword), nil
 }
 
+func (s *Cmd) fetch(ctx context.Context, rawUrl string, first chan<- string) {
+	req, err := http.NewRequest(http.MethodHead, rawUrl, nil)
+	if err != nil {
+		s.dlogger.Println("fetch:", err)
+		return
+	}
+	req.Close = true
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	if err != nil {
+		s.dlogger.Println("fetch:", err)
+		return
+	}
+	defer func() {
+		if resp.Body != nil {
+			if err := resp.Body.Close(); err != nil {
+				s.dlogger.Printf("%s resp.Body.Close() failed: %v\n", rawUrl, err)
+			}
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		s.dlogger.Printf("%s %q\n", resp.Status, rawUrl)
+		return
+	}
+	first <- rawUrl
+}
+
 func parseContentDisposition(input string) string {
 	groups := contentDispositionRe.FindAllStringSubmatch(input, -1)
 	for _, group := range groups {
@@ -373,37 +400,7 @@ func isRedirect(status int) bool {
 	return status > 299 && status < 400
 }
 
-func fetch(ctx context.Context, errLogger *log.Logger, rawUrl string, first chan<- string) {
-	req, err := http.NewRequest(http.MethodHead, rawUrl, nil)
-	if err != nil {
-		errLogger.Println("fetch:", err)
-		return
-	}
-	req.Close = true
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
-	if err != nil {
-		errLogger.Println("fetch:", err)
-		return
-	}
-	defer func() {
-		if resp.Body != nil {
-			if err := resp.Body.Close(); err != nil {
-				errLogger.Printf("%s resp.Body.Close() failed: %v\n", rawUrl, err)
-			}
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		errLogger.Printf("%s %q\n", resp.Status, rawUrl)
-		return
-	}
-	first <- rawUrl
-}
-
 func readLines(r io.Reader) ([]string, error) {
-	if closer, ok := r.(io.Closer); ok {
-		defer closer.Close()
-	}
 	var lines []string
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
