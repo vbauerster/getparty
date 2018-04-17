@@ -147,7 +147,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 	s.userAgent = userAgents[options.UserAgent]
 
 	if options.BestMirror {
-		args, err = s.bestMirror(ctx, s.userInfo)
+		args, err = s.bestMirror(ctx)
 		if err != nil {
 			err = errors.WithMessage(err, "run")
 			return
@@ -338,7 +338,7 @@ func (s *Cmd) follow(ctx context.Context, userUrl, outFileName string) (*ActualL
 	}
 }
 
-func (s *Cmd) bestMirror(ctx context.Context, userInfo *url.Userinfo) ([]string, error) {
+func (s *Cmd) bestMirror(ctx context.Context) ([]string, error) {
 	lines, err := readLines(os.Stdin)
 	if err != nil {
 		return nil, errors.WithMessage(
@@ -350,7 +350,7 @@ func (s *Cmd) bestMirror(ctx context.Context, userInfo *url.Userinfo) ([]string,
 	defer cancel()
 	first := make(chan string, len(lines))
 	for _, url := range lines {
-		go s.fetch(ctx, userInfo, url, first)
+		go s.fetch(ctx, url, first)
 	}
 	select {
 	case u := <-first:
@@ -360,14 +360,14 @@ func (s *Cmd) bestMirror(ctx context.Context, userInfo *url.Userinfo) ([]string,
 	}
 }
 
-func (s *Cmd) fetch(ctx context.Context, userInfo *url.Userinfo, rawUrl string, first chan<- string) {
+func (s *Cmd) fetch(ctx context.Context, rawUrl string, first chan<- string) {
 	req, err := http.NewRequest(http.MethodHead, rawUrl, nil)
 	if err != nil {
 		s.dlogger.Println("fetch:", err)
 		return
 	}
 	req.Close = true
-	req.URL.User = userInfo
+	req.URL.User = s.userInfo
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
 		s.dlogger.Println("fetch:", err)
