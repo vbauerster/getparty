@@ -54,7 +54,7 @@ func (al *ActualLocation) calcParts(parts int) {
 	}
 }
 
-func (al *ActualLocation) concatenateParts(errLogger *log.Logger) error {
+func (al *ActualLocation) concatenateParts(dlogger *log.Logger) error {
 	fpart0, err := os.OpenFile(al.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -81,7 +81,7 @@ func (al *ActualLocation) concatenateParts(errLogger *log.Logger) error {
 		}
 		for _, err := range [...]error{fparti.Close(), os.Remove(fparti.Name())} {
 			if err != nil {
-				errLogger.Printf("concatenateParts: %q %v\n", fparti.Name(), err)
+				dlogger.Printf("concatenateParts: %q %v\n", fparti.Name(), err)
 			}
 		}
 	}

@@ -22,14 +22,12 @@ type Part struct {
 	Skip                 bool
 }
 
-func (p *Part) download(ctx context.Context, userInfo *url.Userinfo, pb *mpb.Progress, dlogger *log.Logger, rawUrl string, n int) error {
+func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, n int) error {
 	if p.Stop-p.Start == p.Written-1 {
 		return nil
 	}
 
-	pname := fmt.Sprintf("p#%02d:", n+1)
-
-	req, err := rhttp.NewRequest(http.MethodGet, rawUrl, nil)
+	req, err := rhttp.NewRequest(http.MethodGet, targetUrl, nil)
 	if err != nil {
 		return err
 	}
@@ -37,10 +35,10 @@ func (p *Part) download(ctx context.Context, userInfo *url.Userinfo, pb *mpb.Pro
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Range", p.getRange())
 
-	messageCh := make(chan string, 1)
 	client := rhttp.NewClient()
 	client.Logger = dlogger
-	client.Logger.Printf("%s %#v", pname, p)
+
+	messageCh := make(chan string, 1)
 	client.RequestLogHook = func(_ *log.Logger, _ *http.Request, i int) {
 		if i == 0 {
 			return
@@ -48,18 +46,23 @@ func (p *Part) download(ctx context.Context, userInfo *url.Userinfo, pb *mpb.Pro
 		messageCh <- fmt.Sprintf("Retrying (%d)", i)
 	}
 
+	dlogger.Println("User-Agent:", userAgent)
+	dlogger.Println("Range:", req.Header.Get("Range"))
+
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		if resp.Body != nil {
 			if err := resp.Body.Close(); err != nil {
-				dlogger.Printf("%s %s resp.Body.Close() failed: %v", pname, rawUrl, err)
+				dlogger.Printf("%s resp.Body.Close() failed: %v", targetUrl, err)
 			}
 		}
 	}()
 
+	pname := fmt.Sprintf("p#%02d:", n+1)
 	total := p.Stop - p.Start + 1
 	if resp.StatusCode == http.StatusOK {
 		// no partial content, so try to download with single part
@@ -101,7 +104,7 @@ func (p *Part) download(ctx context.Context, userInfo *url.Userinfo, pb *mpb.Pro
 	}
 	defer func() {
 		if err := dst.Close(); err != nil {
-			dlogger.Printf("%s closing %q failed: %v", pname, p.FileName, err)
+			dlogger.Printf("closing %q failed: %v", p.FileName, err)
 		}
 	}()
 

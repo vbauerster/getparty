@@ -29,12 +29,17 @@ import (
 const (
 	maxRedirects = 10
 	cmdName      = "getparty"
-	userAgent    = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
 	projectHome  = "https://github.com/vbauerster/getparty"
 )
 
 // https://regex101.com/r/N4AovD/3
 var contentDispositionRe = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`)
+
+var userAgents = map[string]string{
+	"chrome":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36",
+	"firefox": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:59.0) Gecko/20100101 Firefox/59.0",
+	"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.1 Safari/605.1.15",
+}
 
 type Error struct {
 	Err error
@@ -49,6 +54,7 @@ type Options struct {
 	Parts        uint   `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
 	OutFileName  string `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName string `short:"c" long:"continue" value-name:"state" description:"resume download from the last saved state file"`
+	UserAgent    string `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
 	BestMirror   bool   `short:"b" long:"best-mirror" description:"pickup the fastest mirror, will read from stdin"`
 	AuthUser     string `long:"username" description:"basic http auth username"`
 	AuthPass     string `long:"password" description:"basic http auth password"`
@@ -57,9 +63,11 @@ type Options struct {
 }
 
 type Cmd struct {
-	Out, Err io.Writer
-	logger   *log.Logger
-	dlogger  *log.Logger
+	Out, Err  io.Writer
+	userAgent string
+	userInfo  *url.Userinfo
+	logger    *log.Logger
+	dlogger   *log.Logger
 }
 
 func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
@@ -114,18 +122,16 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 	}
 
 	s.logger = log.New(s.Out, "", log.LstdFlags)
+	s.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
 	if options.Debug {
-		s.dlogger = log.New(s.Err, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
-	} else {
-		s.dlogger = log.New(ioutil.Discard, "", 0)
+		s.dlogger.SetOutput(s.Err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.quitHandler(cancel)
 
 	var al *ActualLocation
-	var userInfo *url.Userinfo
-	var userUrl string
+	var userUrl string // url before redirect
 
 	if options.AuthUser != "" {
 		if options.AuthPass == "" {
@@ -135,11 +141,13 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 				return
 			}
 		}
-		userInfo = url.UserPassword(options.AuthUser, options.AuthPass)
+		s.userInfo = url.UserPassword(options.AuthUser, options.AuthPass)
 	}
 
+	s.userAgent = userAgents[options.UserAgent]
+
 	if options.BestMirror {
-		args, err = s.bestMirror(ctx, userInfo)
+		args, err = s.bestMirror(ctx, s.userInfo)
 		if err != nil {
 			err = errors.WithMessage(err, "run")
 			return
@@ -153,7 +161,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 			return
 		}
 		userUrl = al.Location
-		temp, e := s.follow(ctx, userInfo, userUrl, userAgent, al.SuggestedFileName)
+		temp, e := s.follow(ctx, userUrl, al.SuggestedFileName)
 		if e != nil {
 			err = e
 			return
@@ -167,7 +175,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		al.Location = temp.Location
 	} else {
 		userUrl = args[0]
-		al, err = s.follow(ctx, userInfo, userUrl, userAgent, options.OutFileName)
+		al, err = s.follow(ctx, userUrl, options.OutFileName)
 		if err != nil {
 			return
 		}
@@ -183,7 +191,11 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		p := p
 		i := i
 		eg.Go(func() error {
-			return p.download(ctx, userInfo, pb, s.dlogger, al.Location, i)
+			logger := log.New(ioutil.Discard, fmt.Sprintf("[p#%02d] ", i+1), log.LstdFlags)
+			if options.Debug {
+				logger.SetOutput(s.Err)
+			}
+			return p.download(ctx, pb, logger, s.userInfo, s.userAgent, al.Location, i)
 		})
 	}
 
@@ -203,6 +215,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		}
 		s.logger.Printf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
 	} else if al.ContentLength > 0 && al.StatusCode < 300 {
+		// marshal with original url
 		name, e := al.marshalState(userUrl)
 		if err == nil {
 			err = e
@@ -244,7 +257,7 @@ func (s *Cmd) loadActualLocation(filename string) (*ActualLocation, error) {
 	return al, err
 }
 
-func (s *Cmd) follow(ctx context.Context, userInfo *url.Userinfo, userUrl, userAgent, outFileName string) (*ActualLocation, error) {
+func (s *Cmd) follow(ctx context.Context, userUrl, outFileName string) (*ActualLocation, error) {
 	client := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -259,8 +272,8 @@ func (s *Cmd) follow(ctx context.Context, userInfo *url.Userinfo, userUrl, userA
 			return nil, err
 		}
 		req.Close = true
-		req.URL.User = userInfo
-		req.Header.Set("User-Agent", userAgent)
+		req.URL.User = s.userInfo
+		req.Header.Set("User-Agent", s.userAgent)
 
 		resp, err := client.Do(req.WithContext(ctx))
 		if err != nil {
