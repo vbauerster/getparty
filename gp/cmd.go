@@ -56,7 +56,7 @@ type Options struct {
 	JSONFileName string `short:"c" long:"continue" value-name:"state" description:"resume download from the last saved state file"`
 	UserAgent    string `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
 	BestMirror   bool   `short:"b" long:"best-mirror" description:"pickup the fastest mirror, will read from stdin"`
-	AuthUser     string `long:"username" description:"basic http auth username"`
+	AuthUser     string `short:"u" long:"username" description:"basic http auth username"`
 	AuthPass     string `long:"password" description:"basic http auth password"`
 	Debug        bool   `long:"debug" description:"enable debug to stderr"`
 	Version      bool   `long:"version" description:"show version"`
