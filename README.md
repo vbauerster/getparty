@@ -17,17 +17,18 @@ Usage:
   getparty [OPTIONS] url
 
 Application Options:
-  -p, --parts=n            number of parts (default: 2)
-  -o, --output=filename    user defined output
-  -c, --continue=state     resume download from the last saved state file
-  -b, --best-mirror        pickup the fastest mirror, will read from stdin
-      --username=          basic http auth username
-      --password=          basic http auth password
-      --debug              enable debug to stderr
-      --version            show version
+  -p, --parts=n                               number of parts (default: 2)
+  -o, --output=filename                       user defined output
+  -c, --continue=state                        resume download from the last saved state file
+  -a, --user-agent=[chrome|firefox|safari]    User-Agent header (default: chrome)
+  -b, --best-mirror                           pickup the fastest mirror, will read from stdin
+  -u, --username=                             basic http auth username
+      --password=                             basic http auth password
+      --debug                                 enable debug to stderr
+      --version                               show version
 
 Help Options:
-  -h, --help               Show this help message
+  -h, --help                                  Show this help message
 ```
 
 #### Best mirror example:
