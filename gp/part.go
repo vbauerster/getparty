@@ -68,6 +68,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		// no partial content, so try to download with single part
 		if n > 0 {
 			p.Skip = true
+			dlogger.Println("server doesn't support range requests, skipping...")
 			return nil
 		}
 		total = resp.ContentLength
@@ -116,11 +117,11 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 func (p *Part) getRange() string {
 	if p.Stop <= 0 {
-		return ""
+		return "bytes=0-"
 	}
 	start := p.Start
 	if p.Written > 0 {
-		start = start + p.Written
+		start += p.Written
 	}
 	return fmt.Sprintf("bytes=%d-%d", start, p.Stop)
 }

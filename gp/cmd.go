@@ -179,7 +179,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		if err != nil {
 			return
 		}
-		al.calcParts(int(options.Parts))
+		al.Parts = al.calcParts(int64(options.Parts))
 	}
 
 	al.writeSummary(s.Out)
@@ -200,6 +200,9 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 	}
 
 	err = eg.Wait()
+	if ctx.Err() != nil && err != nil {
+		err = errors.Wrap(Error{err}, "run")
+	}
 	pb.Wait()
 
 	fmt.Fprintln(s.Out)
@@ -223,9 +226,6 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		s.logger.Printf("state saved to %q\n", name)
 	}
 
-	if ctx.Err() != nil && err != nil {
-		err = errors.Wrap(Error{err}, "run")
-	}
 	return
 }
 

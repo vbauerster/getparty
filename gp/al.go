@@ -23,35 +23,37 @@ type ActualLocation struct {
 	Parts             []*Part
 }
 
-func (al *ActualLocation) calcParts(parts int) {
+func (al *ActualLocation) calcParts(parts int64) []*Part {
 	if parts == 0 {
-		return
+		parts = 1
 	}
 	partSize := al.ContentLength / int64(parts)
 	if partSize <= 0 {
 		parts = 1
 	}
-	al.Parts = make([]*Part, parts)
 
+	ps := make([]*Part, parts)
 	stop := al.ContentLength
 	start := stop
 	for i := parts - 1; i > 0; i-- {
 		stop = start - 1
 		start = stop - partSize
-		al.Parts[i] = &Part{
+		ps[i] = &Part{
 			FileName: fmt.Sprintf("%s.part%d", al.SuggestedFileName, i),
 			Start:    start,
 			Stop:     stop,
 		}
 	}
 	stop = start - 1
-	if stop < 0 {
-		stop = 0
-	}
-	al.Parts[0] = &Part{
+	ps[0] = &Part{
 		FileName: al.SuggestedFileName,
 		Stop:     stop,
 	}
+	if stop < 0 || stop < parts*8 {
+		ps[0].Stop = 0
+		return ps[:1:1]
+	}
+	return ps
 }
 
 func (al *ActualLocation) concatenateParts(dlogger *log.Logger) error {
@@ -62,6 +64,9 @@ func (al *ActualLocation) concatenateParts(dlogger *log.Logger) error {
 
 	buf := make([]byte, 1<<12)
 	for i := 1; i < len(al.Parts); i++ {
+		if al.Parts[i].Skip {
+			continue
+		}
 		fparti, err := os.Open(al.Parts[i].FileName)
 		if err != nil {
 			return err
@@ -120,6 +125,9 @@ func (al *ActualLocation) totalWritten() int64 {
 		return total
 	}
 	for _, p := range al.Parts {
+		if p.Skip {
+			continue
+		}
 		total += p.Written
 	}
 	return total
@@ -128,23 +136,18 @@ func (al *ActualLocation) totalWritten() int64 {
 func (al *ActualLocation) writeSummary(w io.Writer) {
 	humanSize := decor.CounterKiB(al.ContentLength)
 	format := fmt.Sprintf("Length: %%s [%s]\n", al.ContentType)
-	var length string
-	totalWritten := al.totalWritten()
-	if totalWritten > 0 && al.AcceptRanges != "" {
-		remaining := al.ContentLength - totalWritten
-		length = fmt.Sprintf("%d (% .2f), %d (% .2f) remaining",
-			al.ContentLength,
-			humanSize,
-			remaining,
-			decor.CounterKiB(remaining))
-	} else if al.ContentLength < 0 {
-		length = "unknown"
-	} else {
-		length = fmt.Sprintf("%d (% .2f)", al.ContentLength, humanSize)
+	lengthSummary := "unknown"
+	if al.ContentLength >= 0 {
+		lengthSummary = fmt.Sprintf("%d (% .2f)", al.ContentLength, humanSize)
+		if totalWritten := al.totalWritten(); totalWritten > 0 {
+			remaining := al.ContentLength - totalWritten
+			lengthSummary += fmt.Sprintf(", %d (% .2f) remaining", remaining, decor.CounterKiB(remaining))
+		}
 	}
-	fmt.Fprintf(w, format, length)
-	if al.AcceptRanges == "" {
-		fmt.Fprintln(w, "Looks like server doesn't support ranges (no party, no resume)")
+	fmt.Fprintf(w, format, lengthSummary)
+	switch al.AcceptRanges {
+	case "", "none":
+		fmt.Fprintln(w, "Looks like server doesn't support range requests (no party, no resume)")
 	}
 	fmt.Fprintf(w, "Saving to: %q\n\n", al.SuggestedFileName)
 }
