@@ -185,7 +185,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 	al.writeSummary(s.Out)
 
 	eg, ctx := errgroup.WithContext(ctx)
-	pb := mpb.New(mpb.Output(s.Out), mpb.WithWidth(64), mpb.WithContext(ctx))
+	pb := mpb.New(mpb.WithOutput(s.Out), mpb.WithWidth(64), mpb.WithContext(ctx))
 	al.deleteUnnecessaryParts()
 	for i, p := range al.Parts {
 		p := p
