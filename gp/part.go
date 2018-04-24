@@ -80,14 +80,13 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}, "download")
 	}
 
-	bar := pb.AddBar(total,
+	bar := pb.AddBar(total, mpb.BarPriority(n),
 		mpb.PrependDecorators(
 			decor.StaticName(pname, 0, 0),
 			countersDecorator(messageCh, 6, 18),
 		),
 		mpb.AppendDecorators(speedDecorator()),
 	)
-	pb.UpdateBarPriority(bar, n)
 
 	var dst *os.File
 	if p.Written > 0 {
