@@ -6,7 +6,7 @@ package gp
 
 import (
 	"fmt"
-	"time"
+	"math"
 	"unicode/utf8"
 
 	"github.com/vbauerster/mpb/decor"
@@ -39,14 +39,12 @@ func countersDecorator(msgCh <-chan string, msgTimes, padding int) decor.Decorat
 }
 
 func speedDecorator() decor.DecoratorFunc {
-	var nowTime time.Time
 	format := "%0.2f KiB/s"
 	return func(s *decor.Statistics, widthAccumulator chan<- int, widthDistributor <-chan int) string {
-		if !s.Completed {
-			nowTime = time.Now()
+		spd := float64(s.Current/1024) / s.TimeElapsed.Seconds()
+		if math.IsNaN(spd) || math.IsInf(spd, 0) {
+			spd = .0
 		}
-		totTime := nowTime.Sub(s.StartTime)
-		spd := float64(s.Current/1024) / totTime.Seconds()
 		str := fmt.Sprintf(format, spd)
 
 		widthAccumulator <- utf8.RuneCountInString(str)
