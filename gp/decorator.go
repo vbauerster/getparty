@@ -6,7 +6,6 @@ package gp
 
 import (
 	"fmt"
-	"math"
 	"unicode/utf8"
 
 	"github.com/vbauerster/mpb/decor"
@@ -35,21 +34,6 @@ func countersDecorator(msgCh <-chan string, msgTimes, padding int) decor.Decorat
 		widthAccumulator <- utf8.RuneCountInString(counters)
 		max := <-widthDistributor
 		return fmt.Sprintf(fmt.Sprintf(format, max+1), counters)
-	}
-}
-
-func speedDecorator() decor.DecoratorFunc {
-	format := "%0.2f KiB/s"
-	return func(s *decor.Statistics, widthAccumulator chan<- int, widthDistributor <-chan int) string {
-		spd := float64(s.Current/1024) / s.TimeElapsed.Seconds()
-		if math.IsNaN(spd) || math.IsInf(spd, 0) {
-			spd = .0
-		}
-		str := fmt.Sprintf(format, spd)
-
-		widthAccumulator <- utf8.RuneCountInString(str)
-
-		return fmt.Sprintf(fmt.Sprintf("%%%ds ", <-widthDistributor), str)
 	}
 }
 
