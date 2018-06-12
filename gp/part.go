@@ -88,7 +88,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			countersDecorator(messageCh, 6, 18),
 		),
 		mpb.AppendDecorators(
-			decor.ETA(decor.ET_STYLE_MMSS, 120, startBlock, decor.WCSyncWidth),
+			decor.ETA(decor.ET_STYLE_MMSS, 60, startBlock, decor.WCSyncWidth),
 			decor.SpeedKibiByte("% .2f", decor.WCSyncSpace),
 		),
 	)
