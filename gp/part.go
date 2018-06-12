@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 	rhttp "github.com/vbauerster/go-retryablehttp"
@@ -80,12 +81,16 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}, "download")
 	}
 
+	startBlock := make(chan time.Time)
 	bar := pb.AddBar(total, mpb.BarPriority(n),
 		mpb.PrependDecorators(
-			decor.StaticName(pname, 0, 0),
+			decor.Name(pname),
 			countersDecorator(messageCh, 6, 18),
 		),
-		mpb.AppendDecorators(speedDecorator()),
+		mpb.AppendDecorators(
+			decor.ETA(decor.ET_STYLE_MMSS, 120, startBlock, decor.WCSyncWidth),
+			decor.SpeedKibiByte("% .2f", decor.WCSyncSpace),
+		),
 	)
 
 	var dst *os.File
@@ -108,7 +113,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 	}()
 
-	reader := bar.ProxyReader(resp.Body)
+	reader := bar.ProxyReader(resp.Body, startBlock)
 	written, err := io.Copy(dst, reader)
 	p.Written += written
 	return err
