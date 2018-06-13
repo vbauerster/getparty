@@ -81,15 +81,18 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}, "download")
 	}
 
-	startBlock := make(chan time.Time)
+	sbEta := make(chan time.Time)
+	sbSpeed := make(chan time.Time)
 	bar := pb.AddBar(total, mpb.BarPriority(n),
 		mpb.PrependDecorators(
 			decor.Name(pname),
 			countersDecorator(messageCh, 6, 18),
 		),
 		mpb.AppendDecorators(
-			decor.ETA(decor.ET_STYLE_MMSS, 60, startBlock, decor.WCSyncWidth),
-			decor.SpeedKibiByte("% .2f", decor.WCSyncSpace),
+			decor.Name("["),
+			decor.ETA(decor.ET_STYLE_MMSS, 60, sbEta),
+			decor.Name("]"),
+			decor.SpeedKibiByte("% .2f", 60, sbSpeed, decor.WCSyncSpace),
 		),
 	)
 
@@ -113,7 +116,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 	}()
 
-	reader := bar.ProxyReader(resp.Body, startBlock)
+	reader := bar.ProxyReader(resp.Body, sbEta, sbSpeed)
 	written, err := io.Copy(dst, reader)
 	p.Written += written
 	return err
