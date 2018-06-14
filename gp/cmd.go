@@ -185,13 +185,18 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 	al.writeSummary(s.Out)
 
 	eg, ctx := errgroup.WithContext(ctx)
-	pb := mpb.New(mpb.WithOutput(s.Out), mpb.WithWidth(62), mpb.WithContext(ctx))
+	pb := mpb.New(
+		mpb.WithOutput(s.Out),
+		mpb.WithWidth(60),
+		mpb.WithFormat("[=>-|"),
+		mpb.WithContext(ctx),
+	)
 	al.deleteUnnecessaryParts()
 	for i, p := range al.Parts {
 		p := p
 		i := i
 		eg.Go(func() error {
-			logger := log.New(ioutil.Discard, fmt.Sprintf("[p#%02d] ", i+1), log.LstdFlags)
+			logger := log.New(ioutil.Discard, fmt.Sprintf("[p#%1d] ", i+1), log.LstdFlags)
 			if options.Debug {
 				logger.SetOutput(s.Err)
 			}
