@@ -92,7 +92,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			decor.Name("["),
 			decor.ETA(decor.ET_STYLE_MMSS, 60, sbEta),
 			decor.Name("]"),
-			decor.SpeedKibiByte("% .2f", 60, sbSpeed, decor.WCSyncSpace),
+			decor.SpeedKibiByte("% .1f", 60, sbSpeed, decor.WCSyncSpace),
 		),
 	)
 

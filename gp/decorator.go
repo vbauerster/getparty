@@ -30,7 +30,7 @@ func countersDecorator(msgCh <-chan string, msgTimes, padding int) decor.Decorat
 		}
 
 		completed := percentage(s.Total, s.Current, 100)
-		counters := fmt.Sprintf("%.1f%% of % .2f", completed, decor.CounterKiB(s.Total))
+		counters := fmt.Sprintf("%.1f%% of % .1f", completed, decor.CounterKiB(s.Total))
 		widthAccumulator <- utf8.RuneCountInString(counters)
 		max := <-widthDistributor
 		return fmt.Sprintf(fmt.Sprintf(format, max+1), counters)
@@ -40,9 +40,6 @@ func countersDecorator(msgCh <-chan string, msgTimes, padding int) decor.Decorat
 func percentage(total, current, ratio int64) float64 {
 	if total <= 0 {
 		return 0
-	}
-	if current > total {
-		current = total
 	}
 	return float64(ratio) * float64(current) / float64(total)
 }
