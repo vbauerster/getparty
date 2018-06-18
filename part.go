@@ -118,7 +118,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					percentageWithSizeCounter(messageCh, 4),
 				),
 				mpb.AppendDecorators(
-					decor.MovingAverageSpeed(decor.UnitKiB, "% .2f", decor.NewMedianEwma(80), sbSpeed, decor.WCSyncSpace),
+					decor.MovingAverageSpeed(decor.UnitKiB, "% .2f", decor.NewMedianEwma(80), sbSpeed, decor.WCSyncWidth),
 				),
 			)
 			if p.Written > 0 {
