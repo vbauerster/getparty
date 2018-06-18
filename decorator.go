@@ -6,16 +6,17 @@ package getparty
 
 import (
 	"fmt"
+	"math"
 	"unicode/utf8"
 
 	"github.com/vbauerster/mpb/decor"
 )
 
-func countersDecorator(msgCh <-chan string, msgTimes int) decor.DecoratorFunc {
+func percentageWithSizeCounter(msgCh <-chan string, msgTimes int) decor.Decorator {
 	format := "%%%ds"
 	var message string
 	var msgCount int
-	return func(s *decor.Statistics, widthAccumulator chan<- int, widthDistributor <-chan int) string {
+	return decor.DecoratorFunc(func(s *decor.Statistics, widthAccumulator chan<- int, widthDistributor <-chan int) string {
 		select {
 		case message = <-msgCh:
 			msgCount = msgTimes
@@ -34,12 +35,13 @@ func countersDecorator(msgCh <-chan string, msgTimes int) decor.DecoratorFunc {
 		widthAccumulator <- utf8.RuneCountInString(counters)
 		max := <-widthDistributor
 		return fmt.Sprintf(fmt.Sprintf(format, max+1), counters)
-	}
+	})
 }
 
-func percentage(total, current, ratio int64) float64 {
+func percentage(total, current, ratio int64) int64 {
 	if total <= 0 {
 		return 0
 	}
-	return float64(ratio) * float64(current) / float64(total)
+	p := float64(ratio*current) / float64(total)
+	return int64(math.Round(p))
 }

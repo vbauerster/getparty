@@ -116,7 +116,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
 					decor.Name(pname),
-					countersDecorator(messageCh, 4),
+					percentageWithSizeCounter(messageCh, 4),
 				),
 				mpb.AppendDecorators(
 					decor.ETA(decor.ET_STYLE_MMSS, 80, sbEta),
