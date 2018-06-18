@@ -191,8 +191,11 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		mpb.WithFormat("[=>-|"),
 		mpb.WithContext(ctx),
 	)
-	al.deleteUnnecessaryParts()
+	// al.deleteUnnecessaryParts()
 	for i, p := range al.Parts {
+		if p.Skip {
+			continue
+		}
 		p := p
 		i := i
 		eg.Go(func() error {

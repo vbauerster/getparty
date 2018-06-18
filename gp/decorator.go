@@ -11,7 +11,7 @@ import (
 	"github.com/vbauerster/mpb/decor"
 )
 
-func countersDecorator(msgCh <-chan string, msgTimes, padding int) decor.DecoratorFunc {
+func countersDecorator(msgCh <-chan string, msgTimes int) decor.DecoratorFunc {
 	format := "%%%ds"
 	var message string
 	var msgCount int

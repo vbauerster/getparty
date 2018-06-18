@@ -1,6 +1,7 @@
 package gp
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -10,124 +11,187 @@ import (
 	"os"
 	"time"
 
+	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	"github.com/pkg/errors"
-	rhttp "github.com/vbauerster/go-retryablehttp"
 	"github.com/vbauerster/mpb"
 	"github.com/vbauerster/mpb/decor"
 )
 
 // Part represents state of each download part
 type Part struct {
-	FileName             string
-	Start, Stop, Written int64
-	Skip                 bool
+	FileName string
+	Start    int64
+	Stop     int64
+	Written  int64
+	Skip     bool
 }
 
 func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, n int) error {
-	if p.Stop-p.Start == p.Written-1 {
-		return nil
+	pname := fmt.Sprintf("p#%02d:", n+1)
+	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_WRONLY, 0644)
+	if os.IsNotExist(err) {
+		fpart, err = os.Create(p.FileName)
 	}
-
-	req, err := rhttp.NewRequest(http.MethodGet, targetUrl, nil)
 	if err != nil {
-		return err
+		return errors.WithMessage(errors.Wrapf(Error{err}, "%s unable to write to %q", pname, p.FileName), "download")
 	}
-	req.URL.User = userInfo
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Range", p.getRange())
-
-	client := rhttp.NewClient()
-	client.Logger = dlogger
-
-	messageCh := make(chan string, 1)
-	client.RequestLogHook = func(_ *log.Logger, _ *http.Request, i int) {
-		if i == 0 {
-			return
-		}
-		messageCh <- fmt.Sprintf("Retrying (%d)", i)
-	}
-
-	dlogger.Println("User-Agent:", userAgent)
-	dlogger.Println("Range:", req.Header.Get("Range"))
-
-	resp, err := client.Do(req.WithContext(ctx))
-	if err != nil {
-		return err
-	}
-
 	defer func() {
-		if resp.Body != nil {
-			if err := resp.Body.Close(); err != nil {
-				dlogger.Printf("%s resp.Body.Close() failed: %v", targetUrl, err)
+		if err := fpart.Close(); err != nil {
+			dlogger.Printf("closing %q failed: %v\n", fpart.Name(), err)
+		}
+		if p.Skip {
+			if err := os.Remove(fpart.Name()); err != nil {
+				dlogger.Printf("remove %q failed: %v\n", fpart.Name(), err)
 			}
 		}
 	}()
 
-	pname := fmt.Sprintf("p#%02d:", n+1)
-	total := p.Stop - p.Start + 1
-	if resp.StatusCode == http.StatusOK {
-		// no partial content, so try to download with single part
-		if n > 0 {
-			p.Skip = true
-			dlogger.Println("server doesn't support range requests, skipping...")
-			return nil
+	return try(func(attempt int) (bool, error) {
+		if p.Stop-p.Start == p.Written-1 {
+			return false, nil
 		}
-		total = resp.ContentLength
-		p.Stop = total - 1
-		p.Written = 0
-	} else if resp.StatusCode != http.StatusPartialContent {
-		return errors.Wrap(Error{
-			errors.Errorf("%s unprocessable http status %q", pname, resp.Status),
-		}, "download")
-	}
+		defer func() {
+			if e := recover(); e != nil {
+				dlogger.Printf("%#v\n", p)
+				panic(e)
+			}
+		}()
 
-	sbEta := make(chan time.Time)
-	sbSpeed := make(chan time.Time)
-	bar := pb.AddBar(total, mpb.BarPriority(n),
-		mpb.PrependDecorators(
-			decor.Name(pname),
-			countersDecorator(messageCh, 6, 18),
-		),
-		mpb.AppendDecorators(
-			decor.ETA(decor.ET_STYLE_MMSS, 600, sbEta),
-			decor.Name(" ]"),
-			decor.SpeedKibiByte("% .2f", 600, sbSpeed, decor.WCSyncSpace),
-		),
-	)
+		req, err := http.NewRequest(http.MethodGet, targetUrl, nil)
+		if err != nil {
+			return false, err
+		}
+		req.URL.User = userInfo
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Range", p.getRange())
 
-	var dst *os.File
-	if p.Written > 0 {
-		dst, err = os.OpenFile(p.FileName, os.O_APPEND|os.O_WRONLY, 0644)
-		bar.ResumeFill('+', p.Written)
-		bar.IncrBy(int(p.Written))
-	} else {
-		dst, err = os.Create(p.FileName)
-	}
-	if err != nil {
-		return errors.WithMessage(
-			errors.Wrapf(Error{err}, "%s unable to write to %q", pname, p.FileName),
-			"download",
+		client := cleanhttp.DefaultPooledClient()
+
+		dlogger.Printf("attempt: %d\n", attempt)
+		dlogger.Println("User-Agent:", userAgent)
+		dlogger.Println("Range:", req.Header.Get("Range"))
+
+		ctx, cancel := context.WithCancel(ctx)
+		timer := time.AfterFunc(5*time.Second, cancel)
+
+		resp, err := client.Do(req.WithContext(ctx))
+		if err != nil {
+			return false, err
+		}
+
+		defer func() {
+			if resp.Body != nil {
+				if err := resp.Body.Close(); err != nil {
+					dlogger.Printf("%s resp.Body.Close() failed: %v", targetUrl, err)
+				}
+			}
+		}()
+
+		total := p.Stop - p.Start + 1
+		if resp.StatusCode == http.StatusOK {
+			// no partial content, so try to download with single part
+			if n > 0 {
+				p.Skip = true
+				dlogger.Println("server doesn't support range requests, skipping...")
+				return false, nil
+			}
+			total = resp.ContentLength
+			p.Stop = total - 1
+			p.Written = 0
+		} else if resp.StatusCode != http.StatusPartialContent {
+			e := errors.Wrap(Error{errors.Errorf("%s unprocessable http status %q", pname, resp.Status)}, "download")
+			return false, e
+		}
+
+		messageCh := make(chan string, 1)
+		sbEta := make(chan time.Time)
+		sbSpeed := make(chan time.Time)
+		bar := pb.AddBar(total, mpb.BarPriority(n),
+			mpb.PrependDecorators(
+				decor.Name(pname),
+				countersDecorator(messageCh, 4),
+			),
+			mpb.AppendDecorators(
+				decor.ETA(decor.ET_STYLE_MMSS, 256, sbEta),
+				// decor.MovingAverageETA(decor.ET_STYLE_MMSS, decor.NewMedianEwma(60), sbEta),
+				decor.Name(" ]"),
+				decor.SpeedKibiByte("% .2f", 256, sbSpeed, decor.WCSyncSpace),
+				// decor.MovingAverageSpeed(decor.UnitKiB, "% .2f", decor.NewMedianEwma(256), sbSpeed, decor.WCSyncSpace),
+			),
 		)
-	}
-	defer func() {
-		if err := dst.Close(); err != nil {
-			dlogger.Printf("closing %q failed: %v", p.FileName, err)
-		}
-	}()
 
-	reader := bar.ProxyReader(resp.Body, sbEta, sbSpeed)
-	written, err := io.Copy(dst, reader)
-	p.Written += written
-	return err
+		if p.Written > 0 {
+			now := time.Now()
+			for _, ch := range [...]chan time.Time{sbEta, sbSpeed} {
+				ch <- now
+			}
+			bar.ResumeFill('+', p.Written)
+			bar.IncrBy(int(p.Written))
+		}
+
+		var size, written int64
+		size = 1024
+		buf := bytes.NewBuffer(make([]byte, 0, size))
+		reader := bar.ProxyReader(resp.Body, sbEta, sbSpeed)
+
+		max := size
+		for timer.Reset(5 * time.Second) {
+			if attempt > 0 {
+				messageCh <- fmt.Sprintf("retry #%d", attempt)
+			}
+			written, err = io.CopyN(buf, reader, max)
+			if err != nil {
+				if err == io.EOF || err == context.Canceled {
+					break
+				}
+				// try to continue on temp err
+				if e, ok := err.(interface{ Temporary() bool }); ok && e.Temporary() {
+					max = size - written
+					messageCh <- "temp error"
+					continue
+				}
+				// retry
+				messageCh <- "sleep 1s"
+				time.Sleep(time.Second)
+				break
+			}
+			written, _ = io.Copy(fpart, buf)
+			p.Written += written
+			max = size
+		}
+
+		written, _ = io.Copy(fpart, buf)
+		p.Written += written
+		dlogger.Printf("stop-start: %d written: %d\n", p.Stop-p.Start, p.Written)
+		if err == io.EOF || err == context.Canceled {
+			return false, nil
+		}
+		return p.Stop-p.Start != p.Written-1, err
+	})
 }
 
 func (p *Part) getRange() string {
 	if p.Stop <= 0 {
 		return "bytes=0-"
 	}
+	// don't change p.Start for bar.ResumeFill sake
 	start := p.Start
 	if p.Written > 0 {
 		start += p.Written
 	}
 	return fmt.Sprintf("bytes=%d-%d", start, p.Stop)
+}
+
+func try(fn func(int) (bool, error)) error {
+	var err error
+	var cont bool
+	attempt := 0
+	for {
+		cont, err = fn(attempt)
+		if !cont || err == nil {
+			break
+		}
+		attempt++
+	}
+	return err
 }

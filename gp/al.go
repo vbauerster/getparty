@@ -62,7 +62,6 @@ func (al *ActualLocation) concatenateParts(dlogger *log.Logger) error {
 		return err
 	}
 
-	buf := make([]byte, 1<<12)
 	for i := 1; i < len(al.Parts); i++ {
 		if al.Parts[i].Skip {
 			continue
@@ -71,18 +70,8 @@ func (al *ActualLocation) concatenateParts(dlogger *log.Logger) error {
 		if err != nil {
 			return err
 		}
-		for {
-			n, err := fparti.Read(buf[:])
-			_, errw := fpart0.Write(buf[:n])
-			if errw != nil {
-				return err
-			}
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				return err
-			}
+		if _, err := io.Copy(fpart0, fparti); err != nil {
+			return err
 		}
 		for _, err := range [...]error{fparti.Close(), os.Remove(fparti.Name())} {
 			if err != nil {
@@ -93,13 +82,13 @@ func (al *ActualLocation) concatenateParts(dlogger *log.Logger) error {
 	return fpart0.Close()
 }
 
-func (al *ActualLocation) deleteUnnecessaryParts() {
-	for i := len(al.Parts) - 1; i >= 0; i-- {
-		if al.Parts[i].Skip {
-			al.Parts = append(al.Parts[:i], al.Parts[i+1:]...)
-		}
-	}
-}
+// func (al *ActualLocation) deleteUnnecessaryParts() {
+// 	for i := len(al.Parts) - 1; i >= 0; i-- {
+// 		if al.Parts[i].Skip {
+// 			al.Parts = append(al.Parts[:i], al.Parts[i+1:]...)
+// 		}
+// 	}
+// }
 
 func (al *ActualLocation) marshalState(userURL string) (string, error) {
 	name := al.SuggestedFileName + ".json"
