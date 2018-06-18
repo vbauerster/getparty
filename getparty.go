@@ -187,7 +187,8 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 	eg, ctx := errgroup.WithContext(ctx)
 	pb := mpb.New(
 		mpb.WithOutput(s.Out),
-		mpb.WithWidth(62),
+		mpb.WithWidth(60),
+		mpb.WithFormat("[=>-|"),
 		mpb.WithContext(ctx),
 	)
 	for i, p := range al.Parts {
