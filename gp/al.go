@@ -82,14 +82,6 @@ func (al *ActualLocation) concatenateParts(dlogger *log.Logger) error {
 	return fpart0.Close()
 }
 
-// func (al *ActualLocation) deleteUnnecessaryParts() {
-// 	for i := len(al.Parts) - 1; i >= 0; i-- {
-// 		if al.Parts[i].Skip {
-// 			al.Parts = append(al.Parts[:i], al.Parts[i+1:]...)
-// 		}
-// 	}
-// }
-
 func (al *ActualLocation) marshalState(userURL string) (string, error) {
 	name := al.SuggestedFileName + ".json"
 	al.Location = userURL // preserve user provided url

@@ -46,7 +46,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 	}()
 
-	return try(func(attempt int) (bool, error) {
+	return try(func(attempt int) (retry bool, err error) {
 		if p.Stop-p.Start == p.Written-1 {
 			return false, nil
 		}
@@ -67,7 +67,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 		client := cleanhttp.DefaultPooledClient()
 
-		dlogger.Printf("attempt: %d\n", attempt)
 		dlogger.Println("User-Agent:", userAgent)
 		dlogger.Println("Range:", req.Header.Get("Range"))
 
@@ -162,11 +161,13 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 		written, _ = io.Copy(fpart, buf)
 		p.Written += written
-		dlogger.Printf("stop-start: %d written: %d\n", p.Stop-p.Start, p.Written)
+		retry = p.Stop-p.Start != p.Written-1
+		dlogger.Printf("attempt: %d, retry: %t, err: %v\n", attempt, retry, err)
+		// don't retry on io.EOF or context.Canceled
 		if err == io.EOF || err == context.Canceled {
 			return false, nil
 		}
-		return p.Stop-p.Start != p.Written-1, err
+		return retry, err
 	})
 }
 
