@@ -53,7 +53,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 	var bar *mpb.Bar
 	var messageCh chan string
-	var sbEta, sbSpeed chan time.Time
+	var sbSpeed chan time.Time
 
 	return try(func(attempt int) (retry bool, err error) {
 		defer func() {
@@ -111,7 +111,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 		if bar == nil {
 			messageCh = make(chan string, 1)
-			sbEta = make(chan time.Time)
 			sbSpeed = make(chan time.Time)
 			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
@@ -119,16 +118,11 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					percentageWithSizeCounter(messageCh, 4),
 				),
 				mpb.AppendDecorators(
-					decor.ETA(decor.ET_STYLE_MMSS, 80, sbEta),
-					decor.Name(" ]"),
-					decor.SpeedKibiByte("% .2f", 80, sbSpeed, decor.WCSyncSpace),
+					decor.MovingAverageSpeed(decor.UnitKiB, "% .2f", decor.NewMedianEwma(80), sbSpeed, decor.WCSyncSpace),
 				),
 			)
 			if p.Written > 0 {
-				now := time.Now()
-				for _, ch := range [...]chan time.Time{sbEta, sbSpeed} {
-					ch <- now
-				}
+				sbSpeed <- time.Now()
 				bar.IncrBy(int(p.Written), '+')
 			}
 		}
@@ -136,7 +130,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		var size, written int64
 		size = 1024
 		buf := bytes.NewBuffer(make([]byte, 0, size))
-		reader := bar.ProxyReader(resp.Body, sbEta, sbSpeed)
+		reader := bar.ProxyReader(resp.Body, sbSpeed)
 
 		max := size
 		for timer.Reset(8 * time.Second) {
