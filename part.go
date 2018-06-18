@@ -120,10 +120,8 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 				),
 				mpb.AppendDecorators(
 					decor.ETA(decor.ET_STYLE_MMSS, 60, sbEta),
-					// decor.MovingAverageETA(decor.ET_STYLE_MMSS, decor.NewMedianEwma(60), sbEta),
 					decor.Name(" ]"),
 					decor.SpeedKibiByte("% .2f", 60, sbSpeed, decor.WCSyncSpace),
-					// decor.MovingAverageSpeed(decor.UnitKiB, "% .2f", decor.NewMedianEwma(256), sbSpeed, decor.WCSyncSpace),
 				),
 			)
 			if p.Written > 0 {
