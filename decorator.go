@@ -6,7 +6,6 @@ package getparty
 
 import (
 	"fmt"
-	"math"
 	"unicode/utf8"
 
 	"github.com/vbauerster/mpb/decor"
@@ -38,10 +37,9 @@ func percentageWithSizeCounter(msgCh <-chan string, msgTimes int) decor.Decorato
 	})
 }
 
-func percentage(total, current, ratio int64) int64 {
+func percentage(total, current, ratio int64) float64 {
 	if total <= 0 {
 		return 0
 	}
-	p := float64(ratio*current) / float64(total)
-	return int64(math.Round(p))
+	return float64(ratio*current) / float64(total)
 }
