@@ -13,6 +13,7 @@ import (
 
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	"github.com/pkg/errors"
+	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/mpb"
 	"github.com/vbauerster/mpb/decor"
 )
@@ -155,8 +156,10 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 				}
 				// retry
 				timer.Stop()
-				messageCh <- fmt.Sprintf("retry #%d", attempt+1)
-				time.Sleep(time.Second)
+				messageCh <- fmt.Sprintf("retry #%d", attempt)
+				dur := backoff.DefaultStrategy.Backoff(attempt)
+				dlogger.Printf("sleep %s, before attempt %d\n", dur, attempt)
+				time.Sleep(dur)
 				break
 			}
 			written, _ = io.Copy(fpart, buf)
@@ -167,11 +170,11 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		written, _ = io.Copy(fpart, buf)
 		p.Written += written
 		retry = p.Stop-p.Start != p.Written-1
-		dlogger.Printf("attempt: %d, retry: %t, err: %v\n", attempt, retry, err)
 		// don't retry on io.EOF or user context.Canceled
 		if err == io.EOF || ctx.Err() == context.Canceled {
 			return false, nil
 		}
+		dlogger.Printf("attempt: %d, retry: %t, err: %v\n", attempt, retry, err)
 		return retry, err
 	})
 }
@@ -191,7 +194,7 @@ func (p *Part) getRange() string {
 func try(fn func(int) (bool, error)) error {
 	var err error
 	var cont bool
-	attempt := 0
+	attempt := 1
 	for {
 		cont, err = fn(attempt)
 		if !cont || err == nil {
