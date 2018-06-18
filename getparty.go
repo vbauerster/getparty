@@ -1,4 +1,4 @@
-package gp
+package getparty
 
 import (
 	"bufio"

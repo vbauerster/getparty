@@ -8,12 +8,12 @@ package main
 import (
 	"os"
 
-	"github.com/vbauerster/getparty/gp"
+	"github.com/vbauerster/getparty"
 )
 
 var version = "devel"
 
 func main() {
-	cmd := &gp.Cmd{Out: os.Stdout, Err: os.Stderr}
+	cmd := &getparty.Cmd{Out: os.Stdout, Err: os.Stderr}
 	os.Exit(cmd.Run(os.Args[1:], version)())
 }
