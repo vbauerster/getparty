@@ -199,7 +199,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		p := p
 		i := i
 		eg.Go(func() error {
-			logger := log.New(ioutil.Discard, fmt.Sprintf("[p#%1d] ", i+1), log.LstdFlags)
+			logger := log.New(ioutil.Discard, fmt.Sprintf("[p#%02d] ", i+1), log.LstdFlags)
 			if options.Debug {
 				logger.SetOutput(s.Err)
 			}

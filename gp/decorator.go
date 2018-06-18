@@ -22,7 +22,8 @@ func countersDecorator(msgCh <-chan string, msgTimes int) decor.DecoratorFunc {
 		default:
 		}
 
-		if msgCount != 0 {
+		if msgCount > 0 {
+			// fmt.Fprintf(os.Stderr, "msgCount: %d\n", msgCount)
 			msgCount--
 			widthAccumulator <- utf8.RuneCountInString(message)
 			max := <-widthDistributor

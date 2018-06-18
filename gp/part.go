@@ -27,6 +27,10 @@ type Part struct {
 }
 
 func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, n int) error {
+	if p.Stop-p.Start == p.Written-1 {
+		return nil
+	}
+
 	pname := fmt.Sprintf("p#%02d:", n+1)
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if os.IsNotExist(err) {
@@ -46,10 +50,11 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 	}()
 
+	var bar *mpb.Bar
+	var messageCh chan string
+	var sbEta, sbSpeed chan time.Time
+
 	return try(func(attempt int) (retry bool, err error) {
-		if p.Stop-p.Start == p.Written-1 {
-			return false, nil
-		}
 		defer func() {
 			if e := recover(); e != nil {
 				dlogger.Printf("%#v\n", p)
@@ -64,16 +69,15 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		req.URL.User = userInfo
 		req.Header.Set("User-Agent", userAgent)
 		req.Header.Set("Range", p.getRange())
-
-		client := cleanhttp.DefaultPooledClient()
-
 		dlogger.Println("User-Agent:", userAgent)
 		dlogger.Println("Range:", req.Header.Get("Range"))
 
-		ctx, cancel := context.WithCancel(ctx)
-		timer := time.AfterFunc(5*time.Second, cancel)
+		cctx, cancel := context.WithCancel(ctx)
+		timer := time.AfterFunc(10*time.Second, cancel)
+		defer cancel()
 
-		resp, err := client.Do(req.WithContext(ctx))
+		client := cleanhttp.DefaultPooledClient()
+		resp, err := client.Do(req.WithContext(cctx))
 		if err != nil {
 			return false, err
 		}
@@ -81,8 +85,10 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		defer func() {
 			if resp.Body != nil {
 				if err := resp.Body.Close(); err != nil {
-					dlogger.Printf("%s resp.Body.Close() failed: %v", targetUrl, err)
+					dlogger.Printf("%s resp.Body.Close() failed: %v\n", targetUrl, err)
+					return
 				}
+				dlogger.Println("resp body closed")
 			}
 		}()
 
@@ -102,30 +108,31 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			return false, e
 		}
 
-		messageCh := make(chan string, 1)
-		sbEta := make(chan time.Time)
-		sbSpeed := make(chan time.Time)
-		bar := pb.AddBar(total, mpb.BarPriority(n),
-			mpb.PrependDecorators(
-				decor.Name(pname),
-				countersDecorator(messageCh, 4),
-			),
-			mpb.AppendDecorators(
-				decor.ETA(decor.ET_STYLE_MMSS, 256, sbEta),
-				// decor.MovingAverageETA(decor.ET_STYLE_MMSS, decor.NewMedianEwma(60), sbEta),
-				decor.Name(" ]"),
-				decor.SpeedKibiByte("% .2f", 256, sbSpeed, decor.WCSyncSpace),
-				// decor.MovingAverageSpeed(decor.UnitKiB, "% .2f", decor.NewMedianEwma(256), sbSpeed, decor.WCSyncSpace),
-			),
-		)
-
-		if p.Written > 0 {
-			now := time.Now()
-			for _, ch := range [...]chan time.Time{sbEta, sbSpeed} {
-				ch <- now
+		if bar == nil {
+			messageCh = make(chan string, 1)
+			sbEta = make(chan time.Time)
+			sbSpeed = make(chan time.Time)
+			bar = pb.AddBar(total, mpb.BarPriority(n),
+				mpb.PrependDecorators(
+					decor.Name(pname),
+					countersDecorator(messageCh, 4),
+				),
+				mpb.AppendDecorators(
+					// decor.ETA(decor.ET_STYLE_MMSS, 256, sbEta),
+					decor.MovingAverageETA(decor.ET_STYLE_MMSS, decor.NewMedianEwma(60), sbEta),
+					decor.Name(" ]"),
+					decor.SpeedKibiByte("% .2f", 256, sbSpeed, decor.WCSyncSpace),
+					// decor.MovingAverageSpeed(decor.UnitKiB, "% .2f", decor.NewMedianEwma(256), sbSpeed, decor.WCSyncSpace),
+				),
+			)
+			if p.Written > 0 {
+				now := time.Now()
+				for _, ch := range [...]chan time.Time{sbEta, sbSpeed} {
+					ch <- now
+				}
+				bar.ResumeFill('+', p.Written)
+				bar.IncrBy(int(p.Written))
 			}
-			bar.ResumeFill('+', p.Written)
-			bar.IncrBy(int(p.Written))
 		}
 
 		var size, written int64
@@ -134,13 +141,10 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		reader := bar.ProxyReader(resp.Body, sbEta, sbSpeed)
 
 		max := size
-		for timer.Reset(5 * time.Second) {
-			if attempt > 0 {
-				messageCh <- fmt.Sprintf("retry #%d", attempt)
-			}
+		for timer.Reset(8 * time.Second) {
 			written, err = io.CopyN(buf, reader, max)
 			if err != nil {
-				if err == io.EOF || err == context.Canceled {
+				if err == io.EOF || ctx.Err() == context.Canceled {
 					break
 				}
 				// try to continue on temp err
@@ -150,7 +154,8 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					continue
 				}
 				// retry
-				messageCh <- "sleep 1s"
+				timer.Stop()
+				messageCh <- fmt.Sprintf("retry #%d", attempt+1)
 				time.Sleep(time.Second)
 				break
 			}
@@ -163,8 +168,8 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		p.Written += written
 		retry = p.Stop-p.Start != p.Written-1
 		dlogger.Printf("attempt: %d, retry: %t, err: %v\n", attempt, retry, err)
-		// don't retry on io.EOF or context.Canceled
-		if err == io.EOF || err == context.Canceled {
+		// don't retry on io.EOF or user context.Canceled
+		if err == io.EOF || ctx.Err() == context.Canceled {
 			return false, nil
 		}
 		return retry, err
