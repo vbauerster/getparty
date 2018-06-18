@@ -119,9 +119,9 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					countersDecorator(messageCh, 4),
 				),
 				mpb.AppendDecorators(
-					decor.ETA(decor.ET_STYLE_MMSS, 60, sbEta),
+					decor.ETA(decor.ET_STYLE_MMSS, 80, sbEta),
 					decor.Name(" ]"),
-					decor.SpeedKibiByte("% .2f", 60, sbSpeed, decor.WCSyncSpace),
+					decor.SpeedKibiByte("% .2f", 80, sbSpeed, decor.WCSyncSpace),
 				),
 			)
 			if p.Written > 0 {
@@ -129,8 +129,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 				for _, ch := range [...]chan time.Time{sbEta, sbSpeed} {
 					ch <- now
 				}
-				bar.ResumeFill('+', p.Written)
-				bar.IncrBy(int(p.Written))
+				bar.IncrBy(int(p.Written), '+')
 			}
 		}
 
