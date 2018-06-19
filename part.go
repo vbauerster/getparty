@@ -120,12 +120,12 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 				mpb.AppendDecorators(
 					decor.EwmaETA(decor.ET_STYLE_MMSS, 1024*12, sbEta),
 					decor.Name(" ]"),
-					decor.TotalAverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
+					decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
 				),
 			)
 			if p.Written > 0 {
 				sbEta <- time.Now()
-				bar.IncrBy(int(p.Written), '+')
+				bar.RefillBy(int(p.Written), '+')
 			}
 		}
 
