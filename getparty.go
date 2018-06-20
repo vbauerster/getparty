@@ -129,6 +129,7 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.quitHandler(cancel)
+	defer cancel()
 
 	var al *ActualLocation
 	var userUrl string // url before redirect

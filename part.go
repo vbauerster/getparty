@@ -53,7 +53,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 	var bar *mpb.Bar
 	var messageCh chan string
-	var sbEta chan time.Time
 
 	return try(func(attempt int) (retry bool, err error) {
 		defer func() {
@@ -111,20 +110,18 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 		if bar == nil {
 			messageCh = make(chan string, 1)
-			sbEta = make(chan time.Time)
 			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
 					decor.Name(pname),
 					percentageWithSizeCounter(messageCh, 5),
 				),
 				mpb.AppendDecorators(
-					decor.EwmaETA(decor.ET_STYLE_MMSS, 1024*12, sbEta),
+					decor.EwmaETA(decor.ET_STYLE_MMSS, 1024*12),
 					decor.Name(" ]"),
 					decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
 				),
 			)
 			if p.Written > 0 {
-				sbEta <- time.Now()
 				bar.RefillBy(int(p.Written), '+')
 			}
 		}
@@ -132,7 +129,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		var size, written int64
 		size = 2048
 		buf := bytes.NewBuffer(make([]byte, 0, size))
-		reader := bar.ProxyReader(resp.Body, sbEta)
+		reader := bar.ProxyReader(resp.Body)
 
 		max := size
 		for timer.Reset(8 * time.Second) {
@@ -158,15 +155,25 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			written, _ = io.Copy(fpart, buf)
 			p.Written += written
 			max = size
+			if total <= 0 {
+				bar.SetTotal(p.Written+size, false)
+			}
 		}
 
 		written, _ = io.Copy(fpart, buf)
 		p.Written += written
-		retry = p.Stop-p.Start != p.Written-1
+		if total <= 0 {
+			bar.SetTotal(p.Written, true)
+			bar.IncrBy(0)
+			// don't retry if content length is unknown
+			// even if io.EOF isn't reached.
+			p.Stop = p.Written - 1
+		}
 		// don't retry on io.EOF or user context.Canceled
 		if err == io.EOF || ctx.Err() == context.Canceled {
 			return false, nil
 		}
+		retry = p.Stop-p.Start != p.Written-1
 		dlogger.Printf("attempt: %d, retry: %t, err: %v\n", attempt, retry, err)
 		return retry, err
 	})
