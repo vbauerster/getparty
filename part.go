@@ -140,7 +140,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 				}
 				// try to continue on temp err
 				if e, ok := err.(interface{ Temporary() bool }); ok && e.Temporary() {
-					max = size - written
+					max -= written
 					messageCh <- "temp error"
 					continue
 				}
