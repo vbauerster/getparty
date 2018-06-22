@@ -162,9 +162,8 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 			return
 		}
 		userUrl = al.Location
-		temp, e := s.follow(ctx, userUrl, al.SuggestedFileName)
-		if e != nil {
-			err = e
+		temp, err := s.follow(ctx, userUrl, al.SuggestedFileName)
+		if err != nil {
 			return
 		}
 		if al.ContentLength != temp.ContentLength {
@@ -179,6 +178,24 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		al, err = s.follow(ctx, userUrl, options.OutFileName)
 		if err != nil {
 			return
+		}
+		// ports are appending, so confirm to overwrite
+		if _, er := os.Stat(al.SuggestedFileName); er == nil {
+			var answer string
+			fmt.Printf("File %q already exists, overwrite? [y/n] ", al.SuggestedFileName)
+			_, err = fmt.Scanf("%s", &answer)
+			if err != nil {
+				return
+			}
+			switch strings.ToLower(answer) {
+			case "y", "yes":
+				err = os.Remove(al.SuggestedFileName)
+				if err != nil {
+					return
+				}
+			default:
+				return
+			}
 		}
 		al.Parts = al.calcParts(int64(options.Parts))
 	}
