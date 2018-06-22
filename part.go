@@ -33,10 +33,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 	}
 
 	pname := fmt.Sprintf("p#%02d:", n+1)
-	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_WRONLY, 0644)
-	if os.IsNotExist(err) {
-		fpart, err = os.Create(p.FileName)
-	}
+	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return errors.WithMessage(errors.Wrapf(Error{err}, "%s unable to write to %q", pname, p.FileName), "download")
 	}
@@ -83,13 +80,14 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 
 		defer func() {
-			if resp.Body != nil {
-				if err := resp.Body.Close(); err != nil {
-					dlogger.Printf("%s resp.Body.Close() failed: %v\n", targetUrl, err)
-					return
-				}
-				dlogger.Println("resp body closed")
+			if resp.Body == nil {
+				return
 			}
+			if err := resp.Body.Close(); err != nil {
+				dlogger.Printf("%s resp.Body.Close() failed: %v\n", targetUrl, err)
+				return
+			}
+			dlogger.Println("resp body closed")
 		}()
 
 		total := p.Stop - p.Start + 1
@@ -109,6 +107,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 
 		if bar == nil {
+			age := float64(total+2) / 3.0
 			messageCh = make(chan string, 1)
 			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
@@ -116,7 +115,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					percentageWithSizeCounter(messageCh, 5),
 				),
 				mpb.AppendDecorators(
-					decor.EwmaETA(decor.ET_STYLE_MMSS, 1024*12),
+					decor.EwmaETA(decor.ET_STYLE_MMSS, age),
 					decor.Name(" ]"),
 					decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
 				),
@@ -183,7 +182,7 @@ func (p *Part) getRange() string {
 	if p.Stop <= 0 {
 		return "bytes=0-"
 	}
-	// don't change p.Start for bar.ResumeFill sake
+	// don't change p.Start for bar.RefillBy sake
 	start := p.Start
 	if p.Written > 0 {
 		start += p.Written
