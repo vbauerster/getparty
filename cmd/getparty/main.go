@@ -15,5 +15,5 @@ var version = "devel"
 
 func main() {
 	cmd := &getparty.Cmd{Out: os.Stdout, Err: os.Stderr}
-	os.Exit(cmd.Run(os.Args[1:], version)())
+	os.Exit(cmd.Exit(cmd.Run(os.Args[1:], version)))
 }

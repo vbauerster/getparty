@@ -66,149 +66,142 @@ type Cmd struct {
 	Out, Err  io.Writer
 	userAgent string
 	userInfo  *url.Userinfo
+	options   *Options
+	parser    *flags.Parser
 	logger    *log.Logger
 	dlogger   *log.Logger
 }
 
-func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
-	options := new(Options)
-	parser := flags.NewParser(options, flags.Default)
-	parser.Name = cmdName
-	parser.Usage = "[OPTIONS] url"
-
-	var err error
-	exitHandler = func() int {
-		if err == nil {
+func (cmd Cmd) Exit(err error) int {
+	if err == nil {
+		return 0
+	}
+	switch e := errors.Cause(err).(type) {
+	case *flags.Error:
+		if e.Type == flags.ErrHelp {
 			return 0
 		}
-		switch e := errors.Cause(err).(type) {
-		case *flags.Error:
-			if e.Type == flags.ErrHelp {
-				return 0
-			}
-			parser.WriteHelp(s.Err)
-			return 2
-		case Error:
-			if options.Debug {
-				s.dlogger.Printf("exit error: %+v\n", err)
-			} else {
-				fmt.Fprintf(s.Err, "exit error: %v\n", err)
-			}
-			return 1
-		default:
-			if options.Debug {
-				s.dlogger.Printf("unexpected error: %+v\n", err)
-			} else {
-				fmt.Fprintf(s.Err, "unexpected error: %v\n", err)
-			}
-			return 3
+		cmd.parser.WriteHelp(cmd.Err)
+		return 2
+	case Error:
+		if !cmd.options.Debug {
+			fmt.Fprintf(cmd.Err, "exit error: %v\n", err)
 		}
+		cmd.dlogger.Printf("exit error: %+v\n", err)
+		return 1
+	default:
+		if !cmd.options.Debug {
+			fmt.Fprintf(cmd.Err, "unexpected error: %v\n", err)
+		}
+		cmd.dlogger.Printf("unexpected error: %+v\n", err)
+		return 3
 	}
+}
 
-	args, err = parser.ParseArgs(args)
+func (cmd *Cmd) Run(args []string, version string) error {
+	cmd.options = new(Options)
+	cmd.parser = flags.NewParser(cmd.options, flags.Default)
+	cmd.parser.Name = cmdName
+	cmd.parser.Usage = "[OPTIONS] url"
+
+	args, err := cmd.parser.ParseArgs(args)
 	if err != nil {
-		return
+		return err
 	}
 
-	if options.Version {
-		fmt.Fprintf(s.Out, "%s: %s (runtime: %s)\n", cmdName, version, runtime.Version())
-		fmt.Fprintf(s.Out, "Project home: %s\n", projectHome)
-		return
+	if cmd.options.Version {
+		fmt.Fprintf(cmd.Out, "%s: %s (runtime: %s)\n", cmdName, version, runtime.Version())
+		fmt.Fprintf(cmd.Out, "Project home: %s\n", projectHome)
+		return nil
 	}
 
-	if len(args) == 0 && options.JSONFileName == "" && !options.BestMirror {
-		err = new(flags.Error)
-		return
+	if len(args) == 0 && cmd.options.JSONFileName == "" && !cmd.options.BestMirror {
+		return new(flags.Error)
 	}
 
-	s.logger = log.New(s.Out, "", log.LstdFlags)
-	s.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
-	if options.Debug {
-		s.dlogger.SetOutput(s.Err)
+	cmd.logger = log.New(cmd.Out, "", log.LstdFlags)
+	cmd.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
+	if cmd.options.Debug {
+		cmd.dlogger.SetOutput(cmd.Err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	s.quitHandler(cancel)
+	cmd.quitHandler(cancel)
 	defer cancel()
+
+	if cmd.options.AuthUser != "" {
+		if cmd.options.AuthPass == "" {
+			cmd.options.AuthPass, err = cmd.readPassword()
+			if err != nil {
+				return errors.WithMessage(errors.Wrap(err, "unable to read password"), "run")
+			}
+		}
+		cmd.userInfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
+	}
+
+	cmd.userAgent = userAgents[cmd.options.UserAgent]
+
+	if cmd.options.BestMirror {
+		args, err = cmd.bestMirror(ctx)
+		if err != nil {
+			return errors.WithMessage(err, "run")
+		}
+	}
 
 	var al *ActualLocation
 	var userUrl string // url before redirect
 
-	if options.AuthUser != "" {
-		if options.AuthPass == "" {
-			options.AuthPass, err = s.readPassword()
-			if err != nil {
-				err = errors.WithMessage(errors.Wrap(err, "unable to read password"), "run")
-				return
-			}
-		}
-		s.userInfo = url.UserPassword(options.AuthUser, options.AuthPass)
-	}
-
-	s.userAgent = userAgents[options.UserAgent]
-
-	if options.BestMirror {
-		args, err = s.bestMirror(ctx)
+	if cmd.options.JSONFileName != "" {
+		al, err = cmd.loadActualLocation(cmd.options.JSONFileName)
 		if err != nil {
-			err = errors.WithMessage(err, "run")
-			return
-		}
-	}
-
-	if options.JSONFileName != "" {
-		al, err = s.loadActualLocation(options.JSONFileName)
-		if err != nil {
-			err = errors.WithMessage(errors.Wrap(Error{err}, "load state failed"), "run")
-			return
+			return errors.WithMessage(errors.Wrap(Error{err}, "load state failed"), "run")
 		}
 		userUrl = al.Location
-		temp, err := s.follow(ctx, userUrl, al.SuggestedFileName)
+		remote, err := cmd.follow(ctx, userUrl, al.SuggestedFileName)
 		if err != nil {
-			return
+			return err
 		}
-		if al.ContentLength != temp.ContentLength {
-			err = errors.Wrap(Error{
-				errors.Errorf("ContentLength mismatch: expected %d, got %d", al.ContentLength, temp.ContentLength),
-			}, "run")
-			return
+		if al.ContentLength != remote.ContentLength {
+			return errors.Errorf("ContentLength mismatch: remote length %d, expected length %d", remote.ContentLength, al.ContentLength)
 		}
-		al.Location = temp.Location
+		al.Location = remote.Location
 	} else {
 		userUrl = args[0]
-		al, err = s.follow(ctx, userUrl, options.OutFileName)
+		al, err = cmd.follow(ctx, userUrl, cmd.options.OutFileName)
 		if err != nil {
-			return
+			return err
 		}
 		// ports are appending, so confirm to overwrite
-		if _, er := os.Stat(al.SuggestedFileName); er == nil {
+		if _, err := os.Stat(al.SuggestedFileName); err == nil {
 			var answer string
 			fmt.Printf("File %q already exists, overwrite? [y/n] ", al.SuggestedFileName)
 			_, err = fmt.Scanf("%s", &answer)
 			if err != nil {
-				return
+				return err
 			}
 			switch strings.ToLower(answer) {
 			case "y", "yes":
 				err = os.Remove(al.SuggestedFileName)
 				if err != nil {
-					return
+					return err
 				}
 			default:
-				return
+				return nil
 			}
 		}
-		al.Parts = al.calcParts(int64(options.Parts))
+		al.Parts = al.calcParts(int64(cmd.options.Parts))
 	}
 
-	al.writeSummary(s.Out)
+	al.writeSummary(cmd.Out)
 
 	eg, ctx := errgroup.WithContext(ctx)
 	pb := mpb.New(
-		mpb.WithOutput(s.Out),
+		mpb.WithOutput(cmd.Out),
 		mpb.WithWidth(60),
 		mpb.WithFormat("[=>-|"),
 		mpb.WithContext(ctx),
 	)
+
 	for i, p := range al.Parts {
 		if p.Skip {
 			continue
@@ -217,44 +210,42 @@ func (s *Cmd) Run(args []string, version string) (exitHandler func() int) {
 		i := i
 		eg.Go(func() error {
 			logger := log.New(ioutil.Discard, fmt.Sprintf("[p#%02d] ", i+1), log.LstdFlags)
-			if options.Debug {
-				logger.SetOutput(s.Err)
+			if cmd.options.Debug {
+				logger.SetOutput(cmd.Err)
 			}
-			return p.download(ctx, pb, logger, s.userInfo, s.userAgent, al.Location, i)
+			return p.download(ctx, pb, logger, cmd.userInfo, cmd.userAgent, al.Location, i)
 		})
 	}
 
 	err = eg.Wait()
-	if ctx.Err() != nil && err != nil {
-		err = errors.Wrap(Error{err}, "run")
+	if err != nil {
+		// if it's user context.Canceled error, mark as expected error
+		if ctx.Err() == context.Canceled {
+			err = errors.Wrap(Error{err}, "run")
+		}
+	} else if al.totalWritten() == al.ContentLength {
+		err = al.concatenateParts(cmd.dlogger)
+		pb.Wait()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.Out)
+		cmd.logger.Printf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
+		return os.Remove(al.SuggestedFileName + ".json")
+	} else {
+		// unexpected
+		err = errors.Errorf("ContentLength mismatch: remote length %d, written %d", al.ContentLength, al.totalWritten())
 	}
+
+	// marshal with original url
+	name, _ := al.marshalState(userUrl)
 	pb.Wait()
-
-	fmt.Fprintln(s.Out)
-	if al.totalWritten() == al.ContentLength {
-		if e := al.concatenateParts(s.dlogger); err == nil {
-			err = e
-		}
-		state := al.Parts[0].FileName + ".json"
-		if e := os.Remove(state); err == nil {
-			if !os.IsNotExist(e) {
-				err = e
-			}
-		}
-		s.logger.Printf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
-	} else if al.ContentLength > 0 && al.StatusCode < 300 {
-		// marshal with original url
-		name, e := al.marshalState(userUrl)
-		if err == nil {
-			err = e
-		}
-		s.logger.Printf("state saved to %q\n", name)
-	}
-
-	return
+	fmt.Fprintln(cmd.Out)
+	cmd.logger.Printf("state saved to %q\n", name)
+	return err
 }
 
-func (s *Cmd) quitHandler(cancel context.CancelFunc) {
+func (cmd Cmd) quitHandler(cancel context.CancelFunc) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -265,14 +256,14 @@ func (s *Cmd) quitHandler(cancel context.CancelFunc) {
 	}()
 }
 
-func (s *Cmd) loadActualLocation(filename string) (*ActualLocation, error) {
+func (cmd Cmd) loadActualLocation(filename string) (*ActualLocation, error) {
 	fd, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
 		if e := fd.Close(); e != nil {
-			s.dlogger.Printf("close %q: %v", fd.Name(), e)
+			cmd.dlogger.Printf("close %q: %v", fd.Name(), e)
 		}
 	}()
 
@@ -282,7 +273,7 @@ func (s *Cmd) loadActualLocation(filename string) (*ActualLocation, error) {
 	return al, err
 }
 
-func (s *Cmd) follow(ctx context.Context, userUrl, outFileName string) (*ActualLocation, error) {
+func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (*ActualLocation, error) {
 	client := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -291,20 +282,20 @@ func (s *Cmd) follow(ctx context.Context, userUrl, outFileName string) (*ActualL
 	next := userUrl
 	var redirectCount int
 	for {
-		s.logger.Printf("GET: %s\n", next)
+		cmd.logger.Printf("GET: %s\n", next)
 		req, err := http.NewRequest(http.MethodGet, next, nil)
 		if err != nil {
 			return nil, err
 		}
 		req.Close = true
-		req.URL.User = s.userInfo
-		req.Header.Set("User-Agent", s.userAgent)
+		req.URL.User = cmd.userInfo
+		req.Header.Set("User-Agent", cmd.userAgent)
 
 		resp, err := client.Do(req.WithContext(ctx))
 		if err != nil {
 			return nil, err
 		}
-		s.logger.Println("HTTP response:", resp.Status)
+		cmd.logger.Println("HTTP response:", resp.Status)
 
 		if isRedirect(resp.StatusCode) {
 			loc, err := resp.Location()
@@ -357,13 +348,13 @@ func (s *Cmd) follow(ctx context.Context, userUrl, outFileName string) (*ActualL
 		}
 
 		if err := resp.Body.Close(); err != nil {
-			s.dlogger.Printf("%s resp.Body.Close() failed: %v\n", next, err)
+			cmd.dlogger.Printf("%s resp.Body.Close() failed: %v\n", next, err)
 		}
 		return al, nil
 	}
 }
 
-func (s *Cmd) bestMirror(ctx context.Context) ([]string, error) {
+func (cmd Cmd) bestMirror(ctx context.Context) ([]string, error) {
 	lines, err := readLines(os.Stdin)
 	if err != nil {
 		return nil, errors.WithMessage(
@@ -375,7 +366,7 @@ func (s *Cmd) bestMirror(ctx context.Context) ([]string, error) {
 	defer cancel()
 	first := make(chan string, len(lines))
 	for _, url := range lines {
-		go s.fetch(ctx, url, first)
+		go cmd.fetch(ctx, url, first)
 	}
 	select {
 	case u := <-first:
@@ -385,41 +376,41 @@ func (s *Cmd) bestMirror(ctx context.Context) ([]string, error) {
 	}
 }
 
-func (s *Cmd) fetch(ctx context.Context, rawUrl string, first chan<- string) {
+func (cmd Cmd) fetch(ctx context.Context, rawUrl string, first chan<- string) {
 	req, err := http.NewRequest(http.MethodHead, rawUrl, nil)
 	if err != nil {
-		s.dlogger.Println("fetch:", err)
+		cmd.dlogger.Println("fetch:", err)
 		return
 	}
 	req.Close = true
-	req.URL.User = s.userInfo
+	req.URL.User = cmd.userInfo
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
-		s.dlogger.Println("fetch:", err)
+		cmd.dlogger.Println("fetch:", err)
 		return
 	}
 	defer func() {
 		if resp.Body != nil {
 			if err := resp.Body.Close(); err != nil {
-				s.dlogger.Printf("%s resp.Body.Close() failed: %v\n", rawUrl, err)
+				cmd.dlogger.Printf("%s resp.Body.Close() failed: %v\n", rawUrl, err)
 			}
 		}
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		s.dlogger.Printf("%s %q\n", resp.Status, rawUrl)
+		cmd.dlogger.Printf("%s %q\n", resp.Status, rawUrl)
 		return
 	}
 	first <- rawUrl
 }
 
-func (s *Cmd) readPassword() (string, error) {
-	fmt.Fprint(s.Out, "Enter Password: ")
+func (cmd Cmd) readPassword() (string, error) {
+	fmt.Fprint(cmd.Out, "Enter Password: ")
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		return "", err
 	}
-	fmt.Fprintln(s.Out)
+	fmt.Fprintln(cmd.Out)
 	return string(bytePassword), nil
 }
 
