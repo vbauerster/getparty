@@ -27,15 +27,22 @@ type Part struct {
 	Skip     bool
 }
 
-func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, n int) error {
+func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, n int) (err error) {
 	if p.Stop-p.Start == p.Written-1 {
 		return nil
 	}
 
 	pname := fmt.Sprintf("p#%02d:", n+1)
+	defer func() {
+		if err != nil {
+			// just add method name, without stack trace at the point
+			err = errors.WithMessage(err, "download: "+pname[:len(pname)-1])
+		}
+	}()
+
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return errors.WithMessage(errors.Wrapf(Error{err}, "%s unable to write to %q", pname, p.FileName), "download")
+		return err
 	}
 	defer func() {
 		if err := fpart.Close(); err != nil {
@@ -102,8 +109,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			p.Stop = total - 1
 			p.Written = 0
 		} else if resp.StatusCode != http.StatusPartialContent {
-			e := errors.Wrap(Error{errors.Errorf("%s unprocessable http status %q", pname, resp.Status)}, "download")
-			return false, e
+			return false, ExpectedError{errors.Errorf("unprocessable http status %q", resp.Status)}
 		}
 
 		if bar == nil {

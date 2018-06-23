@@ -41,11 +41,11 @@ var userAgents = map[string]string{
 	"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.1 Safari/605.1.15",
 }
 
-type Error struct {
+type ExpectedError struct {
 	Err error
 }
 
-func (e Error) Error() string {
+func (e ExpectedError) Error() string {
 	return e.Err.Error()
 }
 
@@ -83,7 +83,7 @@ func (cmd Cmd) Exit(err error) int {
 		}
 		cmd.parser.WriteHelp(cmd.Err)
 		return 2
-	case Error:
+	case ExpectedError:
 		if !cmd.options.Debug {
 			fmt.Fprintf(cmd.Err, "exit error: %v\n", err)
 		}
@@ -98,13 +98,19 @@ func (cmd Cmd) Exit(err error) int {
 	}
 }
 
-func (cmd *Cmd) Run(args []string, version string) error {
+func (cmd *Cmd) Run(args []string, version string) (err error) {
+	defer func() {
+		if err != nil {
+			// just add method name, without stack trace at the point
+			err = errors.WithMessage(err, "Run")
+		}
+	}()
 	cmd.options = new(Options)
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
 	cmd.parser.Name = cmdName
 	cmd.parser.Usage = "[OPTIONS] url"
 
-	args, err := cmd.parser.ParseArgs(args)
+	args, err = cmd.parser.ParseArgs(args)
 	if err != nil {
 		return err
 	}
@@ -133,7 +139,7 @@ func (cmd *Cmd) Run(args []string, version string) error {
 		if cmd.options.AuthPass == "" {
 			cmd.options.AuthPass, err = cmd.readPassword()
 			if err != nil {
-				return errors.WithMessage(errors.Wrap(err, "unable to read password"), "run")
+				return err
 			}
 		}
 		cmd.userInfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
@@ -142,9 +148,9 @@ func (cmd *Cmd) Run(args []string, version string) error {
 	cmd.userAgent = userAgents[cmd.options.UserAgent]
 
 	if cmd.options.BestMirror {
-		args, err = cmd.bestMirror(ctx)
+		args[0], err = cmd.bestMirror(ctx)
 		if err != nil {
-			return errors.WithMessage(err, "run")
+			return err
 		}
 	}
 
@@ -154,7 +160,7 @@ func (cmd *Cmd) Run(args []string, version string) error {
 	if cmd.options.JSONFileName != "" {
 		al, err = cmd.loadActualLocation(cmd.options.JSONFileName)
 		if err != nil {
-			return errors.WithMessage(errors.Wrap(Error{err}, "load state failed"), "run")
+			return err
 		}
 		userUrl = al.Location
 		remote, err := cmd.follow(ctx, userUrl, al.SuggestedFileName)
@@ -171,7 +177,7 @@ func (cmd *Cmd) Run(args []string, version string) error {
 		if err != nil {
 			return err
 		}
-		// ports are appending, so confirm to overwrite
+		// ports are appending, so ask to overwrite
 		if _, err := os.Stat(al.SuggestedFileName); err == nil {
 			var answer string
 			fmt.Printf("File %q already exists, overwrite? [y/n] ", al.SuggestedFileName)
@@ -221,7 +227,7 @@ func (cmd *Cmd) Run(args []string, version string) error {
 	if err != nil {
 		// if it's user context.Canceled error, mark as expected error
 		if ctx.Err() == context.Canceled {
-			err = errors.Wrap(Error{err}, "run")
+			err = ExpectedError{err}
 		}
 	} else if al.totalWritten() == al.ContentLength {
 		err = al.concatenateParts(cmd.dlogger)
@@ -273,7 +279,13 @@ func (cmd Cmd) loadActualLocation(filename string) (*ActualLocation, error) {
 	return al, err
 }
 
-func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (*ActualLocation, error) {
+func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (al *ActualLocation, err error) {
+	defer func() {
+		if err != nil {
+			// just add method name, without stack trace at the point
+			err = errors.WithMessage(err, "follow")
+		}
+	}()
 	client := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -304,9 +316,9 @@ func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (*Actual
 			}
 			redirectCount++
 			if redirectCount > maxRedirects {
-				return nil, errors.Wrap(Error{
+				return nil, ExpectedError{
 					errors.Errorf("maximum number of redirects (%d) followed", maxRedirects),
-				}, "follow")
+				}
 			}
 			next = loc.String()
 			// don't bother closing resp.Body here,
@@ -315,9 +327,9 @@ func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (*Actual
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, errors.Wrap(Error{
+			return nil, ExpectedError{
 				errors.Errorf("unprocessable http status %q", resp.Status),
-			}, "follow")
+			}
 		}
 
 		if outFileName == "" {
@@ -337,7 +349,7 @@ func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (*Actual
 			outFileName = filepath.Base(path)
 		}
 
-		al := &ActualLocation{
+		al = &ActualLocation{
 			Location:          next,
 			SuggestedFileName: outFileName,
 			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
@@ -354,26 +366,29 @@ func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (*Actual
 	}
 }
 
-func (cmd Cmd) bestMirror(ctx context.Context) ([]string, error) {
+func (cmd Cmd) bestMirror(ctx context.Context) (fastest string, err error) {
+	defer func() {
+		if err != nil {
+			// just add method name, without stack trace at the point
+			err = errors.WithMessage(err, "bestMirror")
+		}
+	}()
 	lines, err := readLines(os.Stdin)
 	if err != nil {
-		return nil, errors.WithMessage(
-			errors.Wrap(Error{err}, "unable to read from stdin"),
-			"best-mirror",
-		)
+		return fastest, err
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	first := make(chan string, len(lines))
+	ch := make(chan string, len(lines))
 	for _, url := range lines {
-		go cmd.fetch(ctx, url, first)
+		go cmd.fetch(ctx, url, ch)
 	}
 	select {
-	case u := <-first:
-		return []string{u}, nil
+	case fastest = <-ch:
 	case <-time.After(3 * time.Second):
-		return nil, errors.Wrap(Error{errors.New("timeout")}, "best-mirror")
+		err = ExpectedError{errors.New("timeout")}
 	}
+	return fastest, err
 }
 
 func (cmd Cmd) fetch(ctx context.Context, rawUrl string, first chan<- string) {
