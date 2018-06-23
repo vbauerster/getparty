@@ -100,10 +100,8 @@ func (cmd Cmd) Exit(err error) int {
 
 func (cmd *Cmd) Run(args []string, version string) (err error) {
 	defer func() {
-		if err != nil {
-			// just add method name, without stack trace at the point
-			err = errors.WithMessage(err, "Run")
-		}
+		// just add method name, without stack trace at the point
+		err = errors.WithMessage(err, "Run")
 	}()
 	cmd.options = new(Options)
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
@@ -284,10 +282,8 @@ func (cmd Cmd) loadActualLocation(filename string) (*ActualLocation, error) {
 
 func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (al *ActualLocation, err error) {
 	defer func() {
-		if err != nil {
-			// just add method name, without stack trace at the point
-			err = errors.WithMessage(err, "follow")
-		}
+		// just add method name, without stack trace at the point
+		err = errors.WithMessage(err, "follow")
 	}()
 	client := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -371,10 +367,8 @@ func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (al *Act
 
 func (cmd Cmd) bestMirror(ctx context.Context) (fastest string, err error) {
 	defer func() {
-		if err != nil {
-			// just add method name, without stack trace at the point
-			err = errors.WithMessage(err, "bestMirror")
-		}
+		// just add method name, without stack trace at the point
+		err = errors.WithMessage(err, "bestMirror")
 	}()
 	lines, err := readLines(os.Stdin)
 	if err != nil {

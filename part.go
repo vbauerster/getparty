@@ -34,10 +34,8 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 	pname := fmt.Sprintf("p#%02d:", n+1)
 	defer func() {
-		if err != nil {
-			// just add method name, without stack trace at the point
-			err = errors.WithMessage(err, "download: "+pname[:len(pname)-1])
-		}
+		// just add method name, without stack trace at the point
+		err = errors.WithMessage(err, "download: "+pname[:len(pname)-1])
 	}()
 
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
