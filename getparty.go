@@ -237,7 +237,10 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 		fmt.Fprintln(cmd.Out)
 		cmd.logger.Printf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
-		return os.Remove(al.SuggestedFileName + ".json")
+		if cmd.options.JSONFileName != "" {
+			return os.Remove(cmd.options.JSONFileName)
+		}
+		return nil
 	} else {
 		// unexpected
 		err = errors.Errorf("ContentLength mismatch: remote length %d, written %d", al.ContentLength, al.totalWritten())
