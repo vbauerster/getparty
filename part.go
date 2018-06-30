@@ -111,7 +111,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 
 		if bar == nil {
-			age := float64(total+2) / 3.0
+			age := float64(total+2) / 64.0
 			messageCh = make(chan string, 1)
 			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
