@@ -10,9 +10,8 @@ import (
 	"github.com/vbauerster/mpb/decor"
 )
 
-// ActualLocation represents server's status 200 or 206 response meta data
-// It never holds redirect responses
-type ActualLocation struct {
+// Session represents download session meta data
+type Session struct {
 	Location          string
 	SuggestedFileName string
 	ContentMD5        string
@@ -23,30 +22,30 @@ type ActualLocation struct {
 	Parts             []*Part
 }
 
-func (al *ActualLocation) calcParts(parts int64) []*Part {
+func (s Session) calcParts(parts int64) []*Part {
 	if parts == 0 {
 		parts = 1
 	}
-	partSize := al.ContentLength / parts
+	partSize := s.ContentLength / parts
 	if partSize <= 0 {
 		parts = 1
 	}
 
 	ps := make([]*Part, parts)
-	stop := al.ContentLength
+	stop := s.ContentLength
 	start := stop
 	for i := parts - 1; i > 0; i-- {
 		stop = start - 1
 		start = stop - partSize
 		ps[i] = &Part{
-			FileName: fmt.Sprintf("%s.part%d", al.SuggestedFileName, i),
+			FileName: fmt.Sprintf("%s.part%d", s.SuggestedFileName, i),
 			Start:    start,
 			Stop:     stop,
 		}
 	}
 	stop = start - 1
 	ps[0] = &Part{
-		FileName: al.SuggestedFileName,
+		FileName: s.SuggestedFileName,
 		Stop:     stop,
 	}
 	if stop < 0 || stop < parts*8 {
@@ -56,17 +55,17 @@ func (al *ActualLocation) calcParts(parts int64) []*Part {
 	return ps
 }
 
-func (al *ActualLocation) concatenateParts(dlogger *log.Logger) error {
-	fpart0, err := os.OpenFile(al.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
+func (s Session) concatenateParts(dlogger *log.Logger) error {
+	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 
-	for i := 1; i < len(al.Parts); i++ {
-		if al.Parts[i].Skip {
+	for i := 1; i < len(s.Parts); i++ {
+		if s.Parts[i].Skip {
 			continue
 		}
-		fparti, err := os.Open(al.Parts[i].FileName)
+		fparti, err := os.Open(s.Parts[i].FileName)
 		if err != nil {
 			return err
 		}
@@ -82,9 +81,9 @@ func (al *ActualLocation) concatenateParts(dlogger *log.Logger) error {
 	return fpart0.Close()
 }
 
-func (al *ActualLocation) marshalState() (string, error) {
-	name := al.SuggestedFileName + ".json"
-	data, err := json.Marshal(al)
+func (s Session) marshalState() (string, error) {
+	name := s.SuggestedFileName + ".json"
+	data, err := json.Marshal(s)
 	if err != nil {
 		return name, err
 	}
@@ -99,12 +98,9 @@ func (al *ActualLocation) marshalState() (string, error) {
 	return name, err
 }
 
-func (al *ActualLocation) totalWritten() int64 {
+func (s Session) totalWritten() int64 {
 	var total int64
-	if al == nil {
-		return total
-	}
-	for _, p := range al.Parts {
+	for _, p := range s.Parts {
 		if p.Skip {
 			continue
 		}
@@ -113,21 +109,21 @@ func (al *ActualLocation) totalWritten() int64 {
 	return total
 }
 
-func (al *ActualLocation) writeSummary(w io.Writer) {
-	humanSize := decor.CounterKiB(al.ContentLength)
-	format := fmt.Sprintf("Length: %%s [%s]\n", al.ContentType)
+func (s Session) writeSummary(w io.Writer) {
+	humanSize := decor.CounterKiB(s.ContentLength)
+	format := fmt.Sprintf("Length: %%s [%s]\n", s.ContentType)
 	lengthSummary := "unknown"
-	if al.ContentLength >= 0 {
-		lengthSummary = fmt.Sprintf("%d (% .2f)", al.ContentLength, humanSize)
-		if totalWritten := al.totalWritten(); totalWritten > 0 {
-			remaining := al.ContentLength - totalWritten
+	if s.ContentLength >= 0 {
+		lengthSummary = fmt.Sprintf("%d (% .2f)", s.ContentLength, humanSize)
+		if totalWritten := s.totalWritten(); totalWritten > 0 {
+			remaining := s.ContentLength - totalWritten
 			lengthSummary += fmt.Sprintf(", %d (% .2f) remaining", remaining, decor.CounterKiB(remaining))
 		}
 	}
 	fmt.Fprintf(w, format, lengthSummary)
-	switch al.AcceptRanges {
+	switch s.AcceptRanges {
 	case "", "none":
 		fmt.Fprintln(w, "Looks like server doesn't support range requests (no party, no resume)")
 	}
-	fmt.Fprintf(w, "Saving to: %q\n\n", al.SuggestedFileName)
+	fmt.Fprintf(w, "Saving to: %q\n\n", s.SuggestedFileName)
 }
