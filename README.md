@@ -19,9 +19,9 @@ Usage:
 Application Options:
   -p, --parts=n                               number of parts (default: 2)
   -o, --output=filename                       user defined output
-  -c, --continue=state                        resume download from the last saved state file
+  -c, --continue=state.json                   resume download from the last session
   -a, --user-agent=[chrome|firefox|safari]    User-Agent header (default: chrome)
-  -b, --best-mirror                           pickup the fastest mirror, will read from stdin
+  -b, --best-mirror [...file|stdin]           pickup the fastest mirror
   -u, --username=                             basic http auth username
       --password=                             basic http auth password
       --debug                                 enable debug to stderr
