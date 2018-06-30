@@ -167,9 +167,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		p.Written += written
 		if total <= 0 {
 			bar.SetTotal(p.Written, true)
-			bar.IncrBy(0)
-			// don't retry if content length is unknown
-			// even if io.EOF isn't reached.
+			// don't retry if content length is unknown, even if io.EOF isn't reached.
 			p.Stop = p.Written - 1
 		}
 		// don't retry on io.EOF or user context.Canceled
