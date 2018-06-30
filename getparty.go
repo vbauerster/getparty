@@ -220,8 +220,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		if p.Skip {
 			continue
 		}
-		p := p
-		i := i
+		i, p := i, p
 		eg.Go(func() error {
 			logger := log.New(ioutil.Discard, fmt.Sprintf("[p#%02d] ", i+1), log.LstdFlags)
 			if cmd.options.Debug {
