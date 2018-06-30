@@ -182,7 +182,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	if err != nil {
 		return err
 	}
-	// ports are appending, so ask to overwrite
+	// parts are appending, so ask to overwrite
 	if _, err := os.Stat(session.SuggestedFileName); err == nil {
 		var answer string
 		fmt.Printf("File %q already exists, overwrite? [y/n] ", session.SuggestedFileName)
