@@ -256,13 +256,17 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 
 	// preserve user provided url
 	remote.Location = userUrl
-	name, err := remote.marshalState()
-	if err != nil {
-		return err
-	}
+	name, e := remote.marshalState()
 	pb.Wait()
 	fmt.Fprintln(cmd.Out)
-	cmd.logger.Printf("session state saved to %q\n", name)
+	if e != nil {
+		if err == nil {
+			err = e
+		}
+		cmd.logger.Printf("session state save error: %v\n", e)
+	} else {
+		cmd.logger.Printf("session state saved to %q\n", name)
+	}
 	return err
 }
 
