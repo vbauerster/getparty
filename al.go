@@ -27,7 +27,7 @@ func (al *ActualLocation) calcParts(parts int64) []*Part {
 	if parts == 0 {
 		parts = 1
 	}
-	partSize := al.ContentLength / int64(parts)
+	partSize := al.ContentLength / parts
 	if partSize <= 0 {
 		parts = 1
 	}
@@ -82,9 +82,8 @@ func (al *ActualLocation) concatenateParts(dlogger *log.Logger) error {
 	return fpart0.Close()
 }
 
-func (al *ActualLocation) marshalState(userURL string) (string, error) {
+func (al *ActualLocation) marshalState() (string, error) {
 	name := al.SuggestedFileName + ".json"
-	al.Location = userURL // preserve user provided url
 	data, err := json.Marshal(al)
 	if err != nil {
 		return name, err

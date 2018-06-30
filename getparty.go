@@ -101,7 +101,7 @@ func (cmd Cmd) Exit(err error) int {
 func (cmd *Cmd) Run(args []string, version string) (err error) {
 	defer func() {
 		// just add method name, without stack trace at the point
-		err = errors.WithMessage(err, "Run")
+		err = errors.WithMessage(err, "run")
 	}()
 	cmd.options = new(Options)
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
@@ -145,10 +145,18 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 
 	cmd.userAgent = userAgents[cmd.options.UserAgent]
 
-	var al *ActualLocation
 	var userUrl string
+	var lastSessionRemote *ActualLocation
 
-	if cmd.options.BestMirror {
+	switch {
+	case cmd.options.JSONFileName != "":
+		lastSessionRemote, err = cmd.loadActualLocation(cmd.options.JSONFileName)
+		if err != nil {
+			return err
+		}
+		userUrl = lastSessionRemote.Location
+		cmd.options.OutFileName = lastSessionRemote.SuggestedFileName
+	case cmd.options.BestMirror:
 		var input io.Reader
 		var rr []io.Reader
 		for _, fn := range args {
@@ -166,52 +174,39 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		if err != nil {
 			return err
 		}
+	default:
+		userUrl = args[0]
 	}
 
-	if cmd.options.JSONFileName != "" {
-		al, err = cmd.loadActualLocation(cmd.options.JSONFileName)
+	remote, err := cmd.follow(ctx, userUrl, cmd.options.OutFileName)
+	if err != nil {
+		return err
+	}
+	// ports are appending, so ask to overwrite
+	if _, err := os.Stat(remote.SuggestedFileName); err == nil {
+		var answer string
+		fmt.Printf("File %q already exists, overwrite? [y/n] ", remote.SuggestedFileName)
+		_, err = fmt.Scanf("%s", &answer)
 		if err != nil {
 			return err
 		}
-		userUrl = al.Location
-		remote, err := cmd.follow(ctx, userUrl, al.SuggestedFileName)
-		if err != nil {
-			return err
-		}
-		if al.ContentLength != remote.ContentLength {
-			return errors.Errorf("ContentLength mismatch: remote length %d, expected length %d", remote.ContentLength, al.ContentLength)
-		}
-		al.Location = remote.Location
-	} else {
-		if userUrl == "" {
-			userUrl = args[0]
-		}
-		al, err = cmd.follow(ctx, userUrl, cmd.options.OutFileName)
-		if err != nil {
-			return err
-		}
-		// ports are appending, so ask to overwrite
-		if _, err := os.Stat(al.SuggestedFileName); err == nil {
-			var answer string
-			fmt.Printf("File %q already exists, overwrite? [y/n] ", al.SuggestedFileName)
-			_, err = fmt.Scanf("%s", &answer)
+		switch strings.ToLower(answer) {
+		case "y", "yes":
+			err = os.Remove(remote.SuggestedFileName)
 			if err != nil {
 				return err
 			}
-			switch strings.ToLower(answer) {
-			case "y", "yes":
-				err = os.Remove(al.SuggestedFileName)
-				if err != nil {
-					return err
-				}
-			default:
-				return nil
-			}
+		default:
+			return nil
 		}
-		al.Parts = al.calcParts(int64(cmd.options.Parts))
 	}
 
-	al.writeSummary(cmd.Out)
+	if lastSessionRemote != nil && lastSessionRemote.ContentLength != remote.ContentLength {
+		return errors.Errorf("ContentLength mismatch: remote length %d, expected length %d", remote.ContentLength, lastSessionRemote.ContentLength)
+	}
+
+	remote.Parts = remote.calcParts(int64(cmd.options.Parts))
+	remote.writeSummary(cmd.Out)
 
 	eg, ctx := errgroup.WithContext(ctx)
 	pb := mpb.New(
@@ -221,7 +216,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		mpb.WithContext(ctx),
 	)
 
-	for i, p := range al.Parts {
+	for i, p := range remote.Parts {
 		if p.Skip {
 			continue
 		}
@@ -232,7 +227,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			if cmd.options.Debug {
 				logger.SetOutput(cmd.Err)
 			}
-			return p.download(ctx, pb, logger, cmd.userInfo, cmd.userAgent, al.Location, i)
+			return p.download(ctx, pb, logger, cmd.userInfo, cmd.userAgent, remote.Location, i)
 		})
 	}
 
@@ -242,28 +237,32 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		if ctx.Err() == context.Canceled {
 			err = ExpectedError{err}
 		}
-	} else if al.totalWritten() == al.ContentLength {
-		err = al.concatenateParts(cmd.dlogger)
+	} else if remote.totalWritten() == remote.ContentLength {
+		err = remote.concatenateParts(cmd.dlogger)
 		pb.Wait()
 		if err != nil {
 			return err
 		}
 		fmt.Fprintln(cmd.Out)
-		cmd.logger.Printf("%q saved [%[2]d/%[2]d]\n", al.SuggestedFileName, al.ContentLength)
+		cmd.logger.Printf("%q saved [%[2]d/%[2]d]\n", remote.SuggestedFileName, remote.ContentLength)
 		if cmd.options.JSONFileName != "" {
 			return os.Remove(cmd.options.JSONFileName)
 		}
 		return nil
 	} else {
 		// unexpected
-		err = errors.Errorf("ContentLength mismatch: remote length %d, written %d", al.ContentLength, al.totalWritten())
+		err = errors.Errorf("ContentLength mismatch: remote length %d, written %d", remote.ContentLength, remote.totalWritten())
 	}
 
-	// marshal with original url
-	name, _ := al.marshalState(userUrl)
+	// preserve user provided url
+	remote.Location = userUrl
+	name, err := remote.marshalState()
+	if err != nil {
+		return err
+	}
 	pb.Wait()
 	fmt.Fprintln(cmd.Out)
-	cmd.logger.Printf("state saved to %q\n", name)
+	cmd.logger.Printf("session state saved to %q\n", name)
 	return err
 }
 
