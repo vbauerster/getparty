@@ -53,9 +53,9 @@ func (e ExpectedError) Error() string {
 type Options struct {
 	Parts        uint   `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
 	OutFileName  string `short:"o" long:"output" value-name:"filename" description:"user defined output"`
-	JSONFileName string `short:"c" long:"continue" value-name:"state" description:"resume download from the last saved state file"`
+	JSONFileName string `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session state"`
 	UserAgent    string `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
-	BestMirror   bool   `short:"b" long:"best-mirror" description:"pickup the fastest mirror, will read from stdin"`
+	BestMirror   bool   `short:"b" long:"best-mirror [...file|stdin]" description:"pickup the fastest mirror"`
 	AuthUser     string `short:"u" long:"username" description:"basic http auth username"`
 	AuthPass     string `long:"password" description:"basic http auth password"`
 	Debug        bool   `long:"debug" description:"enable debug to stderr"`
@@ -145,15 +145,28 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 
 	cmd.userAgent = userAgents[cmd.options.UserAgent]
 
+	var al *ActualLocation
+	var userUrl string
+
 	if cmd.options.BestMirror {
-		args[0], err = cmd.bestMirror(ctx)
+		var input io.Reader
+		var rr []io.Reader
+		for _, fn := range args {
+			if fd, err := os.Open(fn); err == nil {
+				rr = append(rr, fd)
+			}
+		}
+		if len(rr) > 0 {
+			input = io.MultiReader(rr...)
+		} else {
+			input = os.Stdin
+		}
+		userUrl, err = cmd.bestMirror(ctx, input)
+		cmd.closeReaders(rr)
 		if err != nil {
 			return err
 		}
 	}
-
-	var al *ActualLocation
-	var userUrl string // url before redirect
 
 	if cmd.options.JSONFileName != "" {
 		al, err = cmd.loadActualLocation(cmd.options.JSONFileName)
@@ -170,7 +183,9 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 		al.Location = remote.Location
 	} else {
-		userUrl = args[0]
+		if userUrl == "" {
+			userUrl = args[0]
+		}
 		al, err = cmd.follow(ctx, userUrl, cmd.options.OutFileName)
 		if err != nil {
 			return err
@@ -365,12 +380,12 @@ func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (al *Act
 	}
 }
 
-func (cmd Cmd) bestMirror(ctx context.Context) (fastest string, err error) {
+func (cmd Cmd) bestMirror(ctx context.Context, input io.Reader) (fastest string, err error) {
 	defer func() {
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "bestMirror")
 	}()
-	lines, err := readLines(os.Stdin)
+	lines, err := readLines(input)
 	if err != nil {
 		return fastest, err
 	}
@@ -424,6 +439,16 @@ func (cmd Cmd) readPassword() (string, error) {
 	}
 	fmt.Fprintln(cmd.Out)
 	return string(bytePassword), nil
+}
+
+func (cmd Cmd) closeReaders(rr []io.Reader) {
+	for _, r := range rr {
+		if closer, ok := r.(io.Closer); ok {
+			if err := closer.Close(); err != nil {
+				cmd.dlogger.Printf("close failed: %v\n", err)
+			}
+		}
+	}
 }
 
 func parseContentDisposition(input string) string {
