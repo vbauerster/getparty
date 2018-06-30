@@ -53,7 +53,7 @@ func (e ExpectedError) Error() string {
 type Options struct {
 	Parts        uint   `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
 	OutFileName  string `short:"o" long:"output" value-name:"filename" description:"user defined output"`
-	JSONFileName string `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session state"`
+	JSONFileName string `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
 	UserAgent    string `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
 	BestMirror   bool   `short:"b" long:"best-mirror [...file|stdin]" description:"pickup the fastest mirror"`
 	AuthUser     string `short:"u" long:"username" description:"basic http auth username"`
