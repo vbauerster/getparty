@@ -27,7 +27,7 @@ type Part struct {
 	Skip     bool
 }
 
-func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, n int) (err error) {
+func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, parts, n int) (err error) {
 	if p.Stop-p.Start == p.Written-1 {
 		return nil
 	}
@@ -111,15 +111,21 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 
 		if bar == nil {
+			var efn func(io.Writer, bool)
+			if n == parts-1 { // add new line to the last bar
+				efn = func(w io.Writer, _ bool) {
+					io.WriteString(w, "\n")
+				}
+			}
 			age := float64(total+2) / 64.0
 			messageCh = make(chan string, 1)
-			bar = pb.AddBar(total, mpb.BarPriority(n),
+			bar = pb.AddBar(total, mpb.BarPriority(n), mpb.BarNewLineExtend(efn),
 				mpb.PrependDecorators(
 					decor.Name(pname),
 					percentageWithSizeCounter(messageCh, 5),
 				),
 				mpb.AppendDecorators(
-					decor.EwmaETA(decor.ET_STYLE_MMSS, age),
+					decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, age), "done!"),
 					decor.Name(" ]"),
 					decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
 				),

@@ -182,30 +182,31 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	if err != nil {
 		return err
 	}
-	// parts are appending, so ask to overwrite
-	if _, err := os.Stat(session.SuggestedFileName); err == nil {
-		var answer string
-		fmt.Printf("File %q already exists, overwrite? [y/n] ", session.SuggestedFileName)
-		_, err = fmt.Scanf("%s", &answer)
-		if err != nil {
-			return err
+
+	if lastSession != nil {
+		if lastSession.ContentLength != session.ContentLength {
+			return errors.Errorf("ContentLength mismatch: remote length %d, expected length %d", session.ContentLength, lastSession.ContentLength)
 		}
-		switch strings.ToLower(answer) {
-		case "y", "yes":
-			err = os.Remove(session.SuggestedFileName)
-			if err != nil {
+		session = lastSession
+	} else {
+		session.Parts = session.calcParts(int64(cmd.options.Parts))
+		if _, err := os.Stat(session.SuggestedFileName); err == nil {
+			var answer string
+			fmt.Printf("File %q already exists, overwrite? [y/n] ", session.SuggestedFileName)
+			if _, err := fmt.Scanf("%s", &answer); err != nil {
 				return err
 			}
-		default:
-			return nil
+			switch strings.ToLower(answer) {
+			case "y", "yes":
+				if err := session.removeFiles(); err != nil {
+					return err
+				}
+			default:
+				return nil
+			}
 		}
 	}
 
-	if lastSession != nil && lastSession.ContentLength != session.ContentLength {
-		return errors.Errorf("ContentLength mismatch: remote length %d, expected length %d", session.ContentLength, lastSession.ContentLength)
-	}
-
-	session.Parts = session.calcParts(int64(cmd.options.Parts))
 	session.writeSummary(cmd.Out)
 
 	eg, ctx := errgroup.WithContext(ctx)
@@ -226,41 +227,37 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			if cmd.options.Debug {
 				logger.SetOutput(cmd.Err)
 			}
-			return p.download(ctx, pb, logger, cmd.userInfo, cmd.userAgent, session.Location, i)
+			return p.download(ctx, pb, logger, cmd.userInfo, cmd.userAgent, session.Location, len(session.Parts), i)
 		})
 	}
 
 	err = eg.Wait()
-	if err != nil {
-		// if it's user context.Canceled error, mark as expected error
+
+	if err == nil {
+		if written := session.totalWritten(); written == session.ContentLength || session.ContentLength < 1 {
+			err = session.concatenateParts(cmd.dlogger, pb)
+			pb.Wait()
+			if err != nil {
+				return err
+			}
+			cmd.logger.Printf("%q saved [%d/%d]\n", session.SuggestedFileName, session.ContentLength, written)
+			if cmd.options.JSONFileName != "" {
+				return os.Remove(cmd.options.JSONFileName)
+			}
+			return nil
+		}
 		if ctx.Err() == context.Canceled {
+			// most probably user hit ^C, so just indicate this
+			err = ctx.Err()
 			err = ExpectedError{err}
 		}
-	} else if written := session.totalWritten(); written == session.ContentLength || session.ContentLength < 1 {
-		err = session.concatenateParts(cmd.dlogger)
-		pb.Wait()
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(cmd.Out)
-		cmd.logger.Printf("%q saved [%d/%d]\n", session.SuggestedFileName, session.ContentLength, written)
-		if cmd.options.JSONFileName != "" {
-			return os.Remove(cmd.options.JSONFileName)
-		}
-		return nil
-	} else {
-		err = errors.Errorf("ContentLength mismatch: remote length %d, written %d", session.ContentLength, session.totalWritten())
 	}
 
 	// preserve user provided url
 	session.Location = userUrl
 	name, e := session.marshalState()
 	pb.Wait()
-	fmt.Fprintln(cmd.Out)
 	if e != nil {
-		if err == nil {
-			err = e
-		}
 		cmd.logger.Printf("session state save error: %v\n", e)
 	} else {
 		cmd.logger.Printf("session state saved to %q\n", name)

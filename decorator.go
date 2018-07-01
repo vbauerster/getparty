@@ -6,6 +6,7 @@ package getparty
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/vbauerster/mpb/decor"
@@ -42,4 +43,13 @@ func percentage(total, current, ratio int64) float64 {
 		return 0
 	}
 	return float64(ratio*current) / float64(total)
+}
+
+func padDecorator(diff int) decor.Decorator {
+	return decor.DecoratorFunc(func(s *decor.Statistics, widthAccumulator chan<- int, widthDistributor <-chan int) string {
+		widthAccumulator <- 0
+		max := <-widthDistributor
+		max -= diff
+		return strings.Repeat(" ", max)
+	})
 }

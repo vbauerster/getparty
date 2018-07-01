@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/vbauerster/mpb"
 	"github.com/vbauerster/mpb/decor"
 )
 
@@ -55,14 +56,32 @@ func (s Session) calcParts(parts int64) []*Part {
 	return ps
 }
 
-func (s Session) concatenateParts(dlogger *log.Logger) error {
+func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 
+	var bar *mpb.Bar
+	if len(s.Parts) > 1 {
+		name := "concatenating parts:"
+		bar = pb.AddBar(int64(len(s.Parts)-1), mpb.BarPriority(len(s.Parts)),
+			mpb.BarRemoveOnComplete(),
+			mpb.PrependDecorators(
+				decor.Name(name),
+				padDecorator(len(name)-6),
+			),
+			mpb.AppendDecorators(
+				decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, 60), "done!"),
+				decor.Name(" ] "),
+				decor.Percentage(decor.WCSyncWidthR),
+			),
+		)
+	}
+
 	for i := 1; i < len(s.Parts); i++ {
 		if s.Parts[i].Skip {
+			bar.Increment()
 			continue
 		}
 		fparti, err := os.Open(s.Parts[i].FileName)
@@ -77,6 +96,7 @@ func (s Session) concatenateParts(dlogger *log.Logger) error {
 				dlogger.Printf("concatenateParts: %q %v\n", fparti.Name(), err)
 			}
 		}
+		bar.Increment()
 	}
 	return fpart0.Close()
 }
@@ -126,4 +146,13 @@ func (s Session) writeSummary(w io.Writer) {
 		fmt.Fprintln(w, "Looks like server doesn't support range requests (no party, no resume)")
 	}
 	fmt.Fprintf(w, "Saving to: %q\n\n", s.SuggestedFileName)
+}
+
+func (s Session) removeFiles() (err error) {
+	for _, part := range s.Parts {
+		if e := os.Remove(part.FileName); err == nil && !os.IsNotExist(e) {
+			err = e
+		}
+	}
+	return err
 }
