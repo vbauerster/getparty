@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 
 	"github.com/vbauerster/mpb"
 	"github.com/vbauerster/mpb/decor"
@@ -79,6 +80,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 			bar.Increment()
 			continue
 		}
+		start := time.Now()
 		fparti, err := os.Open(s.Parts[i].FileName)
 		if err != nil {
 			return err
@@ -91,7 +93,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 				dlogger.Printf("concatenateParts: %q %v\n", fparti.Name(), err)
 			}
 		}
-		bar.Increment()
+		bar.IncrBy(1, time.Since(start))
 	}
 	return fpart0.Close()
 }
