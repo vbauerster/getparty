@@ -72,7 +72,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 				padDecorator(len(name)-6),
 			),
 			mpb.AppendDecorators(
-				decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, 60), "done!"),
+				decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, 30), "done!"),
 				decor.Name(" ] "),
 				decor.Percentage(decor.WCSyncWidthR),
 			),
