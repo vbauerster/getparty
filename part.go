@@ -113,9 +113,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		if bar == nil {
 			var efn func(io.Writer, bool)
 			if n == parts-1 { // add new line to the last bar
-				efn = func(w io.Writer, _ bool) {
-					io.WriteString(w, "\n")
-				}
+				efn = func(w io.Writer, _ bool) { io.WriteString(w, "\n") }
 			}
 			age := float64(total+2) / 64.0
 			messageCh = make(chan string, 1)
