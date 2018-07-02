@@ -248,8 +248,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 		if ctx.Err() == context.Canceled {
 			// most probably user hit ^C, so just indicate this
-			err = ctx.Err()
-			err = ExpectedError{err}
+			err = ExpectedError{ctx.Err()}
 		}
 	}
 
