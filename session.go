@@ -63,15 +63,13 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 	if len(s.Parts) > 1 {
 		name := "concatenating parts:"
 		bar = pb.AddBar(int64(len(s.Parts)-1), mpb.BarPriority(len(s.Parts)),
-			mpb.BarRemoveOnComplete(),
 			mpb.PrependDecorators(
 				decor.Name(name),
 				padDecorator(len(name)-6),
 			),
 			mpb.AppendDecorators(
 				decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, 30), "done!"),
-				decor.Name(" ] "),
-				decor.Percentage(decor.WCSyncWidthR),
+				decor.Name(" ]"),
 			),
 		)
 	}

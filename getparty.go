@@ -240,6 +240,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			if err != nil {
 				return err
 			}
+			fmt.Fprintln(cmd.Out)
 			cmd.logger.Printf("%q saved [%d/%d]\n", session.SuggestedFileName, session.ContentLength, written)
 			if cmd.options.JSONFileName != "" {
 				return os.Remove(cmd.options.JSONFileName)
@@ -256,6 +257,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	session.Location = userUrl
 	name, e := session.marshalState()
 	pb.Wait()
+	fmt.Fprintln(cmd.Out)
 	if e != nil {
 		cmd.logger.Printf("session state save error: %v\n", e)
 	} else {

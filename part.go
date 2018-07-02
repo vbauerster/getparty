@@ -113,13 +113,9 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 
 		if bar == nil {
-			var efn func(io.Writer, bool)
-			if n == parts-1 {
-				efn = func(w io.Writer, _ bool) { io.WriteString(w, "\n") }
-			}
 			age := float64(total+2) / 64.0
 			messageCh = make(chan string, 1)
-			bar = pb.AddBar(total, mpb.BarPriority(n), mpb.BarNewLineExtend(efn),
+			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
 					decor.Name(pname),
 					percentageWithSizeCounter(messageCh, 5),
