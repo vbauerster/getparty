@@ -11,7 +11,7 @@ import (
 	"github.com/vbauerster/mpb/decor"
 )
 
-// Session represents download session meta data
+// Session represents download session state
 type Session struct {
 	Location          string
 	SuggestedFileName string
@@ -24,14 +24,11 @@ type Session struct {
 }
 
 func (s Session) calcParts(parts int64) []*Part {
-	if parts == 0 {
-		parts = 1
-	}
-	partSize := s.ContentLength / parts
-	if partSize <= 0 {
+	if parts == 0 || s.ContentLength <= 0 {
 		parts = 1
 	}
 
+	partSize := s.ContentLength / parts
 	ps := make([]*Part, parts)
 	stop := s.ContentLength
 	start := stop

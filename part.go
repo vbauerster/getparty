@@ -97,14 +97,16 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 		total := p.Stop - p.Start + 1
 		if resp.StatusCode == http.StatusOK {
-			// no partial content, so try to download with single part
+			// no partial content, so download with single part
 			if n > 0 {
 				p.Skip = true
 				dlogger.Println("server doesn't support range requests, skipping...")
 				return false, nil
 			}
 			total = resp.ContentLength
-			p.Stop = total - 1
+			if total > 0 {
+				p.Stop = total - 1
+			}
 			p.Written = 0
 		} else if resp.StatusCode != http.StatusPartialContent {
 			return false, ExpectedError{errors.Errorf("unprocessable http status %q", resp.Status)}
@@ -112,7 +114,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 		if bar == nil {
 			var efn func(io.Writer, bool)
-			if n == parts-1 { // add new line to the last bar
+			if n == parts-1 {
 				efn = func(w io.Writer, _ bool) { io.WriteString(w, "\n") }
 			}
 			age := float64(total+2) / 64.0
