@@ -27,7 +27,7 @@ type Part struct {
 	Skip     bool
 }
 
-func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, parts, n int) (err error) {
+func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, n int) (err error) {
 	if p.Stop-p.Start == p.Written-1 {
 		return nil
 	}

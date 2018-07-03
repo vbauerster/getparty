@@ -227,7 +227,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			if cmd.options.Debug {
 				logger.SetOutput(cmd.Err)
 			}
-			return p.download(ctx, pb, logger, cmd.userInfo, cmd.userAgent, session.Location, len(session.Parts), i)
+			return p.download(ctx, pb, logger, cmd.userInfo, cmd.userAgent, session.Location, i)
 		})
 	}
 
