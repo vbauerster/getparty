@@ -118,7 +118,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
 					decor.Name(pname),
-					percentageWithSizeCounter(messageCh, 5),
+					percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, messageCh, 5),
 				),
 				mpb.AppendDecorators(
 					decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, age), "done!"),

@@ -7,35 +7,44 @@ package getparty
 import (
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/vbauerster/mpb/decor"
 )
 
-func percentageWithSizeCounter(msgCh <-chan string, msgTimes int) decor.Decorator {
-	format := "%%%ds"
-	var message string
-	var msgCount int
-	return decor.DecoratorFunc(func(s *decor.Statistics, widthAccumulator chan<- int, widthDistributor <-chan int) string {
-		select {
-		case message = <-msgCh:
-			msgCount = msgTimes
-		default:
-		}
+func percentageWithTotal(pairFormat string, wc decor.WC, msgCh <-chan string, msgTimes int) decor.Decorator {
+	wc.Init()
+	return &percentageDecorator{
+		WC:       wc,
+		format:   pairFormat,
+		msgCh:    msgCh,
+		msgTimes: msgTimes,
+	}
+}
 
-		if msgCount > 0 {
-			msgCount--
-			widthAccumulator <- utf8.RuneCountInString(message)
-			max := <-widthDistributor
-			return fmt.Sprintf(fmt.Sprintf(format, max+1), message)
-		}
+type percentageDecorator struct {
+	decor.WC
+	format   string
+	msg      string
+	msgCh    <-chan string
+	msgTimes int
+	msgCount int
+}
 
-		completed := percentage(s.Total, s.Current, 100)
-		counters := fmt.Sprintf("%.1f%% of % .1f", completed, decor.CounterKiB(s.Total))
-		widthAccumulator <- utf8.RuneCountInString(counters)
-		max := <-widthDistributor
-		return fmt.Sprintf(fmt.Sprintf(format, max+1), counters)
-	})
+func (d *percentageDecorator) Decor(st *decor.Statistics) string {
+	select {
+	case d.msg = <-d.msgCh:
+		d.msgCount = d.msgTimes
+	default:
+	}
+
+	if d.msgCount > 0 {
+		d.msgCount--
+		return d.FormatMsg(d.msg)
+	}
+
+	completed := percentage(st.Total, st.Current, 100)
+	counters := fmt.Sprintf(d.format, completed, decor.CounterKiB(st.Total))
+	return d.FormatMsg(counters)
 }
 
 func percentage(total, current, ratio int64) float64 {
@@ -45,11 +54,25 @@ func percentage(total, current, ratio int64) float64 {
 	return float64(ratio*current) / float64(total)
 }
 
-func padDecorator(diff int) decor.Decorator {
-	return decor.DecoratorFunc(func(s *decor.Statistics, widthAccumulator chan<- int, widthDistributor <-chan int) string {
-		widthAccumulator <- 0
-		max := <-widthDistributor
-		max -= diff
-		return strings.Repeat(" ", max)
-	})
+func pad(diff int, wc decor.WC) decor.Decorator {
+	wc.Init()
+	return &padDecorator{
+		WC:   wc,
+		diff: diff,
+	}
+}
+
+type padDecorator struct {
+	decor.WC
+	diff int
+}
+
+func (d *padDecorator) Decor(st *decor.Statistics) string {
+	var max int
+	if ok, ch := d.SyncWidth(); ok {
+		ch <- 0
+		max = <-ch
+		max -= d.diff
+	}
+	return strings.Repeat(" ", max)
 }

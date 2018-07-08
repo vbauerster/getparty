@@ -66,7 +66,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 		bar = pb.AddBar(int64(len(s.Parts)-1), mpb.BarPriority(len(s.Parts)),
 			mpb.PrependDecorators(
 				decor.Name(name),
-				padDecorator(len(name)-6),
+				pad(len(name)-6, decor.WCSyncWidth),
 			),
 			mpb.AppendDecorators(
 				decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, 30), "done!"),
