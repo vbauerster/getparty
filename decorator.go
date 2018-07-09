@@ -69,7 +69,7 @@ type padDecorator struct {
 
 func (d *padDecorator) Decor(st *decor.Statistics) string {
 	var max int
-	if ok, ch := d.SyncWidth(); ok {
+	if ok, ch := d.Syncable(); ok {
 		ch <- 0
 		max = <-ch
 		max -= d.diff
