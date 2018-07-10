@@ -43,8 +43,8 @@ func (d *percentageDecorator) Decor(st *decor.Statistics) string {
 	}
 
 	completed := percentage(st.Total, st.Current, 100)
-	counters := fmt.Sprintf(d.format, completed, decor.CounterKiB(st.Total))
-	return d.FormatMsg(counters)
+	msg := fmt.Sprintf(d.format, completed, decor.CounterKiB(st.Total))
+	return d.FormatMsg(msg)
 }
 
 func percentage(total, current, ratio int64) float64 {
