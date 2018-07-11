@@ -159,10 +159,10 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			}
 			written, _ = io.Copy(fpart, buf)
 			p.Written += written
-			max = size
 			if total <= 0 {
-				bar.SetTotal(p.Written+size, false)
+				bar.SetTotal(p.Written+max*2, false)
 			}
+			max = size
 		}
 
 		written, _ = io.Copy(fpart, buf)
