@@ -60,25 +60,26 @@ func (s Session) calcParts(parts int64) []*Part {
 }
 
 func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
+	if len(s.Parts) <= 1 {
+		return nil
+	}
+
 	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 
-	var bar *mpb.Bar
-	if len(s.Parts) > 1 {
-		name := "concatenating parts:"
-		bar = pb.AddBar(int64(len(s.Parts)-1), mpb.BarPriority(len(s.Parts)),
-			mpb.PrependDecorators(
-				decor.Name(name),
-				pad(len(name)-6, decor.WCSyncWidth),
-			),
-			mpb.AppendDecorators(
-				decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, 30), "done!"),
-				decor.Name(" ]"),
-			),
-		)
-	}
+	name := "concatenating parts:"
+	bar := pb.AddBar(int64(len(s.Parts)-1), mpb.BarPriority(len(s.Parts)),
+		mpb.PrependDecorators(
+			decor.Name(name),
+			pad(len(name)-6, decor.WCSyncWidth),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, 30), "done!"),
+			decor.Name(" ]"),
+		),
+	)
 
 	for i := 1; i < len(s.Parts); i++ {
 		start := time.Now()

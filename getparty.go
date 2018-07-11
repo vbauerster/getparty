@@ -234,7 +234,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	err = eg.Wait()
 	session.Parts = session.actualPartsOnly()
 
-	if err == nil {
+	if err == nil && cmd.options.Parts > 0 {
 		if written := session.totalWritten(); written == session.ContentLength || session.ContentLength <= 0 {
 			err = session.concatenateParts(cmd.dlogger, pb)
 			pb.Wait()
