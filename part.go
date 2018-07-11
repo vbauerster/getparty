@@ -28,7 +28,7 @@ type Part struct {
 }
 
 func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, n int) (err error) {
-	if p.Stop-p.Start == p.Written-1 {
+	if p.isDone() {
 		return nil
 	}
 
@@ -95,24 +95,26 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			dlogger.Println("resp body closed")
 		}()
 
+		dlogger.Printf("Status: %s\n", resp.Status)
+		dlogger.Printf("ContentLength: %d\n", resp.ContentLength)
+
 		total := p.Stop - p.Start + 1
 		if resp.StatusCode == http.StatusOK {
 			// no partial content, so download with single part
 			if n > 0 {
 				p.Skip = true
-				dlogger.Println("server doesn't support range requests, skipping...")
+				dlogger.Println("No partial content, skipping...")
 				return false, nil
 			}
 			total = resp.ContentLength
-			if total > 0 {
-				p.Stop = total - 1
-			}
+			dlogger.Printf("Reset last written: %d\n", p.Written)
 			p.Written = 0
 		} else if resp.StatusCode != http.StatusPartialContent {
 			return false, ExpectedError{errors.Errorf("unprocessable http status %q", resp.Status)}
 		}
 
 		if bar == nil {
+			dlogger.Printf("Part's total: %d\n", total)
 			age := float64(total+2) / 64.0
 			messageCh = make(chan string, 1)
 			bar = pb.AddBar(total, mpb.BarPriority(n),
@@ -140,6 +142,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		for timer.Reset(8 * time.Second) {
 			written, err = io.CopyN(buf, reader, max)
 			if err != nil {
+				dlogger.Printf("CopyN err: %v\n", err)
 				if err == io.EOF || ctx.Err() == context.Canceled {
 					break
 				}
@@ -169,20 +172,19 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		p.Written += written
 		if total <= 0 {
 			bar.SetTotal(p.Written, true)
-			// don't retry if content length is unknown, even if io.EOF isn't reached.
-			p.Stop = p.Written - 1
 		}
+		dlogger.Printf("Total written: %d\n", p.Written)
 		// don't retry on io.EOF or user context.Canceled
 		if err == io.EOF || ctx.Err() == context.Canceled {
 			return false, nil
 		}
-		retry = p.Stop-p.Start != p.Written-1
+		retry = !p.isDone()
 		dlogger.Printf("attempt: %d, retry: %t, err: %v\n", attempt, retry, err)
 		return retry, err
 	})
 }
 
-func (p *Part) getRange() string {
+func (p Part) getRange() string {
 	if p.Stop <= 0 {
 		return "bytes=0-"
 	}
@@ -192,6 +194,10 @@ func (p *Part) getRange() string {
 		start += p.Written
 	}
 	return fmt.Sprintf("bytes=%d-%d", start, p.Stop)
+}
+
+func (p Part) isDone() bool {
+	return p.Stop-p.Start == p.Written-1
 }
 
 func try(fn func(int) (bool, error)) error {

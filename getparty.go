@@ -188,7 +188,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			return errors.Errorf("ContentLength mismatch: remote length %d, expected length %d", session.ContentLength, lastSession.ContentLength)
 		}
 		session = lastSession
-	} else {
+	} else if cmd.options.Parts > 0 {
 		session.Parts = session.calcParts(int64(cmd.options.Parts))
 		if _, err := os.Stat(session.SuggestedFileName); err == nil {
 			var answer string
@@ -232,6 +232,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	}
 
 	err = eg.Wait()
+	session.Parts = session.actualPartsOnly()
 
 	if err == nil {
 		if written := session.totalWritten(); written == session.ContentLength || session.ContentLength <= 0 {

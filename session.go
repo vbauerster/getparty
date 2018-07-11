@@ -25,12 +25,18 @@ type Session struct {
 }
 
 func (s Session) calcParts(parts int64) []*Part {
-	if parts == 0 || s.ContentLength <= 0 {
+	var partSize int64
+	if s.ContentLength <= 0 {
 		parts = 1
+	} else {
+		partSize = s.ContentLength / parts
 	}
 
-	partSize := s.ContentLength / parts
 	ps := make([]*Part, parts)
+	ps[0] = &Part{
+		FileName: s.SuggestedFileName,
+	}
+
 	stop := s.ContentLength
 	start := stop
 	for i := parts - 1; i > 0; i-- {
@@ -42,15 +48,14 @@ func (s Session) calcParts(parts int64) []*Part {
 			Stop:     stop,
 		}
 	}
+
 	stop = start - 1
-	ps[0] = &Part{
-		FileName: s.SuggestedFileName,
-		Stop:     stop,
+	if stop < parts*8 {
+		return ps[:1]
 	}
-	if stop < 0 || stop < parts*8 {
-		ps[0].Stop = 0
-		return ps[:1:1]
-	}
+
+	ps[0].Stop = stop
+
 	return ps
 }
 
@@ -76,10 +81,6 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 	}
 
 	for i := 1; i < len(s.Parts); i++ {
-		if s.Parts[i].Skip {
-			bar.Increment()
-			continue
-		}
 		start := time.Now()
 		fparti, err := os.Open(s.Parts[i].FileName)
 		if err != nil {
@@ -115,12 +116,20 @@ func (s Session) marshalState() (string, error) {
 	return name, err
 }
 
-func (s Session) totalWritten() int64 {
-	var total int64
+func (s Session) actualPartsOnly() []*Part {
+	tmp := s.Parts[:0]
 	for _, p := range s.Parts {
 		if p.Skip {
 			continue
 		}
+		tmp = append(tmp, p)
+	}
+	return tmp
+}
+
+func (s Session) totalWritten() int64 {
+	var total int64
+	for _, p := range s.Parts {
 		total += p.Written
 	}
 	return total
