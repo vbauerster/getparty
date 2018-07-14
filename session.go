@@ -148,6 +148,9 @@ func (s Session) writeSummary(w io.Writer) {
 		}
 	}
 	fmt.Fprintf(w, format, lengthSummary)
+	if s.ContentMD5 != "" {
+		fmt.Fprintf(w, "MD5: %s\n", s.ContentMD5)
+	}
 	switch s.AcceptRanges {
 	case "", "none":
 		fmt.Fprintln(w, "Looks like server doesn't support range requests (no party, no resume)")
