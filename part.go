@@ -115,7 +115,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 		if bar == nil {
 			dlogger.Printf("Part's total: %d\n", total)
-			age := float64(total+2) / 64.0
 			messageCh = make(chan string, 1)
 			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
@@ -123,7 +122,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, messageCh, 5),
 				),
 				mpb.AppendDecorators(
-					decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, age), "done!"),
+					decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, 60*8), "done!"),
 					decor.Name(" ]"),
 					decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
 				),
