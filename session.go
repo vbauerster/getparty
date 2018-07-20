@@ -87,6 +87,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 		if err != nil {
 			return err
 		}
+		dlogger.Printf("concatenating: %s\n", fparti.Name())
 		if _, err := io.Copy(fpart0, fparti); err != nil {
 			return err
 		}
