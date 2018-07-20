@@ -209,7 +209,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 
 	session.writeSummary(cmd.Out)
 
-	eg, ctx := errgroup.WithContext(ctx)
 	pb := mpb.New(
 		mpb.WithOutput(cmd.Out),
 		mpb.WithWidth(60),
@@ -217,6 +216,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		mpb.WithContext(ctx),
 	)
 
+	eg, cctx := errgroup.WithContext(ctx)
 	for i, p := range session.Parts {
 		if p.Skip {
 			continue
@@ -227,7 +227,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			if cmd.options.Debug {
 				logger.SetOutput(cmd.Err)
 			}
-			return p.download(ctx, pb, logger, cmd.userInfo, cmd.userAgent, session.Location, i)
+			return p.download(cctx, pb, logger, cmd.userInfo, cmd.userAgent, session.Location, i)
 		})
 	}
 
@@ -235,7 +235,10 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	session.Parts = session.actualPartsOnly()
 
 	if err == nil && cmd.options.Parts > 0 {
-		if written := session.totalWritten(); written == session.ContentLength || session.ContentLength <= 0 {
+		if ctx.Err() == context.Canceled {
+			// most probably user hit ^C, so just indicate this
+			err = ExpectedError{ctx.Err()}
+		} else if written := session.totalWritten(); written == session.ContentLength || session.ContentLength <= 0 {
 			err = session.concatenateParts(cmd.dlogger, pb)
 			pb.Wait()
 			if err != nil {
@@ -247,10 +250,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 				return os.Remove(cmd.options.JSONFileName)
 			}
 			return nil
-		}
-		if ctx.Err() == context.Canceled {
-			// most probably user hit ^C, so just indicate this
-			err = ExpectedError{ctx.Err()}
 		}
 	}
 
