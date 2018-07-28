@@ -129,8 +129,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		cmd.dlogger.SetOutput(cmd.Err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cmd.quitHandler(cancel)
+	ctx, cancel := backgroundContext()
 	defer cancel()
 
 	if cmd.options.AuthUser != "" {
@@ -264,17 +263,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		cmd.logger.Printf("session state saved to %q\n", name)
 	}
 	return err
-}
-
-func (cmd Cmd) quitHandler(cancel context.CancelFunc) {
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		defer signal.Stop(quit)
-		<-quit
-		cancel()
-	}()
 }
 
 func (cmd Cmd) loadSession(filename string) (*Session, error) {
@@ -479,4 +467,18 @@ func readLines(r io.Reader) ([]string, error) {
 		lines = append(lines, scanner.Text())
 	}
 	return lines, scanner.Err()
+}
+
+func backgroundContext() (context.Context, func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		defer signal.Stop(quit)
+		<-quit
+		cancel()
+	}()
+
+	return ctx, cancel
 }
