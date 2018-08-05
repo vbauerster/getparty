@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/VividCortex/ewma"
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
@@ -113,6 +114,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			return false, ExpectedError{errors.Errorf("unprocessable http status %q", resp.Status)}
 		}
 
+		var bufSize int64 = 1024 * 2
 		if bar == nil {
 			dlogger.Printf("Part's total: %d\n", total)
 			messageCh = make(chan string, 1)
@@ -122,7 +124,14 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, messageCh, 5),
 				),
 				mpb.AppendDecorators(
-					decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, 60*8), "done!"),
+					decor.OnComplete(
+						decor.MovingAverageETA(
+							decor.ET_STYLE_MMSS,
+							ewma.NewMovingAverage(float64(total)/float64(bufSize)),
+							decor.FixedIntervalTimeNormalizer(64),
+						),
+						"done!",
+					),
 					decor.Name(" ]"),
 					decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
 				),
@@ -132,12 +141,11 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			}
 		}
 
-		var size, written int64
-		size = 2048
-		buf := bytes.NewBuffer(make([]byte, 0, size))
+		var written int64
+		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 		reader := bar.ProxyReader(resp.Body)
 
-		max := size
+		max := bufSize
 		for timer.Reset(8 * time.Second) {
 			written, err = io.CopyN(buf, reader, max)
 			if err != nil {
@@ -164,7 +172,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			if total <= 0 {
 				bar.SetTotal(p.Written+max*2, false)
 			}
-			max = size
+			max = bufSize
 		}
 
 		written, _ = io.Copy(fpart, buf)
