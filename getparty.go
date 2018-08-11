@@ -220,7 +220,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		if p.Skip {
 			continue
 		}
-		i, p := i, p
+		i, p := i, p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			logger := log.New(ioutil.Discard, fmt.Sprintf("[p#%02d] ", i+1), log.LstdFlags)
 			if cmd.options.Debug {
@@ -233,7 +233,9 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	err = eg.Wait()
 	session.Parts = session.actualPartsOnly()
 
-	if err == nil && cmd.options.Parts > 0 {
+	if err != nil {
+		cancel() // cancel pb
+	} else if cmd.options.Parts > 0 {
 		if ctx.Err() == context.Canceled {
 			// most probably user hit ^C, so just indicate this
 			err = ExpectedError{ctx.Err()}

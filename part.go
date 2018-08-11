@@ -35,6 +35,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 
 	pname := fmt.Sprintf("p#%02d:", n+1)
 	defer func() {
+		dlogger.Println("quit:", err)
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "download: "+pname[:len(pname)-1])
 	}()
@@ -58,13 +59,19 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 	var messageCh chan string
 
 	return try(func(attempt int) (retry bool, err error) {
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
 		defer func() {
+			dlogger.Printf("written: %d\n", p.Written)
+			dlogger.Printf("retry: %t\n", retry)
 			if e := recover(); e != nil {
 				dlogger.Printf("%#v\n", p)
 				panic(e)
 			}
 		}()
 
+		dlogger.Printf("attempt: %d\n", attempt)
 		req, err := http.NewRequest(http.MethodGet, targetUrl, nil)
 		if err != nil {
 			return false, err
@@ -91,9 +98,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			}
 			if err := resp.Body.Close(); err != nil {
 				dlogger.Printf("%s resp.Body.Close() failed: %v\n", targetUrl, err)
-				return
 			}
-			dlogger.Println("resp body closed")
 		}()
 
 		dlogger.Printf("Status: %s\n", resp.Status)
@@ -114,21 +119,27 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			return false, ExpectedError{errors.Errorf("unprocessable http status %q", resp.Status)}
 		}
 
-		var bufSize int64 = 1024 * 2
+		var bufSize int64 = 1024 * 4
 		if bar == nil {
 			dlogger.Printf("Part's total: %d\n", total)
+			var etaAge float64
+			if total <= bufSize {
+				etaAge = float64(total)
+			} else {
+				etaAge = float64(total) / float64(bufSize)
+			}
 			messageCh = make(chan string, 1)
 			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
 					decor.Name(pname),
-					percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, messageCh, 5),
+					percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, messageCh, 12),
 				),
 				mpb.AppendDecorators(
 					decor.OnComplete(
 						decor.MovingAverageETA(
 							decor.ET_STYLE_MMSS,
-							ewma.NewMovingAverage(float64(total)/float64(bufSize)),
-							decor.FixedIntervalTimeNormalizer(64),
+							ewma.NewMovingAverage(etaAge),
+							decor.FixedIntervalTimeNormalizer(42),
 						),
 						"done!",
 					),
@@ -150,7 +161,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			written, err = io.CopyN(buf, reader, max)
 			if err != nil {
 				dlogger.Printf("CopyN err: %v\n", err)
-				if err == io.EOF || ctx.Err() == context.Canceled {
+				if err == io.EOF {
 					break
 				}
 				// try to continue on temp err
@@ -163,7 +174,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 				timer.Stop()
 				messageCh <- fmt.Sprintf("retry #%d", attempt)
 				dur := backoff.DefaultStrategy.Backoff(attempt)
-				dlogger.Printf("sleep %s, before attempt %d\n", dur, attempt)
+				dlogger.Printf("sleep %s, before next attempt\n", dur)
 				time.Sleep(dur)
 				break
 			}
@@ -180,13 +191,10 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		if total <= 0 {
 			bar.SetTotal(p.Written, true)
 		}
-		dlogger.Printf("Total written: %d\n", p.Written)
-		// don't retry on io.EOF or user context.Canceled
-		if err == io.EOF || ctx.Err() == context.Canceled {
+		if err == io.EOF {
 			return false, nil
 		}
 		retry = !p.isDone()
-		dlogger.Printf("attempt: %d, retry: %t, err: %v\n", attempt, retry, err)
 		return retry, err
 	})
 }
