@@ -56,7 +56,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 	}()
 
 	var bar *mpb.Bar
-	var messageCh chan string
 
 	return try(func(attempt int) (retry bool, err error) {
 		if ctx.Err() != nil {
@@ -120,15 +119,17 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 
 		var bufSize int64 = 1024 * 4
+		messageCh := make(chan string, 1)
+
 		if bar == nil {
 			dlogger.Printf("Part's total: %d\n", total)
 			var etaAge float64
 			if total <= bufSize {
-				etaAge = float64(total)
+				etaAge = float64(total) / 2
 			} else {
 				etaAge = float64(total) / float64(bufSize)
 			}
-			messageCh = make(chan string, 1)
+			dlogger.Printf("ETA age: %f\n", etaAge)
 			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
 					decor.Name(pname),
@@ -139,29 +140,34 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 						decor.MovingAverageETA(
 							decor.ET_STYLE_MMSS,
 							ewma.NewMovingAverage(etaAge),
-							decor.FixedIntervalTimeNormalizer(42),
+							decor.MaxTolerateTimeNormalizer(60*time.Second),
 						),
 						"done!",
 					),
 					decor.Name(" ]"),
-					decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
+					// decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
+					decor.EwmaSpeed(decor.UnitKiB, "% .2f", float64(bufSize), decor.WCSyncSpace),
 				),
 			)
-			if p.Written > 0 {
-				bar.RefillBy(int(p.Written), '+')
+		}
+
+		if p.Written > 0 {
+			bar.SetRefill(int(p.Written), '+')
+			if attempt == 1 {
+				bar.IncrBy(int(p.Written))
 			}
 		}
 
 		var written int64
+		max := bufSize
 		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 		reader := bar.ProxyReader(resp.Body)
 
-		max := bufSize
 		for timer.Reset(8 * time.Second) {
 			written, err = io.CopyN(buf, reader, max)
 			if err != nil {
 				dlogger.Printf("CopyN err: %v\n", err)
-				if err == io.EOF {
+				if err == io.EOF || ctx.Err() != nil {
 					break
 				}
 				// try to continue on temp err
@@ -203,12 +209,7 @@ func (p Part) getRange() string {
 	if p.Stop <= 0 {
 		return "bytes=0-"
 	}
-	// don't change p.Start for bar.RefillBy sake
-	start := p.Start
-	if p.Written > 0 {
-		start += p.Written
-	}
-	return fmt.Sprintf("bytes=%d-%d", start, p.Stop)
+	return fmt.Sprintf("bytes=%d-%d", p.Start+p.Written, p.Stop)
 }
 
 func (p Part) isDone() bool {
