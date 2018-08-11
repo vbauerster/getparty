@@ -55,7 +55,6 @@ func (s Session) calcParts(parts int64) []*Part {
 	}
 
 	ps[0].Stop = stop
-
 	return ps
 }
 
@@ -76,11 +75,13 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 			pad(len(name)-6, decor.WCSyncWidth),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, 30), "done!"),
-			decor.Name(" ]"),
+			decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, float64(len(s.Parts)-1)), "done!"),
+			decor.Name(" ] "),
+			decor.Percentage(),
 		),
 	)
 
+	dlogger.Printf("concatenating: %s\n", fpart0.Name())
 	for i := 1; i < len(s.Parts); i++ {
 		start := time.Now()
 		fparti, err := os.Open(s.Parts[i].FileName)
