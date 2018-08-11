@@ -56,6 +56,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 	}()
 
 	var bar *mpb.Bar
+	messageCh := make(chan string, 1)
 
 	return try(func(attempt int) (retry bool, err error) {
 		if ctx.Err() != nil {
@@ -119,7 +120,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 
 		var bufSize int64 = 1024 * 4
-		messageCh := make(chan string, 1)
 
 		if bar == nil {
 			dlogger.Printf("Part's total: %d\n", total)
