@@ -123,10 +123,8 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		if bar == nil {
 			dlogger.Printf("Part's total: %d\n", total)
 			var etaAge float64
-			if total <= bufSize {
-				etaAge = float64(total) / 2
-			} else {
-				etaAge = float64(total) / float64(bufSize)
+			if total > 0 {
+				etaAge = float64(total) / float64(bufSize/2)
 			}
 			dlogger.Printf("ETA age: %f\n", etaAge)
 			bar = pb.AddBar(total, mpb.BarPriority(n),
@@ -145,7 +143,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					),
 					decor.Name(" ]"),
 					// decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
-					decor.EwmaSpeed(decor.UnitKiB, "% .2f", float64(bufSize), decor.WCSyncSpace),
+					decor.EwmaSpeed(decor.UnitKiB, "% .2f", float64(bufSize/2), decor.WCSyncSpace),
 				),
 			)
 		}
