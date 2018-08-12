@@ -64,7 +64,6 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 		defer func() {
 			dlogger.Printf("written: %d\n", p.Written)
-			dlogger.Printf("retry: %t\n", retry)
 			if e := recover(); e != nil {
 				dlogger.Printf("%#v\n", p)
 				panic(e)
