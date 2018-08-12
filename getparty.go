@@ -179,6 +179,10 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 
 	session, err := cmd.follow(ctx, userUrl, cmd.options.OutFileName)
 	if err != nil {
+		if ctx.Err() == context.Canceled {
+			// most probably user hit ^C, so mark as expected
+			return ExpectedError{ctx.Err()}
+		}
 		return err
 	}
 
@@ -234,12 +238,14 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	session.Parts = session.actualPartsOnly()
 
 	if err != nil {
-		cancel() // cancel pb
-	} else if cmd.options.Parts > 0 {
 		if ctx.Err() == context.Canceled {
-			// most probably user hit ^C, so just indicate this
+			// most probably user hit ^C, so mark as expected
 			err = ExpectedError{ctx.Err()}
-		} else if written := session.totalWritten(); written == session.ContentLength || session.ContentLength <= 0 {
+		} else {
+			cancel() // cancel pb
+		}
+	} else if cmd.options.Parts > 0 {
+		if written := session.totalWritten(); written == session.ContentLength || session.ContentLength <= 0 {
 			err = session.concatenateParts(cmd.dlogger, pb)
 			pb.Wait()
 			if err != nil {
