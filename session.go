@@ -102,14 +102,27 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 	return fpart0.Close()
 }
 
-func (s *Session) saveState(name string) error {
-	dst, err := os.Create(name)
+func (s *Session) saveState(fileName string) error {
+	dst, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
 
 	err = json.NewEncoder(dst).Encode(s)
 	if e := dst.Close(); err == nil {
+		err = e
+	}
+	return err
+}
+
+func (s *Session) loadState(fileName string) error {
+	src, err := os.Open(fileName)
+	if err != nil {
+		return err
+	}
+
+	err = json.NewDecoder(src).Decode(s)
+	if e := src.Close(); err == nil {
 		err = e
 	}
 	return err

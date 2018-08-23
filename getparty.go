@@ -3,7 +3,6 @@ package getparty
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -149,8 +148,8 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 
 	switch {
 	case cmd.options.JSONFileName != "":
-		lastSession, err = cmd.loadSession(cmd.options.JSONFileName)
-		if err != nil {
+		lastSession = new(Session)
+		if err := lastSession.loadState(cmd.options.JSONFileName); err != nil {
 			return err
 		}
 		userUrl = lastSession.Location
@@ -272,23 +271,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		err = e
 	}
 	return err
-}
-
-func (cmd Cmd) loadSession(filename string) (*Session, error) {
-	fd, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if e := fd.Close(); e != nil {
-			cmd.dlogger.Printf("close %q: %v", fd.Name(), e)
-		}
-	}()
-
-	decoder := json.NewDecoder(fd)
-	session := new(Session)
-	err = decoder.Decode(session)
-	return session, err
 }
 
 func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (session *Session, err error) {
