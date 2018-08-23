@@ -266,10 +266,10 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	session.Location = userUrl
 	stateName := session.SuggestedFileName + ".json"
 	fmt.Fprintln(cmd.Out)
-	if err := session.saveState(stateName); err != nil {
-		cmd.logger.Printf("session state save error: %v\n", err)
-	} else {
+	if e := session.saveState(stateName); e == nil {
 		cmd.logger.Printf("session state saved to %q\n", stateName)
+	} else if err == nil {
+		err = e
 	}
 	return err
 }
