@@ -102,21 +102,17 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 	return fpart0.Close()
 }
 
-func (s Session) marshalState() (string, error) {
-	name := s.SuggestedFileName + ".json"
-	data, err := json.Marshal(s)
-	if err != nil {
-		return name, err
-	}
+func (s *Session) saveState(name string) error {
 	dst, err := os.Create(name)
 	if err != nil {
-		return name, err
+		return err
 	}
-	_, err = dst.Write(data)
-	if errc := dst.Close(); err == nil {
-		err = errc
+
+	err = json.NewEncoder(dst).Encode(s)
+	if e := dst.Close(); err == nil {
+		err = e
 	}
-	return name, err
+	return err
 }
 
 func (s Session) actualPartsOnly() []*Part {
