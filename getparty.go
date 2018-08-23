@@ -265,8 +265,8 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	// preserve user provided url
 	session.Location = userUrl
 	stateName := session.SuggestedFileName + ".json"
-	fmt.Fprintln(cmd.Out)
 	if e := session.saveState(stateName); e == nil {
+		fmt.Fprintln(cmd.Out)
 		cmd.logger.Printf("session state saved to %q\n", stateName)
 	} else if err == nil {
 		err = e
