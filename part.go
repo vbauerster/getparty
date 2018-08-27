@@ -118,15 +118,10 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			return false, ExpectedError{errors.Errorf("unprocessable http status %q", resp.Status)}
 		}
 
-		var bufSize int64 = 1024 * 4
+		bufSize := int64(1024 * 4)
 
 		if bar == nil {
 			dlogger.Printf("Part's total: %d\n", total)
-			var etaAge float64
-			if total > 0 {
-				etaAge = float64(total) / float64(bufSize/2)
-			}
-			dlogger.Printf("ETA age: %f\n", etaAge)
 			bar = pb.AddBar(total, mpb.BarPriority(n),
 				mpb.PrependDecorators(
 					decor.Name(pname),
@@ -136,14 +131,14 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					decor.OnComplete(
 						decor.MovingAverageETA(
 							decor.ET_STYLE_MMSS,
-							ewma.NewMovingAverage(etaAge),
-							decor.MaxTolerateTimeNormalizer(60*time.Second),
+							ewma.NewMovingAverage(float64(bufSize)),
+							decor.MaxTolerateTimeNormalizer(120*time.Second),
 						),
 						"done!",
 					),
 					decor.Name(" ]"),
 					// decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
-					decor.EwmaSpeed(decor.UnitKiB, "% .2f", float64(bufSize/2), decor.WCSyncSpace),
+					decor.EwmaSpeed(decor.UnitKiB, "% .2f", float64(bufSize), decor.WCSyncSpace),
 				),
 			)
 		}

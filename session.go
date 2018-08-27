@@ -75,7 +75,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 			pad(len(name)-6, decor.WCSyncWidth),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_MMSS, float64(len(s.Parts)-1)), "done!"),
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "done!"),
 			decor.Name(" ] "),
 			decor.Percentage(),
 		),
