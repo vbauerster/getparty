@@ -4,8 +4,7 @@ Console download manager
 
 ![showcase](showcase.gif)
 
-## Installation
-#### [Releases](https://github.com/vbauerster/getparty/releases)
+## [Installation](https://github.com/vbauerster/getparty/releases)
 #### Manual
 ```
 $ go get -u github.com/vbauerster/getparty
@@ -14,7 +13,6 @@ $ go install
 ```
 
 ## Usage
-
 ```
 Usage:
   getparty [OPTIONS] url
@@ -35,9 +33,7 @@ Help Options:
 ```
 
 #### Best mirror example:
-
 `cat` [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt) `| getparty -p 8 -b`
 
 ## License
-
 [BSD 3-Clause](https://opensource.org/licenses/BSD-3-Clause)
