@@ -5,9 +5,12 @@ Console download manager
 ![showcase](showcase.gif)
 
 ## Installation
-`getparty` requires Go 1.7 or later.
+#### [Releases](https://github.com/vbauerster/getparty/releases)
+#### Manual
 ```
-$ go install github.com/vbauerster/getparty/cmd/getparty
+$ go get -u github.com/vbauerster/getparty
+$ cd $GOPATH/src/github.com/vbauerster/getparty/cmd/getparty
+$ go install
 ```
 
 ## Usage
