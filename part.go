@@ -137,8 +137,7 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 						"done!",
 					),
 					decor.Name(" ]"),
-					// decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
-					decor.EwmaSpeed(decor.UnitKiB, "% .2f", float64(bufSize*2), decor.WCSyncSpace),
+					decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
 				),
 			)
 		}
