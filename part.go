@@ -131,12 +131,13 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					decor.OnComplete(
 						decor.MovingAverageETA(
 							decor.ET_STYLE_MMSS,
-							ewma.NewMovingAverage(float64(bufSize*2)),
-							decor.MaxTolerateTimeNormalizer(120*time.Second),
+							ewma.NewMovingAverage(float64(bufSize+1024)),
+							decor.MaxTolerateTimeNormalizer(180*time.Second),
+							decor.WCSyncWidth,
 						),
 						"done!",
 					),
-					decor.Name(" ]"),
+					decor.Name("]", decor.WCSyncSpace),
 					decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
 				),
 			)
