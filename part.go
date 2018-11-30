@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -119,6 +120,11 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 		}
 
 		bufSize := int64(1024 * 4)
+		etaAge := math.Abs(float64(total))
+
+		if total > bufSize {
+			etaAge = float64(total) / float64(bufSize)
+		}
 
 		if bar == nil {
 			dlogger.Printf("Part's total: %d\n", total)
@@ -131,13 +137,13 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 					decor.OnComplete(
 						decor.MovingAverageETA(
 							decor.ET_STYLE_MMSS,
-							ewma.NewMovingAverage(float64(bufSize+1024)),
+							ewma.NewMovingAverage(etaAge),
 							decor.MaxTolerateTimeNormalizer(180*time.Second),
 							decor.WCSyncWidth,
 						),
 						"done!",
 					),
-					decor.Name("]", decor.WCSyncSpace),
+					decor.Name(" ]"),
 					decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
 				),
 			)
