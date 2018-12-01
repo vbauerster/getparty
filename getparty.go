@@ -26,9 +26,11 @@ import (
 )
 
 const (
-	maxRedirects = 10
-	cmdName      = "getparty"
-	projectHome  = "https://github.com/vbauerster/getparty"
+	cmdName     = "getparty"
+	projectHome = "https://github.com/vbauerster/getparty"
+
+	maxRedirects  = 10
+	hUserAgentKey = "User-Agent"
 )
 
 // https://regex101.com/r/N4AovD/3
@@ -50,25 +52,25 @@ func (e ExpectedError) Error() string {
 
 // Options struct, represents cmd line options
 type Options struct {
-	Parts        uint   `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
-	OutFileName  string `short:"o" long:"output" value-name:"filename" description:"user defined output"`
-	JSONFileName string `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
-	UserAgent    string `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
-	BestMirror   bool   `short:"b" long:"best-mirror [...file|stdin]" description:"pickup the fastest mirror"`
-	AuthUser     string `short:"u" long:"username" description:"basic http auth username"`
-	AuthPass     string `long:"password" description:"basic http auth password"`
-	Debug        bool   `long:"debug" description:"enable debug to stderr"`
-	Version      bool   `long:"version" description:"show version"`
+	Parts        uint              `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
+	OutFileName  string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
+	JSONFileName string            `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
+	UserAgent    string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
+	BestMirror   bool              `short:"b" long:"best-mirror [...file|stdin]" description:"pickup the fastest mirror"`
+	AuthUser     string            `short:"u" long:"username" description:"basic http auth username"`
+	AuthPass     string            `long:"password" description:"basic http auth password"`
+	HeaderMap    map[string]string `long:"header" value-name:"key:value" description:"arbitrary http header"`
+	Debug        bool              `long:"debug" description:"enable debug to stderr"`
+	Version      bool              `long:"version" description:"show version"`
 }
 
 type Cmd struct {
-	Out, Err  io.Writer
-	userAgent string
-	userInfo  *url.Userinfo
-	options   *Options
-	parser    *flags.Parser
-	logger    *log.Logger
-	dlogger   *log.Logger
+	Out, Err io.Writer
+	userInfo *url.Userinfo
+	options  *Options
+	parser   *flags.Parser
+	logger   *log.Logger
+	dlogger  *log.Logger
 }
 
 func (cmd Cmd) Exit(err error) int {
@@ -141,7 +143,9 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		cmd.userInfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	cmd.userAgent = userAgents[cmd.options.UserAgent]
+	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
+		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
+	}
 
 	var userUrl string
 	var lastSession *Session
@@ -230,7 +234,15 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			if cmd.options.Debug {
 				logger.SetOutput(cmd.Err)
 			}
-			return p.download(cctx, pb, logger, cmd.userInfo, cmd.userAgent, session.Location, i)
+			return p.download(
+				cctx,
+				cmd.userInfo,
+				cmd.options.HeaderMap,
+				session.Location,
+				logger,
+				pb,
+				i,
+			)
 		})
 	}
 
@@ -294,7 +306,9 @@ func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (session
 		}
 		req.Close = true
 		req.URL.User = cmd.userInfo
-		req.Header.Set("User-Agent", cmd.userAgent)
+		for k, v := range cmd.options.HeaderMap {
+			req.Header.Set(k, v)
+		}
 
 		resp, err := client.Do(req.WithContext(ctx))
 		if err != nil {

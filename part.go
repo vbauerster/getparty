@@ -29,7 +29,15 @@ type Part struct {
 	Skip     bool
 }
 
-func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logger, userInfo *url.Userinfo, userAgent, targetUrl string, n int) (err error) {
+func (p *Part) download(
+	ctx context.Context,
+	userInfo *url.Userinfo,
+	headers map[string]string,
+	targetUrl string,
+	dlogger *log.Logger,
+	pb *mpb.Progress,
+	n int,
+) (err error) {
 	if p.isDone() {
 		return nil
 	}
@@ -77,9 +85,11 @@ func (p *Part) download(ctx context.Context, pb *mpb.Progress, dlogger *log.Logg
 			return false, err
 		}
 		req.URL.User = userInfo
-		req.Header.Set("User-Agent", userAgent)
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
 		req.Header.Set("Range", p.getRange())
-		dlogger.Println("User-Agent:", userAgent)
+		dlogger.Println(hUserAgentKey+":", req.Header.Get(hUserAgentKey))
 		dlogger.Println("Range:", req.Header.Get("Range"))
 
 		cctx, cancel := context.WithCancel(ctx)
