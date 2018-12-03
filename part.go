@@ -65,6 +65,7 @@ func (p *Part) download(
 	}()
 
 	var bar *mpb.Bar
+	bOff := backoff.New(backoff.WithResetDelay(5 * time.Minute))
 	messageCh := make(chan string, 1)
 
 	return try(func(attempt int) (retry bool, err error) {
@@ -187,7 +188,7 @@ func (p *Part) download(
 				// retry
 				timer.Stop()
 				messageCh <- fmt.Sprintf("retry #%d", attempt)
-				dur := backoff.DefaultStrategy.Backoff(attempt)
+				dur := bOff.Backoff(attempt)
 				dlogger.Printf("sleep %s, before next attempt\n", dur)
 				time.Sleep(dur)
 				break
