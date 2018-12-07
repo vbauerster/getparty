@@ -18,7 +18,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jessevdk/go-flags"
+	cleanhttp "github.com/hashicorp/go-cleanhttp"
+	flags "github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb"
 	"golang.org/x/crypto/ssh/terminal"
@@ -223,6 +224,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		mpb.WithContext(ctx),
 	)
 
+	client := cleanhttp.DefaultPooledClient()
 	eg, cctx := errgroup.WithContext(ctx)
 	for i, p := range session.Parts {
 		if p.Skip {
@@ -236,6 +238,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			}
 			return p.download(
 				cctx,
+				client,
 				cmd.userInfo,
 				cmd.options.HeaderMap,
 				session.Location,

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/VividCortex/ewma"
-	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/mpb"
@@ -31,6 +30,7 @@ type Part struct {
 
 func (p *Part) download(
 	ctx context.Context,
+	client *http.Client,
 	userInfo *url.Userinfo,
 	headers map[string]string,
 	targetUrl string,
@@ -97,7 +97,6 @@ func (p *Part) download(
 		timer := time.AfterFunc(10*time.Second, cancel)
 		defer cancel()
 
-		client := cleanhttp.DefaultPooledClient()
 		resp, err := client.Do(req.WithContext(cctx))
 		if err != nil {
 			return false, err
