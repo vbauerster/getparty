@@ -25,6 +25,7 @@ Application Options:
   -b, --best-mirror [...file|stdin]           pickup the fastest mirror
   -u, --username=                             basic http auth username
       --password=                             basic http auth password
+      --header=key:value                      arbitrary http header
       --debug                                 enable debug to stderr
       --version                               show version
 
