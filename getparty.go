@@ -293,6 +293,11 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 
 func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, err error) {
 	defer func() {
+		if session == nil && err == nil {
+			err = ExpectedError{
+				errors.Errorf("maximum number of redirects (%d) followed", maxRedirects),
+			}
+		}
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "follow")
 	}()
@@ -301,8 +306,7 @@ func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, er
 		return http.ErrUseLastResponse
 	}
 	next := userUrl
-	var redirectCount int
-	for {
+	for i := 0; i < maxRedirects; i++ {
 		cmd.logger.Printf("GET: %s\n", next)
 		req, err := http.NewRequest(http.MethodGet, next, nil)
 		if err != nil {
@@ -323,12 +327,6 @@ func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, er
 			loc, err := resp.Location()
 			if err != nil {
 				return nil, err
-			}
-			redirectCount++
-			if redirectCount > maxRedirects {
-				return nil, ExpectedError{
-					errors.Errorf("maximum number of redirects (%d) followed", maxRedirects),
-				}
 			}
 			next = loc.String()
 			// don't bother closing resp.Body here,
@@ -368,12 +366,9 @@ func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, er
 			ContentLength:     resp.ContentLength,
 			ContentMD5:        resp.Header.Get("Content-MD5"),
 		}
-
-		if err := resp.Body.Close(); err != nil {
-			cmd.dlogger.Printf("%s resp.Body.Close() failed: %v\n", next, err)
-		}
-		return session, nil
+		return session, resp.Body.Close()
 	}
+	return
 }
 
 func (cmd Cmd) bestMirror(ctx context.Context, input io.Reader) (fastest string, err error) {
