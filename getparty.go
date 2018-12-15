@@ -30,12 +30,13 @@ const (
 	cmdName     = "getparty"
 	projectHome = "https://github.com/vbauerster/getparty"
 
-	maxRedirects  = 10
-	hUserAgentKey = "User-Agent"
+	maxRedirects        = 10
+	hUserAgentKey       = "User-Agent"
+	hContentDisposition = "Content-Disposition"
 )
 
 // https://regex101.com/r/N4AovD/3
-var contentDispositionRe = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`)
+var reContentDisposition = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`)
 
 var userAgents = map[string]string{
 	"chrome":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36",
@@ -144,10 +145,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		cmd.userInfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
-		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
-	}
-
 	var userUrl string
 	var lastSession *Session
 
@@ -158,6 +155,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			return err
 		}
 		userUrl = lastSession.Location
+		cmd.options.HeaderMap = lastSession.HeaderMap
 		cmd.options.OutFileName = lastSession.SuggestedFileName
 	case cmd.options.BestMirror:
 		var input io.Reader
@@ -181,7 +179,10 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		userUrl = args[0]
 	}
 
-	session, err := cmd.follow(ctx, userUrl, cmd.options.OutFileName)
+	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
+		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
+	}
+	session, err := cmd.follow(ctx, userUrl)
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			// most probably user hit ^C, so mark as expected
@@ -196,6 +197,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 		session = lastSession
 	} else if cmd.options.Parts > 0 {
+		session.HeaderMap = cmd.options.HeaderMap
 		session.Parts = session.calcParts(int64(cmd.options.Parts))
 		if _, err := os.Stat(session.SuggestedFileName); err == nil {
 			var answer string
@@ -289,15 +291,14 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	return err
 }
 
-func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (session *Session, err error) {
+func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, err error) {
 	defer func() {
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "follow")
 	}()
-	client := &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	client := cleanhttp.DefaultClient()
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 	next := userUrl
 	var redirectCount int
@@ -307,7 +308,6 @@ func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (session
 		if err != nil {
 			return nil, err
 		}
-		req.Close = true
 		req.URL.User = cmd.userInfo
 		for k, v := range cmd.options.HeaderMap {
 			req.Header.Set(k, v)
@@ -342,26 +342,26 @@ func (cmd Cmd) follow(ctx context.Context, userUrl, outFileName string) (session
 			}
 		}
 
-		if outFileName == "" {
-			outFileName = parseContentDisposition(resp.Header.Get("Content-Disposition"))
-		}
-		if outFileName == "" {
-			var path string
-			if nURL, err := url.Parse(next); err == nil {
-				nURL.RawQuery = ""
-				path, err = url.QueryUnescape(nURL.String())
-				if err != nil {
-					path = nURL.String()
+		if name := cmd.options.OutFileName; name == "" {
+			name = parseContentDisposition(resp.Header.Get(hContentDisposition))
+			if name == "" {
+				if nURL, err := url.Parse(next); err == nil {
+					nURL.RawQuery = ""
+					name, err = url.QueryUnescape(nURL.String())
+					if err != nil {
+						name = nURL.String()
+					}
+				} else {
+					name = next
 				}
-			} else {
-				path = next
+				name = filepath.Base(name)
 			}
-			outFileName = filepath.Base(path)
+			cmd.options.OutFileName = name
 		}
 
 		session = &Session{
 			Location:          next,
-			SuggestedFileName: outFileName,
+			SuggestedFileName: cmd.options.OutFileName,
 			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
 			ContentType:       resp.Header.Get("Content-Type"),
 			StatusCode:        resp.StatusCode,
@@ -448,7 +448,7 @@ func (cmd Cmd) closeReaders(rr []io.Reader) {
 }
 
 func parseContentDisposition(input string) string {
-	groups := contentDispositionRe.FindAllStringSubmatch(input, -1)
+	groups := reContentDisposition.FindAllStringSubmatch(input, -1)
 	for _, group := range groups {
 		if group[2] != "" {
 			return group[2]

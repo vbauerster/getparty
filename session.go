@@ -20,6 +20,7 @@ type Session struct {
 	StatusCode        int
 	ContentLength     int64
 	ContentType       string
+	HeaderMap         map[string]string
 	Parts             []*Part
 }
 
