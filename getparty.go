@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -357,9 +358,7 @@ func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, er
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, ExpectedError{
-				errors.Errorf("unprocessable http status %q", resp.Status),
-			}
+			return nil, errors.Errorf("unexpected status: %s", resp.Status)
 		}
 
 		if name := cmd.options.OutFileName; name == "" {
@@ -393,47 +392,62 @@ func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, er
 	return
 }
 
-func (cmd Cmd) bestMirror(ctx context.Context, input io.Reader) (fastest string, err error) {
+func (cmd Cmd) bestMirror(ctx context.Context, input io.Reader) (best string, err error) {
 	defer func() {
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "bestMirror")
 	}()
-	lines, err := readLines(input)
+	urls, err := readLines(input)
 	if err != nil {
-		return fastest, err
+		return
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	first := make(chan string, len(lines))
-	client := cleanhttp.DefaultClient()
-	for _, url := range lines {
-		go cmd.fetch(ctx, client, url, first)
-	}
-	select {
-	case fastest = <-first:
-	case <-time.After(5 * time.Second):
-		err = ExpectedError{errors.New("timeout")}
-	}
-	return fastest, err
-}
 
-func (cmd Cmd) fetch(ctx context.Context, client *http.Client, rawUrl string, first chan<- string) {
-	req, err := http.NewRequest(http.MethodHead, rawUrl, nil)
-	if err != nil {
-		cmd.dlogger.Printf("fetch: %v", err)
-		return
+	var readyWg sync.WaitGroup
+	start := make(chan struct{})
+	first := make(chan string, 1)
+	client := cleanhttp.DefaultClient()
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	for _, u := range urls {
+		req, err := http.NewRequest(http.MethodGet, u, nil)
+		if err != nil {
+			cmd.dlogger.Printf("skipping %q: %v", u, err)
+			continue
+		}
+		readyWg.Add(1)
+		req.URL.User = cmd.userInfo
+		u := u
+		subscribe(&readyWg, start, func() {
+			cmd.dlogger.Printf("fetching: %q", req.URL)
+			resp, err := client.Do(req.WithContext(ctx))
+			if err != nil {
+				cmd.dlogger.Printf("fetch error: %v", err)
+			}
+			if resp == nil || resp.Body == nil {
+				return
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				cmd.dlogger.Printf("fetch %q unexpected status: %s", u, resp.Status)
+				return
+			}
+			select {
+			case first <- u:
+			default:
+				// first has already been found
+			}
+		})
 	}
-	req.URL.User = cmd.userInfo
-	resp, err := client.Do(req.WithContext(ctx))
-	if err != nil {
-		cmd.dlogger.Printf("fetch: %v", err)
-		return
+	readyWg.Wait()
+	close(start)
+	select {
+	case best = <-first:
+		cmd.dlogger.Printf("best mirror found: %q", best)
+	case <-ctx.Done():
 	}
-	if resp.StatusCode != http.StatusOK {
-		cmd.dlogger.Printf("unexpected status: %s %q", resp.Status, rawUrl)
-		return
-	}
-	first <- rawUrl
+	return best, ctx.Err()
 }
 
 func (cmd Cmd) readPassword() (string, error) {
@@ -454,6 +468,14 @@ func (cmd Cmd) closeReaders(rr []io.Reader) {
 			}
 		}
 	}
+}
+
+func subscribe(wg *sync.WaitGroup, start <-chan struct{}, fn func()) {
+	go func() {
+		wg.Done()
+		<-start
+		fn()
+	}()
 }
 
 func parseContentDisposition(input string) string {
