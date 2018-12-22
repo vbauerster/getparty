@@ -58,7 +58,7 @@ func (s Session) calcParts(parts int64) []*Part {
 	return ps
 }
 
-func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
+func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) error {
 	if len(s.Parts) <= 1 {
 		return nil
 	}
@@ -68,35 +68,40 @@ func (s Session) concatenateParts(dlogger *log.Logger, pb *mpb.Progress) error {
 		return err
 	}
 
-	name := "concatenating parts:"
-	bar := pb.AddBar(int64(len(s.Parts)-1), mpb.BarPriority(len(s.Parts)),
-		mpb.PrependDecorators(
-			decor.Name(name),
-			pad(len(name)-6, decor.WCSyncWidth),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "done!"),
-			decor.Name(" ] "),
-			decor.Percentage(),
-		),
-	)
+	var bar *mpb.Bar
+	if progress != nil {
+		name := "concatenating parts:"
+		bar = progress.AddBar(int64(len(s.Parts)-1), mpb.BarPriority(len(s.Parts)),
+			mpb.PrependDecorators(
+				decor.Name(name),
+				pad(len(name)-6, decor.WCSyncWidth),
+			),
+			mpb.AppendDecorators(
+				decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "done!"),
+				decor.Name(" ] "),
+				decor.Percentage(),
+			),
+		)
+	}
 
-	dlogger.Printf("concatenating: %s\n", fpart0.Name())
+	dlogger.Printf("concatenating: %s", fpart0.Name())
 	for i := 1; i < len(s.Parts); i++ {
 		fparti, err := os.Open(s.Parts[i].FileName)
 		if err != nil {
 			return err
 		}
-		dlogger.Printf("concatenating: %s\n", fparti.Name())
+		dlogger.Printf("concatenating: %s", fparti.Name())
 		if _, err := io.Copy(fpart0, fparti); err != nil {
 			return err
 		}
 		for _, err := range [...]error{fparti.Close(), os.Remove(fparti.Name())} {
 			if err != nil {
-				dlogger.Printf("concatenateParts: %q %v\n", fparti.Name(), err)
+				dlogger.Printf("concatenateParts: %q %v", fparti.Name(), err)
 			}
 		}
-		bar.Increment()
+		if bar != nil {
+			bar.Increment()
+		}
 	}
 	return fpart0.Close()
 }
@@ -127,15 +132,15 @@ func (s *Session) loadState(fileName string) error {
 	return err
 }
 
-func (s Session) actualPartsOnly() []*Part {
-	tmp := s.Parts[:0]
+func (s *Session) actualPartsOnly() {
+	parts := s.Parts[:0]
 	for _, p := range s.Parts {
 		if p.Skip {
 			continue
 		}
-		tmp = append(tmp, p)
+		parts = append(parts, p)
 	}
-	return tmp
+	s.Parts = parts
 }
 
 func (s Session) totalWritten() int64 {

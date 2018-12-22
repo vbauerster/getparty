@@ -33,6 +33,7 @@ const (
 	maxRedirects        = 10
 	hUserAgentKey       = "User-Agent"
 	hContentDisposition = "Content-Disposition"
+	hRange              = "Range"
 )
 
 // https://regex101.com/r/N4AovD/3
@@ -59,6 +60,7 @@ type Options struct {
 	JSONFileName string            `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
 	UserAgent    string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
 	BestMirror   bool              `short:"b" long:"best-mirror [...file|stdin]" description:"pickup the fastest mirror"`
+	Quiet        bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	AuthUser     string            `short:"u" long:"username" description:"basic http auth username"`
 	AuthPass     string            `long:"password" description:"basic http auth password"`
 	HeaderMap    map[string]string `long:"header" value-name:"key:value" description:"arbitrary http header"`
@@ -90,13 +92,13 @@ func (cmd Cmd) Exit(err error) int {
 		if !cmd.options.Debug {
 			fmt.Fprintf(cmd.Err, "exit error: %v\n", err)
 		}
-		cmd.dlogger.Printf("exit error: %+v\n", err)
+		cmd.dlogger.Printf("exit error: %+v", err)
 		return 1
 	default:
 		if !cmd.options.Debug {
 			fmt.Fprintf(cmd.Err, "unexpected error: %v\n", err)
 		}
-		cmd.dlogger.Printf("unexpected error: %+v\n", err)
+		cmd.dlogger.Printf("unexpected error: %+v", err)
 		return 3
 	}
 }
@@ -126,6 +128,10 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		return new(flags.Error)
 	}
 
+	if cmd.options.Quiet {
+		cmd.Out = ioutil.Discard
+		cmd.Err = ioutil.Discard
+	}
 	cmd.logger = log.New(cmd.Out, "", log.LstdFlags)
 	cmd.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
 	if cmd.options.Debug {
@@ -192,9 +198,19 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	}
 
 	if lastSession != nil {
-		if lastSession.ContentLength != session.ContentLength {
-			return errors.Errorf("ContentLength mismatch: remote length %d, expected length %d", session.ContentLength, lastSession.ContentLength)
+		if lastSession.ContentMD5 != session.ContentMD5 {
+			return errors.Errorf(
+				"ContentMD5 mismatch: remote %q expected %q",
+				session.ContentMD5, lastSession.ContentMD5,
+			)
 		}
+		if lastSession.ContentLength != session.ContentLength {
+			return errors.Errorf(
+				"ContentLength mismatch: remote %d expected %d",
+				session.ContentLength, lastSession.ContentLength,
+			)
+		}
+		lastSession.Location = session.Location
 		session = lastSession
 	} else if cmd.options.Parts > 0 {
 		session.HeaderMap = cmd.options.HeaderMap
@@ -216,15 +232,17 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 	}
 
-	session.writeSummary(cmd.Out)
-
-	pb := mpb.New(
-		mpb.WithOutput(cmd.Out),
-		mpb.WithRefreshRate(180*time.Millisecond),
-		mpb.WithWidth(60),
-		mpb.WithFormat("[=>-|"),
-		mpb.WithContext(ctx),
-	)
+	var progress *mpb.Progress
+	if !cmd.options.Quiet {
+		progress = mpb.New(
+			mpb.WithOutput(cmd.Out),
+			mpb.WithRefreshRate(180*time.Millisecond),
+			mpb.WithWidth(60),
+			mpb.WithFormat("[=>-|"),
+			mpb.WithContext(ctx),
+		)
+		session.writeSummary(cmd.Out)
+	}
 
 	client := cleanhttp.DefaultPooledClient()
 	eg, cctx := errgroup.WithContext(ctx)
@@ -232,44 +250,46 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		if p.Skip {
 			continue
 		}
-		i, p := i, p // https://golang.org/doc/faq#closures_and_goroutines
+		p.priority = i
+		p.name = fmt.Sprintf("p#%02d", i+1)
+		p.progress = progress
+		p.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", p.name), log.LstdFlags)
+		if cmd.options.Debug {
+			p.dlogger.SetOutput(cmd.Err)
+		}
+		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
-			logger := log.New(ioutil.Discard, fmt.Sprintf("[p#%02d] ", i+1), log.LstdFlags)
-			if cmd.options.Debug {
-				logger.SetOutput(cmd.Err)
-			}
 			return p.download(
 				cctx,
 				client,
 				cmd.userInfo,
 				cmd.options.HeaderMap,
 				session.Location,
-				logger,
-				pb,
-				i,
 			)
 		})
 	}
 
 	err = eg.Wait()
-	session.Parts = session.actualPartsOnly()
+	session.actualPartsOnly()
 
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			// most probably user hit ^C, so mark as expected
 			err = ExpectedError{ctx.Err()}
 		} else {
-			cancel() // cancel pb
+			cancel()
 		}
 	} else if cmd.options.Parts > 0 {
 		if written := session.totalWritten(); written == session.ContentLength || session.ContentLength <= 0 {
-			err = session.concatenateParts(cmd.dlogger, pb)
-			pb.Wait()
+			err = session.concatenateParts(cmd.dlogger, progress)
+			if progress != nil {
+				progress.Wait()
+			}
 			if err != nil {
 				return err
 			}
 			fmt.Fprintln(cmd.Out)
-			cmd.logger.Printf("%q saved [%d/%d]\n", session.SuggestedFileName, session.ContentLength, written)
+			cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, written)
 			if cmd.options.JSONFileName != "" {
 				return os.Remove(cmd.options.JSONFileName)
 			}
@@ -277,14 +297,16 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 	}
 
-	pb.Wait()
+	if progress != nil {
+		progress.Wait()
+	}
 
 	// preserve user provided url
 	session.Location = userUrl
 	stateName := session.SuggestedFileName + ".json"
 	if e := session.saveState(stateName); e == nil {
 		fmt.Fprintln(cmd.Out)
-		cmd.logger.Printf("session state saved to %q\n", stateName)
+		cmd.logger.Printf("session state saved to %q", stateName)
 	} else if err == nil {
 		err = e
 	}
@@ -307,7 +329,7 @@ func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, er
 	}
 	next := userUrl
 	for i := 0; i < maxRedirects; i++ {
-		cmd.logger.Printf("GET: %s\n", next)
+		cmd.logger.Printf("GET: %s", next)
 		req, err := http.NewRequest(http.MethodGet, next, nil)
 		if err != nil {
 			return nil, err
@@ -321,7 +343,7 @@ func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, er
 		if err != nil {
 			return nil, err
 		}
-		cmd.logger.Println("HTTP response:", resp.Status)
+		cmd.logger.Printf("HTTP response: %s", resp.Status)
 
 		if isRedirect(resp.StatusCode) {
 			loc, err := resp.Location()
@@ -382,41 +404,33 @@ func (cmd Cmd) bestMirror(ctx context.Context, input io.Reader) (fastest string,
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	ch := make(chan string, len(lines))
+	first := make(chan string, len(lines))
+	client := cleanhttp.DefaultClient()
 	for _, url := range lines {
-		go cmd.fetch(ctx, url, ch)
+		go cmd.fetch(ctx, client, url, first)
 	}
 	select {
-	case fastest = <-ch:
-	case <-time.After(3 * time.Second):
+	case fastest = <-first:
+	case <-time.After(5 * time.Second):
 		err = ExpectedError{errors.New("timeout")}
 	}
 	return fastest, err
 }
 
-func (cmd Cmd) fetch(ctx context.Context, rawUrl string, first chan<- string) {
+func (cmd Cmd) fetch(ctx context.Context, client *http.Client, rawUrl string, first chan<- string) {
 	req, err := http.NewRequest(http.MethodHead, rawUrl, nil)
 	if err != nil {
-		cmd.dlogger.Println("fetch:", err)
+		cmd.dlogger.Printf("fetch: %v", err)
 		return
 	}
-	req.Close = true
 	req.URL.User = cmd.userInfo
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
-		cmd.dlogger.Println("fetch:", err)
+		cmd.dlogger.Printf("fetch: %v", err)
 		return
 	}
-	defer func() {
-		if resp.Body != nil {
-			if err := resp.Body.Close(); err != nil {
-				cmd.dlogger.Printf("%s resp.Body.Close() failed: %v\n", rawUrl, err)
-			}
-		}
-	}()
-
 	if resp.StatusCode != http.StatusOK {
-		cmd.dlogger.Printf("%s %q\n", resp.Status, rawUrl)
+		cmd.dlogger.Printf("unexpected status: %s %q", resp.Status, rawUrl)
 		return
 	}
 	first <- rawUrl
@@ -436,7 +450,7 @@ func (cmd Cmd) closeReaders(rr []io.Reader) {
 	for _, r := range rr {
 		if closer, ok := r.(io.Closer); ok {
 			if err := closer.Close(); err != nil {
-				cmd.dlogger.Printf("close failed: %v\n", err)
+				cmd.dlogger.Printf("close failed: %v", err)
 			}
 		}
 	}
