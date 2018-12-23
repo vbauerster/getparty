@@ -56,11 +56,12 @@ func (e ExpectedError) Error() string {
 
 // Options struct, represents cmd line options
 type Options struct {
-	Parts        uint              `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
+	Parts        uint              `short:"p" long:"parts" value-name:"n" default:"2" description:"numof parts"`
+	Timeout      uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
 	OutFileName  string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName string            `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
 	UserAgent    string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
-	BestMirror   bool              `short:"b" long:"best-mirror [...file|stdin]" description:"pickup the fastest mirror"`
+	BestMirror   bool              `short:"b" long:"best-mirror ...file|stdin" description:"pickup the fastest mirror"`
 	Quiet        bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	AuthUser     string            `short:"u" long:"username" description:"basic http auth username"`
 	AuthPass     string            `long:"password" description:"basic http auth password"`
@@ -90,16 +91,18 @@ func (cmd Cmd) Exit(err error) int {
 		cmd.parser.WriteHelp(cmd.Err)
 		return 2
 	case ExpectedError:
-		if !cmd.options.Debug {
+		if cmd.options.Debug {
+			cmd.dlogger.Printf("exit error: %+v", err)
+		} else {
 			fmt.Fprintf(cmd.Err, "exit error: %v\n", err)
 		}
-		cmd.dlogger.Printf("exit error: %+v", err)
 		return 1
 	default:
-		if !cmd.options.Debug {
+		if cmd.options.Debug {
+			cmd.dlogger.Printf("unexpected error: %+v", err)
+		} else {
 			fmt.Fprintf(cmd.Err, "unexpected error: %v\n", err)
 		}
-		cmd.dlogger.Printf("unexpected error: %+v", err)
 		return 3
 	}
 }
@@ -269,7 +272,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
-			return p.download(ctx, req)
+			return p.download(ctx, req, cmd.options.Timeout)
 		})
 	}
 

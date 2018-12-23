@@ -20,7 +20,6 @@ import (
 
 const (
 	bufSize = 1 << 12
-	timeout = 10
 )
 
 // Part represents state of each download part
@@ -39,7 +38,7 @@ type Part struct {
 	dlogger  *log.Logger
 }
 
-func (p *Part) download(ctx context.Context, req *http.Request) (err error) {
+func (p *Part) download(ctx context.Context, req *http.Request, timeout uint) (err error) {
 	if p.isDone() {
 		return
 	}
@@ -71,10 +70,12 @@ func (p *Part) download(ctx context.Context, req *http.Request) (err error) {
 		defer close(messageCh)
 	}
 
+	prefixSnap := p.dlogger.Prefix()
 	return try(func(attempt int) (retry bool, err error) {
+		p.dlogger.SetPrefix(fmt.Sprintf("%s[attempt#%02d] ", prefixSnap, attempt))
 		writtenSnap := p.Written
 		defer func() {
-			p.dlogger.Printf("attempt#%02d total written: %d", attempt, p.Written-writtenSnap)
+			p.dlogger.Printf("total written: %d", p.Written-writtenSnap)
 			if e := recover(); e != nil {
 				p.dlogger.Printf("%#v", p)
 				panic(e)
@@ -82,12 +83,15 @@ func (p *Part) download(ctx context.Context, req *http.Request) (err error) {
 		}()
 
 		req.Header.Set(hRange, p.getRange())
-		p.dlogger.Printf("attempt#%02d: %q", attempt, req.URL)
+		p.dlogger.Printf("GET %q", req.URL)
 		p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
 		p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
 
 		cctx, cancel := context.WithCancel(ctx)
-		timer := time.AfterFunc(timeout*time.Second, cancel)
+		timer := time.AfterFunc(time.Duration(timeout)*time.Second, func() {
+			p.dlogger.Printf("timeout: %s, canceling...", time.Duration(timeout)*time.Second)
+			cancel()
+		})
 		defer cancel()
 
 		resp, err := p.client.Do(req.WithContext(cctx))
@@ -131,18 +135,16 @@ func (p *Part) download(ctx context.Context, req *http.Request) (err error) {
 		}
 
 		max := int64(bufSize)
-		reset := timeout
 		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 
 		var written int64
-		for timer.Reset(time.Duration(reset) * time.Second) {
+		for timer.Reset(time.Duration(timeout) * time.Second) {
 			written, err = io.CopyN(buf, body, max)
 			if err != nil {
 				p.dlogger.Printf("CopyN err: %v", err)
 				// try to continue on temp err
 				if e, ok := err.(interface{ Temporary() bool }); ok && e.Temporary() {
 					max -= written
-					reset--
 					messageCh <- "error: trying to continue"
 					continue
 				}
@@ -154,7 +156,7 @@ func (p *Part) download(ctx context.Context, req *http.Request) (err error) {
 			if total <= 0 && p.bar != nil {
 				p.bar.SetTotal(p.Written+max*2, false)
 			}
-			max, reset = bufSize, timeout
+			max = bufSize
 		}
 
 		written, _ = io.Copy(fpart, buf)
@@ -190,7 +192,6 @@ func (p *Part) initBar(body io.ReadCloser, msgCh <-chan string, attempt int, tot
 		if total > bufSize {
 			etaAge = float64(total) / float64(bufSize)
 		}
-		p.dlogger.Printf("Part's total: %d", total)
 		p.bar = p.progress.AddBar(total, mpb.BarPriority(p.order),
 			mpb.PrependDecorators(
 				decor.Name(p.name+":"),
