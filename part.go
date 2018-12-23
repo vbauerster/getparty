@@ -8,7 +8,6 @@ import (
 	"log"
 	"math"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
@@ -19,6 +18,11 @@ import (
 	"github.com/vbauerster/mpb/decor"
 )
 
+const (
+	bufSize = 1 << 12
+	timeout = 10
+)
+
 // Part represents state of each download part
 type Part struct {
 	FileName string
@@ -27,20 +31,15 @@ type Part struct {
 	Written  int64
 	Skip     bool
 
-	priority int
+	order    int
 	name     string
+	client   *http.Client
 	progress *mpb.Progress
 	bar      *mpb.Bar
 	dlogger  *log.Logger
 }
 
-func (p *Part) download(
-	ctx context.Context,
-	client *http.Client,
-	userInfo *url.Userinfo,
-	headers map[string]string,
-	targetUrl string,
-) (err error) {
+func (p *Part) download(ctx context.Context, req *http.Request) (err error) {
 	if p.isDone() {
 		return
 	}
@@ -66,7 +65,7 @@ func (p *Part) download(
 		}
 	}()
 
-	bOff := backoff.New(backoff.WithResetDelay(5 * time.Minute))
+	bOff := backoff.New(backoff.WithResetDelay(3 * time.Minute))
 	messageCh := make(chan string, 1)
 	if p.progress == nil {
 		defer close(messageCh)
@@ -84,32 +83,24 @@ func (p *Part) download(
 			}
 		}()
 
-		p.dlogger.Printf("attempt#%02d: %q", attempt, targetUrl)
-		req, err := http.NewRequest(http.MethodGet, targetUrl, nil)
-		if err != nil {
-			return false, err
-		}
-		req.URL.User = userInfo
-		for k, v := range headers {
-			req.Header.Set(k, v)
-		}
 		req.Header.Set(hRange, p.getRange())
+		p.dlogger.Printf("attempt#%02d: %q", attempt, req.URL)
 		p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
 		p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
 
 		cctx, cancel := context.WithCancel(ctx)
-		timer := time.AfterFunc(10*time.Second, cancel)
+		timer := time.AfterFunc(timeout*time.Second, cancel)
 		defer cancel()
 
-		resp, err := client.Do(req.WithContext(cctx))
+		resp, err := p.client.Do(req.WithContext(cctx))
 		if err != nil {
 			return false, err
 		}
 
 		body := resp.Body
 		defer func() {
-			if err := body.Close(); err != nil {
-				p.dlogger.Printf("body.Close() error: %v", err)
+			if e := body.Close(); err == nil {
+				err = e
 			}
 		}()
 
@@ -119,22 +110,21 @@ func (p *Part) download(
 		total := p.Stop - p.Start + 1
 		if resp.StatusCode == http.StatusOK {
 			// no partial content, so download with single part
-			if p.priority > 0 {
+			if p.order > 0 {
 				p.Skip = true
-				p.dlogger.Printf("no partial content, skipping...")
+				p.dlogger.Print("no partial content, skipping...")
 				return false, nil
 			}
 			total = resp.ContentLength
 			p.dlogger.Printf("reset last written: %d", p.Written)
 			p.Written = 0
 		} else if resp.StatusCode != http.StatusPartialContent {
-			return false, ExpectedError{errors.Errorf("unprocessable http status %q", resp.Status)}
+			return false, errors.Errorf("unexpected status: %s", resp.Status)
 		}
 
-		bufSize := int64(1024 * 4)
-		body = p.initBar(body, messageCh, attempt, total, bufSize)
+		body = p.initBar(body, messageCh, attempt, total)
 
-		if p.bar != nil && p.Written > 0 {
+		if p.Written > 0 && p.bar != nil {
 			p.dlogger.Printf("bar refill written: %d", p.Written)
 			p.bar.SetRefill(int(p.Written), '+')
 			if attempt == 1 {
@@ -142,57 +132,52 @@ func (p *Part) download(
 			}
 		}
 
-		var written int64
-		max := bufSize
+		max := int64(bufSize)
+		reset := timeout
 		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 
-		for timer.Reset(8 * time.Second) {
+		var written int64
+		for timer.Reset(time.Duration(reset) * time.Second) {
 			written, err = io.CopyN(buf, body, max)
 			if err != nil {
 				p.dlogger.Printf("CopyN err: %v", err)
-				if err == io.EOF || ctx.Err() != nil {
-					break
-				}
 				// try to continue on temp err
 				if e, ok := err.(interface{ Temporary() bool }); ok && e.Temporary() {
 					max -= written
-					messageCh <- "temp error"
+					reset--
+					messageCh <- "error: trying to continue"
 					continue
 				}
-				// retry
 				timer.Stop()
-				messageCh <- fmt.Sprintf("retry #%d", attempt)
-				dur := bOff.Backoff(attempt)
-				p.dlogger.Printf("sleep %s, before next attempt", dur)
-				time.Sleep(dur)
 				break
 			}
 			written, _ = io.Copy(fpart, buf)
 			p.Written += written
-			if p.bar != nil && total <= 0 {
+			if total <= 0 && p.bar != nil {
 				p.bar.SetTotal(p.Written+max*2, false)
 			}
 			max = bufSize
+			reset = timeout
 		}
 
 		written, _ = io.Copy(fpart, buf)
 		p.Written += written
-		if p.bar != nil && total <= 0 {
-			p.bar.SetTotal(p.Written, true)
+		if total <= 0 && p.bar != nil {
+			p.bar.SetTotal(p.Written, err == io.EOF)
 		}
-		if err == io.EOF {
-			return false, nil
+		if err == io.EOF || ctx.Err() != nil {
+			return false, ctx.Err()
 		}
-		return !p.isDone(), err
+		// full retry
+		messageCh <- fmt.Sprintf("retry #%d", attempt)
+		dur := bOff.Backoff(attempt)
+		p.dlogger.Printf("sleep %s, before next attempt", dur)
+		time.Sleep(dur)
+		return true, err
 	})
 }
 
-func (p *Part) initBar(
-	body io.ReadCloser,
-	msgCh <-chan string,
-	attempt int,
-	total, bufSize int64,
-) io.ReadCloser {
+func (p *Part) initBar(body io.ReadCloser, msgCh <-chan string, attempt int, total int64) io.ReadCloser {
 	if p.progress == nil {
 		if attempt == 1 {
 			go func() {
@@ -209,7 +194,7 @@ func (p *Part) initBar(
 			etaAge = float64(total) / float64(bufSize)
 		}
 		p.dlogger.Printf("Part's total: %d", total)
-		p.bar = p.progress.AddBar(total, mpb.BarPriority(p.priority),
+		p.bar = p.progress.AddBar(total, mpb.BarPriority(p.order),
 			mpb.PrependDecorators(
 				decor.Name(p.name+":"),
 				percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, msgCh, 12),

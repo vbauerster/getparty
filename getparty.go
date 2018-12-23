@@ -246,27 +246,30 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	}
 
 	client := cleanhttp.DefaultPooledClient()
-	eg, cctx := errgroup.WithContext(ctx)
+	eg, gctx := errgroup.WithContext(ctx)
 	for i, p := range session.Parts {
 		if p.Skip {
 			continue
 		}
-		p.priority = i
+		p.order = i
 		p.name = fmt.Sprintf("p#%02d", i+1)
+		p.client = client
 		p.progress = progress
 		p.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", p.name), log.LstdFlags)
 		if cmd.options.Debug {
 			p.dlogger.SetOutput(cmd.Err)
 		}
+		req, err := http.NewRequest(http.MethodGet, session.Location, nil)
+		if err != nil {
+			cmd.logger.Fatalf("%s: %v", p.name, err)
+		}
+		req.URL.User = cmd.userInfo
+		for k, v := range cmd.options.HeaderMap {
+			req.Header.Set(k, v)
+		}
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
-			return p.download(
-				cctx,
-				client,
-				cmd.userInfo,
-				cmd.options.HeaderMap,
-				session.Location,
-			)
+			return p.download(gctx, req)
 		})
 	}
 
@@ -417,9 +420,9 @@ func (cmd Cmd) bestMirror(ctx context.Context, input io.Reader) (best string, er
 		}
 		readyWg.Add(1)
 		req.URL.User = cmd.userInfo
-		u := u
+		u := u // https://golang.org/doc/faq#closures_and_goroutines
 		subscribe(&readyWg, start, func() {
-			cmd.dlogger.Printf("fetching: %q", req.URL)
+			cmd.dlogger.Printf("fetching: %q", u)
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
 				cmd.dlogger.Printf("fetch error: %v", err)
