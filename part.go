@@ -156,8 +156,7 @@ func (p *Part) download(ctx context.Context, req *http.Request) (err error) {
 			if total <= 0 && p.bar != nil {
 				p.bar.SetTotal(p.Written+max*2, false)
 			}
-			max = bufSize
-			reset = timeout
+			max, reset = bufSize, timeout
 		}
 
 		written, _ = io.Copy(fpart, buf)
