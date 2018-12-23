@@ -75,8 +75,9 @@ func (p *Part) download(ctx context.Context, req *http.Request) (err error) {
 		if ctx.Err() != nil {
 			return false, ctx.Err()
 		}
+		writtenSnap := p.Written
 		defer func() {
-			p.dlogger.Printf("attempt#%02d total written: %d", attempt, p.Written)
+			p.dlogger.Printf("attempt#%02d total written: %d", attempt, p.Written-writtenSnap)
 			if e := recover(); e != nil {
 				p.dlogger.Printf("%#v", p)
 				panic(e)
