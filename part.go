@@ -72,9 +72,6 @@ func (p *Part) download(ctx context.Context, req *http.Request) (err error) {
 	}
 
 	return try(func(attempt int) (retry bool, err error) {
-		if ctx.Err() != nil {
-			return false, ctx.Err()
-		}
 		writtenSnap := p.Written
 		defer func() {
 			p.dlogger.Printf("attempt#%02d total written: %d", attempt, p.Written-writtenSnap)

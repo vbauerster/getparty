@@ -245,8 +245,8 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		session.writeSummary(cmd.Out)
 	}
 
+	var eg errgroup.Group
 	client := cleanhttp.DefaultPooledClient()
-	eg, gctx := errgroup.WithContext(ctx)
 	for i, p := range session.Parts {
 		if p.Skip {
 			continue
@@ -269,7 +269,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
-			return p.download(gctx, req)
+			return p.download(ctx, req)
 		})
 	}
 
