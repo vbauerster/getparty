@@ -56,7 +56,7 @@ func (e ExpectedError) Error() string {
 
 // Options struct, represents cmd line options
 type Options struct {
-	Parts        uint              `short:"p" long:"parts" value-name:"n" default:"2" description:"numof parts"`
+	Parts        uint              `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
 	Timeout      uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
 	OutFileName  string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName string            `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
