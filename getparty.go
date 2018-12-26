@@ -61,7 +61,7 @@ type Options struct {
 	OutFileName  string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName string            `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
 	UserAgent    string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
-	BestMirror   bool              `short:"b" long:"best-mirror ...file|stdin" description:"pickup the fastest mirror"`
+	BestMirror   bool              `short:"b" long:"best-mirror" description:"pickup the fastest mirror"`
 	Quiet        bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	AuthUser     string            `short:"u" long:"username" description:"basic http auth username"`
 	AuthPass     string            `long:"password" description:"basic http auth password"`
