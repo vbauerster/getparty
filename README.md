@@ -19,10 +19,12 @@ Usage:
 
 Application Options:
   -p, --parts=n                               number of parts (default: 2)
+  -t, --timeout=sec                           context timeout (default: 15)
   -o, --output=filename                       user defined output
   -c, --continue=state.json                   resume download from the last session
   -a, --user-agent=[chrome|firefox|safari]    User-Agent header (default: chrome)
-  -b, --best-mirror [...file|stdin]           pickup the fastest mirror
+  -b, --best-mirror                           pickup the fastest mirror
+  -q, --quiet                                 quiet mode, no progress bars
   -u, --username=                             basic http auth username
       --password=                             basic http auth password
       --header=key:value                      arbitrary http header
