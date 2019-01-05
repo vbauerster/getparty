@@ -7,43 +7,89 @@ package getparty
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/vbauerster/mpb/decor"
 )
 
-func percentageWithTotal(pairFormat string, wc decor.WC, msgCh <-chan string, msgTimes int) decor.Decorator {
-	wc.Init()
-	return &percentageDecorator{
-		WC:       wc,
-		format:   pairFormat,
-		msgCh:    msgCh,
-		msgTimes: msgTimes,
-	}
+type message struct {
+	msg   string
+	times int
+	final bool
+	done  chan struct{}
 }
 
 type percentageDecorator struct {
 	decor.WC
 	format   string
-	msg      string
-	msgCh    <-chan string
-	msgTimes int
-	msgCount int
+	done     chan struct{}
+	mu       sync.Mutex
+	messages []*message
+	finalMsg *message
 }
 
-func (d *percentageDecorator) Decor(st *decor.Statistics) string {
-	select {
-	case d.msg = <-d.msgCh:
-		d.msgCount = d.msgTimes
-	default:
+func percentageWithTotal(pairFormat string, wc decor.WC, ch <-chan *message) decor.Decorator {
+	wc.Init()
+	d := &percentageDecorator{
+		WC:     wc,
+		format: pairFormat,
+		done:   make(chan struct{}),
+	}
+	go d.receive(ch)
+	return d
+}
+
+func (d *percentageDecorator) receive(ch <-chan *message) {
+	for {
+		select {
+		case m := <-ch:
+			d.mu.Lock()
+			if d.finalMsg == nil {
+				d.messages = append(d.messages, m)
+			}
+			d.mu.Unlock()
+		case <-d.done:
+			return
+		}
+	}
+}
+
+func (d *percentageDecorator) Shutdown() {
+	close(d.done)
+}
+
+func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
+	if d.finalMsg != nil {
+		if d.finalMsg.times == 0 && d.finalMsg.done != nil {
+			defer close(d.finalMsg.done)
+			d.finalMsg.times++
+		}
+		return d.FormatMsg(d.finalMsg.msg)
 	}
 
-	if d.msgCount > 0 {
-		d.msgCount--
-		return d.FormatMsg(d.msg)
+	d.mu.Lock()
+	if len(d.messages) > 0 {
+		m := d.messages[0]
+		if m.times > 0 {
+			m.times--
+			d.mu.Unlock()
+			return d.FormatMsg(m.msg)
+		} else {
+			if m.final {
+				m.times = 0
+				d.finalMsg = m
+			}
+			tmp := d.messages[:0]
+			for i := 1; i < len(d.messages); i++ {
+				tmp = append(tmp, d.messages[i])
+			}
+			d.messages = tmp
+		}
 	}
+	d.mu.Unlock()
 
-	completed := percentage(st.Total, st.Current, 100)
-	msg := fmt.Sprintf(d.format, completed, decor.CounterKiB(st.Total))
+	completed := percentage(stat.Total, stat.Current, 100)
+	msg := fmt.Sprintf(d.format, completed, decor.CounterKiB(stat.Total))
 	return d.FormatMsg(msg)
 }
 

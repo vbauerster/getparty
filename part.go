@@ -20,6 +20,7 @@ import (
 
 const (
 	bufSize = 1 << 12
+	maxTry  = 10
 )
 
 // Part represents state of each download part
@@ -33,9 +34,10 @@ type Part struct {
 	order    int
 	name     string
 	client   *http.Client
+	dlogger  *log.Logger
 	progress *mpb.Progress
 	bar      *mpb.Bar
-	dlogger  *log.Logger
+	barMsgCh chan *message
 }
 
 func (p *Part) download(ctx context.Context, req *http.Request, timeout uint) (err error) {
@@ -64,130 +66,169 @@ func (p *Part) download(ctx context.Context, req *http.Request, timeout uint) (e
 		}
 	}()
 
-	bOff := backoff.New(backoff.WithResetDelay(3 * time.Minute))
-	messageCh := make(chan string, 1)
-	if p.progress == nil {
-		defer close(messageCh)
-	}
+	bOff := backoff.New(
+		backoff.WithBaseDelay(50*time.Millisecond),
+		backoff.WithResetDelay(2*time.Minute),
+	)
 
 	prefixSnap := p.dlogger.Prefix()
-	return try(func(attempt int) (retry bool, err error) {
-		p.dlogger.SetPrefix(fmt.Sprintf("%s[attempt#%02d] ", prefixSnap, attempt))
-		writtenSnap := p.Written
-		defer func() {
-			p.dlogger.Printf("total written: %d", p.Written-writtenSnap)
-			if e := recover(); e != nil {
-				p.dlogger.Printf("%#v", p)
-				panic(e)
-			}
-		}()
-
-		req.Header.Set(hRange, p.getRange())
-		p.dlogger.Printf("GET %q", req.URL)
-		p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
-		p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
-
-		cctx, cancel := context.WithCancel(ctx)
-		timer := time.AfterFunc(time.Duration(timeout)*time.Second, func() {
-			p.dlogger.Printf("timeout: %s, canceling...", time.Duration(timeout)*time.Second)
-			cancel()
-		})
-		defer cancel()
-
-		resp, err := p.client.Do(req.WithContext(cctx))
-		if err != nil {
-			return false, err
-		}
-
-		body := resp.Body
-		defer func() {
-			if e := body.Close(); err == nil {
-				err = e
-			}
-		}()
-
-		p.dlogger.Printf("resp.Status: %s", resp.Status)
-		p.dlogger.Printf("resp.ContentLength: %d", resp.ContentLength)
-
-		total := p.Stop - p.Start + 1
-		if resp.StatusCode == http.StatusOK {
-			// no partial content, so download with single part
-			if p.order > 0 {
-				p.Skip = true
-				p.dlogger.Print("no partial content, skipping...")
-				return false, nil
-			}
-			total = resp.ContentLength
-			p.dlogger.Printf("reset last written: %d", p.Written)
-			p.Written = 0
-		} else if resp.StatusCode != http.StatusPartialContent {
-			return false, errors.Errorf("unexpected status: %s", resp.Status)
-		}
-
-		body = p.initBar(body, messageCh, attempt, total)
-
-		if p.Written > 0 && p.bar != nil {
-			p.dlogger.Printf("bar refill written: %d", p.Written)
-			p.bar.SetRefill(int(p.Written), '+')
-			if attempt == 1 {
-				p.bar.IncrBy(int(p.Written))
-			}
-		}
-
-		max := int64(bufSize)
-		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-
-		var written int64
-		for timer.Reset(time.Duration(timeout) * time.Second) {
-			written, err = io.CopyN(buf, body, max)
-			if err != nil {
-				p.dlogger.Printf("CopyN err: %v", err)
-				// try to continue on temp err
-				if e, ok := err.(interface{ Temporary() bool }); ok && e.Temporary() {
-					max -= written
-					messageCh <- "error: trying to continue"
-					continue
-				}
-				timer.Stop()
-				break
-			}
-			written, _ = io.Copy(fpart, buf)
-			p.Written += written
-			if total <= 0 && p.bar != nil {
-				p.bar.SetTotal(p.Written+max*2, false)
-			}
-			max = bufSize
-		}
-
-		written, _ = io.Copy(fpart, buf)
-		p.Written += written
-		if total <= 0 && p.bar != nil {
-			p.bar.SetTotal(p.Written, err == io.EOF)
-		}
-		if err == io.EOF || ctx.Err() != nil {
-			return false, ctx.Err()
-		}
-		// full retry
-		messageCh <- fmt.Sprintf("retry #%d", attempt)
-		dur := bOff.Backoff(attempt)
-		p.dlogger.Printf("sleep %s, before next attempt", dur)
-		time.Sleep(dur)
-		return true, err
-	})
-}
-
-func (p *Part) initBar(body io.ReadCloser, msgCh <-chan string, attempt int, total int64) io.ReadCloser {
-	if p.progress == nil {
-		if attempt == 1 {
-			go func() {
-				for range msgCh {
+	for i := 0; i < maxTry && ctx.Err() == nil; i++ {
+		err = try(func(attempt int) (retry bool, err error) {
+			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d.%02d] ", prefixSnap, i, attempt))
+			writtenSnap := p.Written
+			defer func() {
+				p.dlogger.Printf("total written: %d", p.Written-writtenSnap)
+				if e := recover(); e != nil {
+					p.dlogger.Printf("%#v", p)
+					panic(e)
 				}
 			}()
+
+			randomSleep := bOff.Backoff(attempt)
+			p.dlogger.Printf("sleeping: %s", randomSleep)
+			time.Sleep(randomSleep)
+
+			req.Header.Set(hRange, p.getRange())
+			p.dlogger.Printf("GET %q", req.URL)
+			p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
+			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
+
+			cctx, cancel := context.WithCancel(ctx)
+			timeoutDur := time.Duration(timeout) * time.Second
+			timeoutMsg := fmt.Sprintf("timeout: %s", timeoutDur)
+			timer := time.AfterFunc(timeoutDur, func() {
+				cancel()
+				p.msgToBar(&message{
+					msg:   timeoutMsg,
+					times: 14,
+				})
+				p.dlogger.Print(timeoutMsg)
+			})
+			defer cancel()
+
+			resp, err := p.client.Do(req.WithContext(cctx))
+			if err != nil {
+				return false, err
+			}
+
+			body := resp.Body
+			defer func() {
+				if e := body.Close(); err == nil {
+					err = e
+				}
+			}()
+
+			p.dlogger.Printf("resp.Status: %s", resp.Status)
+			p.dlogger.Printf("resp.ContentLength: %d", resp.ContentLength)
+
+			total := p.Stop - p.Start + 1
+			if resp.StatusCode == http.StatusOK {
+				// no partial content, so download with single part
+				if p.order > 0 {
+					p.Skip = true
+					p.dlogger.Print("no partial content, skipping...")
+					return false, nil
+				}
+				total = resp.ContentLength
+				p.dlogger.Printf("reset last written: %d", p.Written)
+				p.Written = 0
+			} else if resp.StatusCode != http.StatusPartialContent {
+				return false, errors.Errorf("unexpected status: %s", resp.Status)
+			}
+
+			body = p.initBar(resp.Body, total)
+
+			if p.Written > 0 && p.bar != nil {
+				p.dlogger.Printf("bar refill written: %d", p.Written)
+				p.bar.SetRefill(int(p.Written), '+')
+				if attempt == 1 {
+					p.bar.IncrBy(int(p.Written))
+				}
+			}
+
+			max := int64(bufSize)
+			buf := bytes.NewBuffer(make([]byte, 0, bufSize))
+
+			var written int64
+			for timer.Reset(time.Duration(timeout) * time.Second) {
+				written, err = io.CopyN(buf, body, max)
+				if err != nil {
+					p.dlogger.Printf("CopyN err: %v", err)
+					// try to continue on temp err
+					if e, ok := err.(interface{ Temporary() bool }); ok && e.Temporary() {
+						max -= written
+						p.msgToBar(&message{
+							msg:   "tmp error...",
+							times: 14,
+						})
+						continue
+					}
+					timer.Stop()
+					break
+				}
+				written, _ = io.Copy(fpart, buf)
+				p.Written += written
+				if total <= 0 && p.bar != nil {
+					p.bar.SetTotal(p.Written+max*2, false)
+				}
+				max = bufSize
+			}
+
+			written, _ = io.Copy(fpart, buf)
+			p.Written += written
+			if total <= 0 {
+				p.Stop = p.Written - 1
+				if p.bar != nil {
+					p.bar.SetTotal(p.Written, err == io.EOF)
+				}
+			}
+			if err == io.EOF || ctx.Err() != nil {
+				return false, ctx.Err()
+			}
+			// retry
+			p.msgToBar(&message{
+				msg:   fmt.Sprintf("retry: %02d.%02d", i, attempt),
+				times: 14,
+			})
+			return true, err
+		})
+		if p.isDone() {
+			break
 		}
+		timeout += 5
+		p.dlogger.Printf("try error: %v", err)
+		p.dlogger.Printf("ctx error: %v", ctx.Err())
+		p.dlogger.Printf("increasing timeout: %ds", timeout)
+	}
+	if err != nil || ctx.Err() != nil {
+		done := make(chan struct{})
+		p.msgToBar(&message{
+			msg:   "give up!",
+			final: true,
+			done:  done,
+		})
+		<-done
+	}
+	return err
+}
+
+func (p *Part) msgToBar(msg *message) {
+	if p.bar == nil {
+		if msg.done != nil {
+			close(msg.done)
+		}
+		return
+	}
+	p.barMsgCh <- msg
+}
+
+func (p *Part) initBar(body io.ReadCloser, total int64) io.ReadCloser {
+	if p.progress == nil {
 		return body
 	}
 
 	if p.bar == nil {
+		p.barMsgCh = make(chan *message)
 		etaAge := math.Abs(float64(total))
 		if total > bufSize {
 			etaAge = float64(total) / float64(bufSize)
@@ -195,7 +236,7 @@ func (p *Part) initBar(body io.ReadCloser, msgCh <-chan string, attempt int, tot
 		p.bar = p.progress.AddBar(total, mpb.BarPriority(p.order),
 			mpb.PrependDecorators(
 				decor.Name(p.name+":"),
-				percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, msgCh, 12),
+				percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, p.barMsgCh),
 			),
 			mpb.AppendDecorators(
 				decor.OnComplete(
@@ -213,7 +254,7 @@ func (p *Part) initBar(body io.ReadCloser, msgCh <-chan string, attempt int, tot
 		)
 	}
 
-	return p.bar.ProxyReader(body).(io.ReadCloser)
+	return p.bar.ProxyReader(body)
 }
 
 func (p Part) getRange() string {
@@ -224,7 +265,7 @@ func (p Part) getRange() string {
 }
 
 func (p Part) isDone() bool {
-	return p.Stop-p.Start == p.Written-1
+	return p.Skip || p.Stop-p.Start == p.Written-1
 }
 
 func try(fn func(int) (bool, error)) error {
