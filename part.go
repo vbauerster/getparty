@@ -33,6 +33,7 @@ type Part struct {
 	Start    int64
 	Stop     int64
 	Written  int64
+	Elapsed  time.Duration
 	Skip     bool
 
 	order     int
@@ -76,6 +77,7 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 		backoff.WithResetDelay(2*time.Minute),
 	)
 
+	initialWritten := p.Written
 	prefixSnap := p.dlogger.Prefix()
 	err = try(func(attempt int) (retry bool, err error) {
 		p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, attempt))
@@ -120,8 +122,9 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 			return true, err
 		}
 
-		body := resp.Body
+		body, startTime := resp.Body, time.Now()
 		defer func() {
+			p.Elapsed += time.Since(startTime)
 			if e := body.Close(); err == nil {
 				err = e
 			}
@@ -150,8 +153,8 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 		if p.Written > 0 && p.bar != nil {
 			p.dlogger.Printf("bar refill written: %d", p.Written)
 			p.bar.SetRefill(int(p.Written), '+')
-			if attempt == 1 {
-				p.bar.IncrBy(int(p.Written))
+			if p.Written-initialWritten == 0 {
+				p.bar.IncrBy(int(p.Written), p.Elapsed)
 			}
 		}
 
