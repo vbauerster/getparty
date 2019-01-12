@@ -249,14 +249,14 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	}
 
 	var eg errgroup.Group
-	client := cleanhttp.DefaultPooledClient()
+	transport := cleanhttp.DefaultPooledTransport()
 	for i, p := range session.Parts {
 		if p.Skip {
 			continue
 		}
 		p.order = i
 		p.name = fmt.Sprintf("p#%02d", i+1)
-		p.client = client
+		p.transport = transport
 		p.progress = progress
 		p.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", p.name), log.LstdFlags)
 		if cmd.options.Debug {

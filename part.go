@@ -8,7 +8,9 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/VividCortex/ewma"
@@ -19,9 +21,11 @@ import (
 )
 
 const (
-	bufSize = 1 << 12
-	maxTry  = 10
+	bufSize    = 1 << 12
+	maxTimeout = 180
 )
+
+var ErrGiveUp = errors.New("give up")
 
 // Part represents state of each download part
 type Part struct {
@@ -31,16 +35,17 @@ type Part struct {
 	Written  int64
 	Skip     bool
 
-	order    int
-	name     string
-	client   *http.Client
-	dlogger  *log.Logger
-	progress *mpb.Progress
-	bar      *mpb.Bar
-	barMsgCh chan *message
+	order     int
+	name      string
+	dlogger   *log.Logger
+	progress  *mpb.Progress
+	bar       *mpb.Bar
+	barMsgCh  chan *message
+	mu        sync.Mutex
+	transport *http.Transport
 }
 
-func (p *Part) download(ctx context.Context, req *http.Request, timeout uint) (err error) {
+func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint) (err error) {
 	if p.isDone() {
 		return
 	}
@@ -72,138 +77,148 @@ func (p *Part) download(ctx context.Context, req *http.Request, timeout uint) (e
 	)
 
 	prefixSnap := p.dlogger.Prefix()
-	for i := 0; i < maxTry && ctx.Err() == nil; i++ {
-		err = try(func(attempt int) (retry bool, err error) {
-			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d.%02d] ", prefixSnap, i, attempt))
-			writtenSnap := p.Written
-			defer func() {
-				p.dlogger.Printf("total written: %d", p.Written-writtenSnap)
-				if e := recover(); e != nil {
-					p.dlogger.Printf("%#v", p)
-					panic(e)
-				}
-			}()
-
-			randomSleep := bOff.Backoff(attempt)
-			p.dlogger.Printf("sleeping: %s", randomSleep)
-			time.Sleep(randomSleep)
-
-			req.Header.Set(hRange, p.getRange())
-			p.dlogger.Printf("GET %q", req.URL)
-			p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
-			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
-
-			cctx, cancel := context.WithCancel(ctx)
-			timeoutDur := time.Duration(timeout) * time.Second
-			timeoutMsg := fmt.Sprintf("timeout: %s", timeoutDur)
-			timer := time.AfterFunc(timeoutDur, func() {
-				cancel()
-				p.msgToBar(&message{
-					msg:   timeoutMsg,
-					times: 14,
-				})
-				p.dlogger.Print(timeoutMsg)
-			})
-			defer cancel()
-
-			resp, err := p.client.Do(req.WithContext(cctx))
-			if err != nil {
-				return false, err
+	err = try(func(attempt int) (retry bool, err error) {
+		p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, attempt))
+		writtenSnap := p.Written
+		defer func() {
+			p.dlogger.Printf("total written: %d", p.Written-writtenSnap)
+			if e := recover(); e != nil {
+				p.dlogger.Printf("%#v", p)
+				panic(e)
 			}
+		}()
 
-			body := resp.Body
-			defer func() {
-				if e := body.Close(); err == nil {
-					err = e
-				}
-			}()
+		randomSleep := bOff.Backoff(attempt)
+		p.dlogger.Printf("sleeping: %s", randomSleep)
+		time.Sleep(randomSleep)
 
-			p.dlogger.Printf("resp.Status: %s", resp.Status)
-			p.dlogger.Printf("resp.ContentLength: %d", resp.ContentLength)
+		req.Header.Set(hRange, p.getRange())
+		p.dlogger.Printf("GET %q", req.URL)
+		p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
+		p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
 
-			total := p.Stop - p.Start + 1
-			if resp.StatusCode == http.StatusOK {
-				// no partial content, so download with single part
-				if p.order > 0 {
-					p.Skip = true
-					p.dlogger.Print("no partial content, skipping...")
-					return false, nil
-				}
-				total = resp.ContentLength
-				p.dlogger.Printf("reset last written: %d", p.Written)
-				p.Written = 0
-			} else if resp.StatusCode != http.StatusPartialContent {
-				return false, errors.Errorf("unexpected status: %s", resp.Status)
-			}
-
-			body = p.initBar(resp.Body, total)
-
-			if p.Written > 0 && p.bar != nil {
-				p.dlogger.Printf("bar refill written: %d", p.Written)
-				p.bar.SetRefill(int(p.Written), '+')
-				if attempt == 1 {
-					p.bar.IncrBy(int(p.Written))
-				}
-			}
-
-			max := int64(bufSize)
-			buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-
-			var written int64
-			for timer.Reset(time.Duration(timeout) * time.Second) {
-				written, err = io.CopyN(buf, body, max)
-				if err != nil {
-					p.dlogger.Printf("CopyN err: %v", err)
-					// try to continue on temp err
-					if e, ok := err.(interface{ Temporary() bool }); ok && e.Temporary() {
-						max -= written
-						p.msgToBar(&message{
-							msg:   "tmp error...",
-							times: 14,
-						})
-						continue
-					}
-					timer.Stop()
-					break
-				}
-				written, _ = io.Copy(fpart, buf)
-				p.Written += written
-				if total <= 0 && p.bar != nil {
-					p.bar.SetTotal(p.Written+max*2, false)
-				}
-				max = bufSize
-			}
-
-			written, _ = io.Copy(fpart, buf)
-			p.Written += written
-			if total <= 0 {
-				p.Stop = p.Written - 1
-				if p.bar != nil {
-					p.bar.SetTotal(p.Written, err == io.EOF)
-				}
-			}
-			if err == io.EOF || ctx.Err() != nil {
-				return false, ctx.Err()
-			}
-			// retry
+		cctx, cancel := context.WithCancel(ctx)
+		timeoutDur := time.Duration(ctxTimeout) * time.Second
+		timeoutMsg := fmt.Sprintf("ctx timeout: %s", timeoutDur)
+		timer := time.AfterFunc(timeoutDur, func() {
+			cancel()
 			p.msgToBar(&message{
-				msg:   fmt.Sprintf("retry: %02d.%02d", i, attempt),
+				msg:   timeoutMsg,
 				times: 14,
 			})
-			return true, err
+			p.dlogger.Print(timeoutMsg)
 		})
-		if p.isDone() {
-			break
+		defer cancel()
+
+		client := &http.Client{Transport: p.transport}
+		resp, err := client.Do(req.WithContext(cctx))
+		if err != nil {
+			if ctxTimeout >= maxTimeout {
+				return false, ErrGiveUp
+			}
+			ctxTimeout += 5
+			return true, err
 		}
-		timeout += 5
-		p.dlogger.Printf("try error: %v", err)
-		p.dlogger.Printf("ctx error: %v", ctx.Err())
-		p.dlogger.Printf("increasing timeout: %ds", timeout)
-	}
-	if err != nil || ctx.Err() != nil {
+
+		body := resp.Body
+		defer func() {
+			if e := body.Close(); err == nil {
+				err = e
+			}
+		}()
+
+		p.dlogger.Printf("resp.Status: %s", resp.Status)
+		p.dlogger.Printf("resp.ContentLength: %d", resp.ContentLength)
+
+		total := p.Stop - p.Start + 1
+		if resp.StatusCode == http.StatusOK {
+			// no partial content, so download with single part
+			if p.order > 0 {
+				p.Skip = true
+				p.dlogger.Print("no partial content, skipping...")
+				return false, nil
+			}
+			total = resp.ContentLength
+			p.dlogger.Printf("reset last written: %d", p.Written)
+			p.Written = 0
+		} else if resp.StatusCode != http.StatusPartialContent {
+			return false, errors.Errorf("unexpected status: %s", resp.Status)
+		}
+
+		body = p.initBar(resp.Body, total)
+
+		if p.Written > 0 && p.bar != nil {
+			p.dlogger.Printf("bar refill written: %d", p.Written)
+			p.bar.SetRefill(int(p.Written), '+')
+			if attempt == 1 {
+				p.bar.IncrBy(int(p.Written))
+			}
+		}
+
+		tlsTimeout := p.transport.TLSHandshakeTimeout
+		max := int64(bufSize)
+		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
+
+		var written int64
+		for timer.Reset(time.Duration(ctxTimeout) * time.Second) {
+			written, err = io.CopyN(buf, body, max)
+			if err != nil {
+				p.dlogger.Printf("CopyN err: %s", err.Error())
+				if ue, ok := err.(*url.Error); ok {
+					p.msgToBar(&message{
+						msg:   fmt.Sprintf("%.28s...", ue.Err.Error()),
+						times: 14,
+					})
+					if ue.Temporary() {
+						max -= written
+						continue
+					}
+					if ue.Timeout() {
+						p.mu.Lock()
+						if p.transport.TLSHandshakeTimeout == tlsTimeout && tlsTimeout < 30*time.Second {
+							p.transport.TLSHandshakeTimeout += 5 * time.Second
+							p.dlogger.Printf("tls timeout increase: %s", p.transport.TLSHandshakeTimeout)
+						}
+						p.mu.Unlock()
+					}
+				}
+				timer.Stop()
+				break
+			}
+			written, _ = io.Copy(fpart, buf)
+			p.Written += written
+			if total <= 0 && p.bar != nil {
+				p.bar.SetTotal(p.Written+max*2, false)
+			}
+			max = bufSize
+		}
+
+		written, _ = io.Copy(fpart, buf)
+		p.Written += written
+		if total <= 0 {
+			p.Stop = p.Written - 1
+			if p.bar != nil {
+				p.bar.SetTotal(p.Written, err == io.EOF)
+			}
+		}
+		if err == io.EOF || ctx.Err() != nil {
+			return false, ctx.Err()
+		}
+		if ctxTimeout >= maxTimeout {
+			return false, ErrGiveUp
+		}
+		// retry
+		ctxTimeout += 5
+		p.msgToBar(&message{
+			msg:   fmt.Sprintf("retry: %02d", attempt),
+			times: 14,
+		})
+		return true, err
+	})
+	if err == ErrGiveUp {
 		done := make(chan struct{})
 		p.msgToBar(&message{
-			msg:   "give up!",
+			msg:   err.Error(),
 			final: true,
 			done:  done,
 		})
