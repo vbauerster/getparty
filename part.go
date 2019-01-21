@@ -22,7 +22,7 @@ import (
 
 const (
 	bufSize    = 1 << 12
-	maxTimeout = 180
+	maxTimeout = 120
 )
 
 var ErrGiveUp = errors.New("give up")
@@ -112,13 +112,23 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 		})
 		defer cancel()
 
+		p.mu.Lock()
+		tlsTimeout := p.transport.TLSHandshakeTimeout
+		p.mu.Unlock()
+
 		client := &http.Client{Transport: p.transport}
 		resp, err := client.Do(req.WithContext(cctx))
 		if err != nil {
+			p.dlogger.Printf("client do: %v", err)
+			if er, ok := err.(interface{ Timeout() bool }); ok && er.Timeout() {
+				p.increaseTLSHandshakeTimeout(tlsTimeout)
+			}
 			if ctxTimeout >= maxTimeout {
 				return false, ErrGiveUp
 			}
-			ctxTimeout += 5
+			if cctx.Err() != nil {
+				ctxTimeout += 5
+			}
 			return true, err
 		}
 
@@ -158,7 +168,6 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 			}
 		}
 
-		tlsTimeout := p.transport.TLSHandshakeTimeout
 		max := int64(bufSize)
 		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 
@@ -177,12 +186,7 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 						continue
 					}
 					if ue.Timeout() {
-						p.mu.Lock()
-						if p.transport.TLSHandshakeTimeout == tlsTimeout && tlsTimeout < 30*time.Second {
-							p.transport.TLSHandshakeTimeout += 5 * time.Second
-							p.dlogger.Printf("tls timeout increase: %s", p.transport.TLSHandshakeTimeout)
-						}
-						p.mu.Unlock()
+						p.increaseTLSHandshakeTimeout(tlsTimeout)
 					}
 				}
 				timer.Stop()
@@ -228,6 +232,15 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 		<-done
 	}
 	return err
+}
+
+func (p *Part) increaseTLSHandshakeTimeout(tlsTimeout time.Duration) {
+	p.mu.Lock()
+	if p.transport.TLSHandshakeTimeout == tlsTimeout && tlsTimeout < 30*time.Second {
+		p.transport.TLSHandshakeTimeout += 5 * time.Second
+		p.dlogger.Printf("TLSHandshakeTimeout increase: %s", p.transport.TLSHandshakeTimeout)
+	}
+	p.mu.Unlock()
 }
 
 func (p *Part) msgToBar(msg *message) {
