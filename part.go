@@ -264,7 +264,8 @@ func (p *Part) initBar(body io.ReadCloser, total int64) io.ReadCloser {
 		if total > bufSize {
 			etaAge = float64(total) / float64(bufSize)
 		}
-		p.bar = p.progress.AddBar(total, mpb.BarPriority(p.order),
+		p.bar = p.progress.AddBar(total, mpb.BarStyle("[=>-|"),
+			mpb.BarPriority(p.order),
 			mpb.PrependDecorators(
 				decor.Name(p.name+":"),
 				percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, p.barMsgCh),

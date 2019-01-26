@@ -242,7 +242,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			mpb.WithOutput(cmd.Out),
 			mpb.WithRefreshRate(180*time.Millisecond),
 			mpb.WithWidth(60),
-			mpb.WithFormat("[=>-|"),
 			mpb.WithContext(ctx),
 		)
 		session.writeSummary(cmd.Out)
