@@ -71,7 +71,8 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) e
 	var bar *mpb.Bar
 	if progress != nil {
 		name := "concatenating parts:"
-		bar = progress.AddBar(int64(len(s.Parts)-1), mpb.BarPriority(len(s.Parts)),
+		bar = progress.AddBar(int64(len(s.Parts)-1), mpb.BarStyle("[=>-|"),
+			mpb.BarPriority(len(s.Parts)),
 			mpb.PrependDecorators(
 				decor.Name(name),
 				pad(len(name)-6, decor.WCSyncWidth),
