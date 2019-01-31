@@ -239,6 +239,9 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	var progress *mpb.Progress
 	if !cmd.options.Quiet {
 		progress = mpb.New(
+			mpb.ContainerOptionOnCondition(mpb.WithDebugOutput(cmd.Err), func() bool {
+				return cmd.options.Debug
+			}),
 			mpb.WithOutput(cmd.Out),
 			mpb.WithRefreshRate(180*time.Millisecond),
 			mpb.WithWidth(60),
