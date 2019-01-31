@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/vbauerster/mpb/decor"
+	"github.com/vbauerster/mpb/v4/decor"
 )
 
 type message struct {
@@ -115,7 +115,7 @@ type padDecorator struct {
 
 func (d *padDecorator) Decor(st *decor.Statistics) string {
 	var max int
-	if ok, ch := d.Syncable(); ok {
+	if ch, ok := d.Sync(); ok {
 		ch <- 0
 		max = <-ch
 		max -= d.diff

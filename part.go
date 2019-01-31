@@ -16,8 +16,8 @@ import (
 	"github.com/VividCortex/ewma"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
-	"github.com/vbauerster/mpb"
-	"github.com/vbauerster/mpb/decor"
+	"github.com/vbauerster/mpb/v4"
+	"github.com/vbauerster/mpb/v4/decor"
 )
 
 const (
@@ -162,7 +162,7 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 
 		if p.Written > 0 && p.bar != nil {
 			p.dlogger.Printf("bar refill written: %d", p.Written)
-			p.bar.SetRefill(int(p.Written), '+')
+			p.bar.SetRefill(int(p.Written))
 			if p.Written-initialWritten == 0 {
 				p.bar.IncrBy(int(p.Written), p.Elapsed)
 			}
