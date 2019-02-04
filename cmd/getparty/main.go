@@ -11,7 +11,10 @@ import (
 	"github.com/vbauerster/getparty"
 )
 
-var version = "devel"
+var (
+	version = "dev"
+	commit  = ""
+)
 
 func main() {
 	cmd := &getparty.Cmd{Out: os.Stdout, Err: os.Stderr}

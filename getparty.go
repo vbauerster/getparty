@@ -123,7 +123,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	}
 
 	if cmd.options.Version {
-		fmt.Fprintf(cmd.Out, "%s: %s (runtime: %s)\n", cmdName, version, runtime.Version())
+		fmt.Fprintf(cmd.Out, "%s: %s %s (runtime: %s)\n", cmdName, version, commit, runtime.Version())
 		fmt.Fprintf(cmd.Out, "Project home: %s\n", projectHome)
 		return nil
 	}
