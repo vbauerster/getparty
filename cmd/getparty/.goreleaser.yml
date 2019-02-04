@@ -27,3 +27,14 @@ changelog:
     exclude:
     - '^docs:'
     - '^test:'
+brew:
+  commit_author:
+    email: vbauerster@gmail.com
+    name:  vbauerster
+  description: "HTTP Download Manager with multi-parts"
+  folder: Formula
+  github:
+    name:  homebrew-getparty
+    owner: vbauerster
+  homepage: "https://github.com/vbauerster/getparty"
+  test: "system  \"#{bin}/getparty --version\""
