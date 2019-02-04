@@ -6,17 +6,22 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/vbauerster/getparty"
 )
 
 var (
 	version = "dev"
-	commit  = ""
+	commit  = "xxxxxxx"
 )
 
 func main() {
 	cmd := &getparty.Cmd{Out: os.Stdout, Err: os.Stderr}
-	os.Exit(cmd.Exit(cmd.Run(os.Args[1:], version)))
+	os.Exit(cmd.Exit(cmd.Run(
+		os.Args[1:],
+		fmt.Sprintf("%s (%.7s) (%s)", version, commit, runtime.Version()),
+	)))
 }
