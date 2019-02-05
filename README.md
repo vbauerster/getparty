@@ -1,10 +1,15 @@
 # getparty [![Build Status](https://travis-ci.org/vbauerster/getparty.svg?branch=master)](https://travis-ci.org/vbauerster/getparty)
 
-Console download manager
+HTTP Download Manager with multi-parts
 
 ![showcase](showcase.gif)
 
-## [Installation](https://github.com/vbauerster/getparty/releases)
+## Installation
+#### Homebrew
+```
+$ brew tap vbauerster/getparty
+$ brew install getparty
+```
 #### Manual
 ```
 $ go get -u github.com/vbauerster/getparty
