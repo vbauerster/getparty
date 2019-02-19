@@ -6,7 +6,8 @@ require (
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/pkg/errors v0.8.1
 	github.com/vbauerster/backoff v0.0.0-20181208103505-4a397a2ed207
-	github.com/vbauerster/mpb/v4 v4.4.1
+	github.com/vbauerster/mpb/v4 v4.4.2
 	golang.org/x/crypto v0.0.0-20190211182817-74369b46fc67
 	golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4
+	golang.org/x/sys v0.0.0-20190219092855-153ac476189d // indirect
 )
