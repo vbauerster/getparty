@@ -39,14 +39,55 @@ type Part struct {
 	order     int
 	name      string
 	dlogger   *log.Logger
-	progress  *mpb.Progress
-	bar       *mpb.Bar
-	barMsgCh  chan *message
+	bg        *barGate
 	mu        sync.Mutex
 	transport *http.Transport
 }
 
-func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint) (err error) {
+type barGate struct {
+	bar   *mpb.Bar
+	msgCh chan *message
+}
+
+func (s *barGate) init(progress *mpb.Progress, name string, order int, total int64) *barGate {
+
+	if s == nil {
+		s = new(barGate)
+		s.msgCh = make(chan *message)
+		etaAge := math.Abs(float64(total))
+		if total > bufSize {
+			etaAge = float64(total) / float64(bufSize)
+		}
+		s.bar = progress.AddBar(total, mpb.BarStyle("[=>-|"),
+			mpb.BarPriority(order),
+			mpb.PrependDecorators(
+				decor.Name(name+":"),
+				percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, s.msgCh),
+			),
+			mpb.AppendDecorators(
+				decor.OnComplete(
+					decor.MovingAverageETA(
+						decor.ET_STYLE_MMSS,
+						ewma.NewMovingAverage(etaAge),
+						decor.MaxTolerateTimeNormalizer(180*time.Second),
+						decor.WCSyncWidth,
+					),
+					"done!",
+				),
+				decor.Name(" ]"),
+				decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
+			),
+		)
+	}
+
+	return s
+}
+
+func (s *barGate) message(msg *message) {
+	s.msgCh <- msg
+}
+
+func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.Request, ctxTimeout uint) (err error) {
 	if p.isDone() {
 		return
 	}
@@ -73,11 +114,10 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 	}()
 
 	bOff := backoff.New(
-		backoff.WithBaseDelay(50*time.Millisecond),
+		backoff.WithBaseDelay(20*time.Millisecond),
 		backoff.WithResetDelay(2*time.Minute),
 	)
 
-	initialWritten := p.Written
 	prefixSnap := p.dlogger.Prefix()
 	err = try(func(attempt int) (retry bool, err error) {
 		p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, attempt))
@@ -104,9 +144,9 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 		timeoutMsg := fmt.Sprintf("ctx timeout: %s", timeoutDur)
 		timer := time.AfterFunc(timeoutDur, func() {
 			cancel()
-			p.msgToBar(&message{
-				msg:   timeoutMsg,
-				times: 14,
+			p.bg.message(&message{
+				msg:          timeoutMsg,
+				displayTimes: 14,
 			})
 			p.dlogger.Print(timeoutMsg)
 		})
@@ -132,11 +172,13 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 			return true, err
 		}
 
-		body, startTime := resp.Body, time.Now()
+		startTime := time.Now()
 		defer func() {
 			p.Elapsed += time.Since(startTime)
-			if e := body.Close(); err == nil {
-				err = e
+			if resp.Body != nil {
+				if e := resp.Body.Close(); err == nil {
+					err = e
+				}
 			}
 		}()
 
@@ -158,18 +200,19 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 			return false, errors.Errorf("unexpected status: %s", resp.Status)
 		}
 
-		body = p.initBar(resp.Body, total)
+		p.bg = p.bg.init(progress, p.name, p.order, total)
 
-		if p.Written > 0 && p.bar != nil {
+		if p.Written > 0 {
 			p.dlogger.Printf("bar refill written: %d", p.Written)
-			p.bar.SetRefill(int(p.Written))
-			if p.Written-initialWritten == 0 {
-				p.bar.IncrBy(int(p.Written), p.Elapsed)
+			p.bg.bar.SetRefill(p.Written)
+			if attempt == 1 {
+				p.bg.bar.IncrBy(int(p.Written), p.Elapsed)
 			}
 		}
 
 		max := int64(bufSize)
 		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
+		body := p.bg.bar.ProxyReader(resp.Body)
 
 		var written int64
 		for timer.Reset(time.Duration(ctxTimeout) * time.Second) {
@@ -177,9 +220,9 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 			if err != nil {
 				p.dlogger.Printf("CopyN err: %s", err.Error())
 				if ue, ok := err.(*url.Error); ok {
-					p.msgToBar(&message{
-						msg:   fmt.Sprintf("%.28s...", ue.Err.Error()),
-						times: 14,
+					p.bg.message(&message{
+						msg:          fmt.Sprintf("%.28s...", ue.Err.Error()),
+						displayTimes: 14,
 					})
 					if ue.Temporary() {
 						max -= written
@@ -194,8 +237,8 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 			}
 			written, _ = io.Copy(fpart, buf)
 			p.Written += written
-			if total <= 0 && p.bar != nil {
-				p.bar.SetTotal(p.Written+max*2, false)
+			if total <= 0 {
+				p.bg.bar.SetTotal(p.Written+max*2, false)
 			}
 			max = bufSize
 		}
@@ -204,9 +247,7 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 		p.Written += written
 		if total <= 0 {
 			p.Stop = p.Written - 1
-			if p.bar != nil {
-				p.bar.SetTotal(p.Written, err == io.EOF)
-			}
+			p.bg.bar.SetTotal(p.Written, err == io.EOF)
 		}
 		if err == io.EOF || ctx.Err() != nil {
 			return false, ctx.Err()
@@ -216,15 +257,15 @@ func (p *Part) download(ctx context.Context, req *http.Request, ctxTimeout uint)
 		}
 		// retry
 		ctxTimeout += 5
-		p.msgToBar(&message{
-			msg:   fmt.Sprintf("retry: %02d", attempt),
-			times: 14,
+		p.bg.message(&message{
+			msg:          fmt.Sprintf("retry: %02d", attempt),
+			displayTimes: 14,
 		})
 		return true, err
 	})
 	if err == ErrGiveUp {
 		done := make(chan struct{})
-		p.msgToBar(&message{
+		p.bg.message(&message{
 			msg:   err.Error(),
 			final: true,
 			done:  done,
@@ -241,52 +282,6 @@ func (p *Part) increaseTLSHandshakeTimeout(tlsTimeout time.Duration) {
 		p.dlogger.Printf("TLSHandshakeTimeout increase: %s", p.transport.TLSHandshakeTimeout)
 	}
 	p.mu.Unlock()
-}
-
-func (p *Part) msgToBar(msg *message) {
-	if p.bar == nil {
-		if msg.done != nil {
-			close(msg.done)
-		}
-		return
-	}
-	p.barMsgCh <- msg
-}
-
-func (p *Part) initBar(body io.ReadCloser, total int64) io.ReadCloser {
-	if p.progress == nil {
-		return body
-	}
-
-	if p.bar == nil {
-		p.barMsgCh = make(chan *message)
-		etaAge := math.Abs(float64(total))
-		if total > bufSize {
-			etaAge = float64(total) / float64(bufSize)
-		}
-		p.bar = p.progress.AddBar(total, mpb.BarStyle("[=>-|"),
-			mpb.BarPriority(p.order),
-			mpb.PrependDecorators(
-				decor.Name(p.name+":"),
-				percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, p.barMsgCh),
-			),
-			mpb.AppendDecorators(
-				decor.OnComplete(
-					decor.MovingAverageETA(
-						decor.ET_STYLE_MMSS,
-						ewma.NewMovingAverage(etaAge),
-						decor.MaxTolerateTimeNormalizer(180*time.Second),
-						decor.WCSyncWidth,
-					),
-					"done!",
-				),
-				decor.Name(" ]"),
-				decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
-			),
-		)
-	}
-
-	return p.bar.ProxyReader(body)
 }
 
 func (p Part) getRange() string {

@@ -133,7 +133,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 
 	if cmd.options.Quiet {
 		cmd.Out = ioutil.Discard
-		cmd.Err = ioutil.Discard
 	}
 	cmd.logger = log.New(cmd.Out, "", log.LstdFlags)
 	cmd.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
@@ -235,19 +234,19 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 	}
 
-	var progress *mpb.Progress
-	if !cmd.options.Quiet {
-		progress = mpb.New(
-			mpb.ContainerOptOnCond(mpb.WithDebugOutput(cmd.Err), func() bool {
-				return cmd.options.Debug
-			}),
-			mpb.WithOutput(cmd.Out),
-			mpb.WithRefreshRate(180*time.Millisecond),
-			mpb.WithWidth(60),
-			mpb.WithContext(ctx),
-		)
-		session.writeSummary(cmd.Out)
-	}
+	session.writeSummary(cmd.Out)
+	progress := mpb.New(
+		mpb.WithContext(ctx),
+		mpb.WithOutput(cmd.Out),
+		mpb.ContainerOptOnCond(mpb.WithDebugOutput(cmd.Err), func() bool {
+			return cmd.options.Debug
+		}),
+		mpb.ContainerOptOnCond(mpb.WithManualRefresh(make(chan time.Time)), func() bool {
+			return cmd.options.Quiet
+		}),
+		mpb.WithRefreshRate(180*time.Millisecond),
+		mpb.WithWidth(60),
+	)
 
 	var eg errgroup.Group
 	transport := cleanhttp.DefaultPooledTransport()
@@ -258,7 +257,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		p.order = i
 		p.name = fmt.Sprintf("p#%02d", i+1)
 		p.transport = transport
-		p.progress = progress
 		p.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", p.name), log.LstdFlags)
 		if cmd.options.Debug {
 			p.dlogger.SetOutput(cmd.Err)
@@ -273,7 +271,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
-			return p.download(ctx, req, cmd.options.Timeout)
+			return p.download(ctx, progress, req, cmd.options.Timeout)
 		})
 	}
 
@@ -290,9 +288,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	} else if cmd.options.Parts > 0 {
 		if written := session.totalWritten(); written == session.ContentLength || session.ContentLength <= 0 {
 			err = session.concatenateParts(cmd.dlogger, progress)
-			if progress != nil {
-				progress.Wait()
-			}
+			progress.Wait()
 			if err != nil {
 				return err
 			}
@@ -305,9 +301,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 	}
 
-	if progress != nil {
-		progress.Wait()
-	}
+	progress.Wait()
 
 	// preserve user provided url
 	session.Location = userUrl

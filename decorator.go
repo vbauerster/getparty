@@ -13,10 +13,10 @@ import (
 )
 
 type message struct {
-	msg   string
-	times int
-	final bool
-	done  chan struct{}
+	msg          string
+	displayTimes int
+	final        bool
+	done         chan struct{}
 }
 
 type percentageDecorator struct {
@@ -60,9 +60,9 @@ func (d *percentageDecorator) Shutdown() {
 
 func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 	if d.finalMsg != nil {
-		if d.finalMsg.times == 0 && d.finalMsg.done != nil {
-			defer close(d.finalMsg.done)
-			d.finalMsg.times++
+		select {
+		case d.finalMsg.done <- struct{}{}:
+		default:
 		}
 		return d.FormatMsg(d.finalMsg.msg)
 	}
@@ -70,21 +70,19 @@ func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 	d.mu.Lock()
 	if len(d.messages) > 0 {
 		m := d.messages[0]
-		if m.times > 0 {
-			m.times--
+		if m.displayTimes > 0 {
+			m.displayTimes--
 			d.mu.Unlock()
 			return d.FormatMsg(m.msg)
-		} else {
-			if m.final {
-				m.times = 0
-				d.finalMsg = m
-			}
-			tmp := d.messages[:0]
-			for i := 1; i < len(d.messages); i++ {
-				tmp = append(tmp, d.messages[i])
-			}
-			d.messages = tmp
 		}
+		if m.final {
+			d.finalMsg = m
+		}
+		tmp := d.messages[:0]
+		for i := 1; i < len(d.messages); i++ {
+			tmp = append(tmp, d.messages[i])
+		}
+		d.messages = tmp
 	}
 	d.mu.Unlock()
 
