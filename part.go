@@ -25,7 +25,10 @@ const (
 	maxTimeout = 120
 )
 
-var ErrGiveUp = errors.New("give up")
+var (
+	ErrGiveUp  = errors.New("give up")
+	ErrNilBody = errors.New("nil body")
+)
 
 // Part represents state of each download part
 type Part struct {
@@ -118,7 +121,9 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		backoff.WithResetDelay(2*time.Minute),
 	)
 
+	initialWritten := p.Written
 	prefixSnap := p.dlogger.Prefix()
+
 	err = try(func(attempt int) (retry bool, err error) {
 		p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, attempt))
 		writtenSnap := p.Written
@@ -175,11 +180,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		startTime := time.Now()
 		defer func() {
 			p.Elapsed += time.Since(startTime)
-			if resp.Body != nil {
-				if e := resp.Body.Close(); err == nil {
-					err = e
-				}
-			}
 		}()
 
 		p.dlogger.Printf("resp.Status: %s", resp.Status)
@@ -205,7 +205,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		if p.Written > 0 {
 			p.dlogger.Printf("bar refill written: %d", p.Written)
 			p.bg.bar.SetRefill(p.Written)
-			if attempt == 1 {
+			if p.Written-initialWritten == 0 {
 				p.bg.bar.IncrBy(int(p.Written), p.Elapsed)
 			}
 		}
@@ -213,6 +213,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		max := int64(bufSize)
 		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 		body := p.bg.bar.ProxyReader(resp.Body)
+		if body == nil {
+			return false, ErrNilBody
+		}
+		defer body.Close()
 
 		var written int64
 		for timer.Reset(time.Duration(ctxTimeout) * time.Second) {
