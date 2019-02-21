@@ -235,8 +235,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	}
 
 	session.writeSummary(cmd.Out)
-	progress := mpb.New(
-		mpb.WithContext(ctx),
+	progress := mpb.NewWithContext(ctx,
 		mpb.WithOutput(cmd.Out),
 		mpb.ContainerOptOnCond(mpb.WithDebugOutput(cmd.Err), func() bool {
 			return cmd.options.Debug
