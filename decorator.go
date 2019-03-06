@@ -78,11 +78,8 @@ func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 		if m.final {
 			d.finalMsg = m
 		}
-		tmp := d.messages[:0]
-		for i := 1; i < len(d.messages); i++ {
-			tmp = append(tmp, d.messages[i])
-		}
-		d.messages = tmp
+		copy(d.messages, d.messages[1:])
+		d.messages = d.messages[:len(d.messages)-1]
 	}
 	d.mu.Unlock()
 
