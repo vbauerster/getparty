@@ -249,13 +249,15 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 
 	var eg errgroup.Group
 	transport := cleanhttp.DefaultPooledTransport()
+	tlsTimeout := uint64(transport.TLSHandshakeTimeout)
 	for i, p := range session.Parts {
 		if p.Skip {
 			continue
 		}
 		p.order = i
-		p.name = fmt.Sprintf("p#%02d", i+1)
 		p.transport = transport
+		p.tlsTimeout = tlsTimeout
+		p.name = fmt.Sprintf("p#%02d", i+1)
 		p.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", p.name), log.LstdFlags)
 		if cmd.options.Debug {
 			p.dlogger.SetOutput(cmd.Err)

@@ -10,8 +10,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sync"
+	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/VividCortex/ewma"
 	"github.com/pkg/errors"
@@ -39,12 +40,12 @@ type Part struct {
 	Elapsed  time.Duration
 	Skip     bool
 
-	order     int
-	name      string
-	dlogger   *log.Logger
-	bg        *barGate
-	mu        sync.Mutex
-	transport *http.Transport
+	order      int
+	name       string
+	dlogger    *log.Logger
+	bg         *barGate
+	transport  *http.Transport
+	tlsTimeout uint64
 }
 
 type barGate struct {
@@ -117,7 +118,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	}()
 
 	bOff := backoff.New(
-		backoff.WithBaseDelay(20*time.Millisecond),
+		backoff.WithBaseDelay(40*time.Millisecond),
 		backoff.WithResetDelay(2*time.Minute),
 	)
 
@@ -135,14 +136,20 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 		}()
 
-		randomSleep := bOff.Backoff(attempt)
-		p.dlogger.Printf("sleeping: %s", randomSleep)
-		time.Sleep(randomSleep)
+		start := make(chan time.Duration)
+		go func() {
+			dur := bOff.Backoff(attempt)
+			time.Sleep(dur)
+			start <- dur
+		}()
 
+		total := p.Stop - p.Start + 1
+		p.bg = p.bg.init(progress, p.name, p.order, total)
 		req.Header.Set(hRange, p.getRange())
 		p.dlogger.Printf("GET %q", req.URL)
 		p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
 		p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
+		p.dlogger.Printf("backoff sleep: %s", <-start)
 
 		cctx, cancel := context.WithCancel(ctx)
 		timeoutDur := time.Duration(ctxTimeout) * time.Second
@@ -157,16 +164,12 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		})
 		defer cancel()
 
-		p.mu.Lock()
-		tlsTimeout := p.transport.TLSHandshakeTimeout
-		p.mu.Unlock()
-
 		client := &http.Client{Transport: p.transport}
 		resp, err := client.Do(req.WithContext(cctx))
 		if err != nil {
 			p.dlogger.Printf("client do: %v", err)
 			if er, ok := err.(interface{ Timeout() bool }); ok && er.Timeout() {
-				p.increaseTLSHandshakeTimeout(tlsTimeout)
+				p.incTLSHandshakeTimeout()
 			}
 			if ctxTimeout >= maxTimeout {
 				return false, ErrGiveUp
@@ -185,7 +188,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		p.dlogger.Printf("resp.Status: %s", resp.Status)
 		p.dlogger.Printf("resp.ContentLength: %d", resp.ContentLength)
 
-		total := p.Stop - p.Start + 1
 		if resp.StatusCode == http.StatusOK {
 			// no partial content, so download with single part
 			if p.order > 0 {
@@ -194,13 +196,12 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				return false, nil
 			}
 			total = resp.ContentLength
+			p.bg.bar.SetTotal(total, false)
 			p.dlogger.Printf("reset last written: %d", p.Written)
 			p.Written = 0
 		} else if resp.StatusCode != http.StatusPartialContent {
 			return false, errors.Errorf("unexpected status: %s", resp.Status)
 		}
-
-		p.bg = p.bg.init(progress, p.name, p.order, total)
 
 		if p.Written > 0 {
 			p.dlogger.Printf("bar refill written: %d", p.Written)
@@ -233,7 +234,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 						continue
 					}
 					if ue.Timeout() {
-						p.increaseTLSHandshakeTimeout(tlsTimeout)
+						p.incTLSHandshakeTimeout()
 					}
 				}
 				timer.Stop()
@@ -279,13 +280,14 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	return err
 }
 
-func (p *Part) increaseTLSHandshakeTimeout(tlsTimeout time.Duration) {
-	p.mu.Lock()
-	if p.transport.TLSHandshakeTimeout == tlsTimeout && tlsTimeout < 30*time.Second {
-		p.transport.TLSHandshakeTimeout += 5 * time.Second
-		p.dlogger.Printf("TLSHandshakeTimeout increase: %s", p.transport.TLSHandshakeTimeout)
+// Once part increased timeout successfully, it will be the only part
+// with such privilege.
+func (p *Part) incTLSHandshakeTimeout() {
+	newT := p.tlsTimeout + uint64(5*time.Second)
+	if atomic.CompareAndSwapUint64((*uint64)(unsafe.Pointer(&p.transport.TLSHandshakeTimeout)), p.tlsTimeout, newT) {
+		p.tlsTimeout = newT
+		p.dlogger.Printf("TLSHandshakeTimeout increased to: %s", time.Duration(newT))
 	}
-	p.mu.Unlock()
 }
 
 func (p Part) getRange() string {
