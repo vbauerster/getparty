@@ -251,7 +251,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	transport := cleanhttp.DefaultPooledTransport()
 	tlsTimeout := uint64(transport.TLSHandshakeTimeout)
 	for i, p := range session.Parts {
-		if p.Skip {
+		if p.isDone() {
 			continue
 		}
 		p.order = i

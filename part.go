@@ -22,12 +22,12 @@ import (
 )
 
 const (
-	bufSize    = 1 << 12
-	maxTimeout = 120
+	bufSize = 1 << 12
+	maxTry  = 10
 )
 
 var (
-	ErrGiveUp  = errors.New("give up")
+	ErrGiveUp  = fmt.Errorf("give up after %d tries", maxTry)
 	ErrNilBody = errors.New("nil body")
 )
 
@@ -97,13 +97,15 @@ func (s *barGate) message(msg *message) {
 }
 
 func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.Request, ctxTimeout uint) (err error) {
-	if p.isDone() {
-		return
-	}
 
 	defer func() {
-		// just add method name, without stack trace at the point
-		err = errors.WithMessage(err, "download: "+p.name)
+		if err != nil {
+			if !p.isDone() && p.bg != nil {
+				p.bg.bar.Abort(false)
+			}
+			// just add method name, without stack trace at the point
+			err = errors.WithMessage(err, "download: "+p.name)
+		}
 		p.dlogger.Printf("quit: %v", err)
 	}()
 
@@ -127,21 +129,21 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		backoff.WithResetDelay(2*time.Minute),
 	)
 
+	start := make(chan time.Duration)
 	initialWritten := p.Written
 	prefixSnap := p.dlogger.Prefix()
 
 	err = try(func(attempt int) (retry bool, err error) {
+		if p.isDone() {
+			p.dlogger.Println("done in try, quitting...")
+			return false, nil
+		}
 		p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, attempt))
 		writtenSnap := p.Written
 		defer func() {
 			p.dlogger.Printf("total written: %d", p.Written-writtenSnap)
-			if e := recover(); e != nil {
-				p.dlogger.Printf("%#v", p)
-				panic(e)
-			}
 		}()
 
-		start := make(chan time.Duration)
 		go func() {
 			dur := bOff.Backoff(attempt)
 			time.Sleep(dur)
@@ -172,11 +174,17 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		client := &http.Client{Transport: p.transport}
 		resp, err := client.Do(req.WithContext(cctx))
 		if err != nil {
-			p.dlogger.Printf("client do: %v", err)
-			if er, ok := err.(interface{ Timeout() bool }); ok && er.Timeout() {
-				p.incTLSHandshakeTimeout()
+			p.dlogger.Printf("client do: %s", err.Error())
+			if ue, ok := err.(*url.Error); ok {
+				p.bg.message(&message{
+					msg:          fmt.Sprintf("%.28s...", ue.Err.Error()),
+					displayTimes: 14,
+				})
+				if ue.Timeout() {
+					p.incTLSHandshakeTimeout()
+				}
 			}
-			if ctxTimeout >= maxTimeout {
+			if attempt > maxTry {
 				return false, ErrGiveUp
 			}
 			if cctx.Err() != nil {
@@ -203,7 +211,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 			total = resp.ContentLength
 			p.bg.bar.SetTotal(total, false)
-			p.dlogger.Printf("reset last written: %d", p.Written)
+			p.dlogger.Printf("resetting written: %d", p.Written)
 			p.Written = 0
 		} else if resp.StatusCode != http.StatusPartialContent {
 			return false, errors.Errorf("unexpected status: %s", resp.Status)
@@ -263,7 +271,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		if err == io.EOF || ctx.Err() != nil {
 			return false, ctx.Err()
 		}
-		if ctxTimeout >= maxTimeout {
+		if attempt > maxTry {
 			return false, ErrGiveUp
 		}
 		// retry
