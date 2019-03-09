@@ -58,7 +58,7 @@ func (s Session) calcParts(parts int64) []*Part {
 	return ps
 }
 
-func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) error {
+func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (err error) {
 	if len(s.Parts) <= 1 {
 		return nil
 	}
@@ -68,22 +68,24 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) e
 		return err
 	}
 
-	var bar *mpb.Bar
-	if progress != nil {
-		name := "concatenating parts:"
-		bar = progress.AddBar(int64(len(s.Parts)-1), mpb.BarStyle("[=>-|"),
-			mpb.BarPriority(len(s.Parts)),
-			mpb.PrependDecorators(
-				decor.Name(name),
-				pad(len(name)-6, decor.WCSyncWidth),
-			),
-			mpb.AppendDecorators(
-				decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "done!"),
-				decor.Name(" ] "),
-				decor.Percentage(),
-			),
-		)
-	}
+	name := "concatenating parts:"
+	bar := progress.AddBar(int64(len(s.Parts)-1), mpb.BarStyle("[=>-|"),
+		mpb.BarPriority(len(s.Parts)),
+		mpb.PrependDecorators(
+			decor.Name(name),
+			pad(len(name)-6, decor.WCSyncWidth),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "done!"),
+			decor.Name(" ] "),
+			decor.Percentage(),
+		),
+	)
+	defer func() {
+		if err != nil {
+			bar.Abort(false)
+		}
+	}()
 
 	dlogger.Printf("concatenating: %s", fpart0.Name())
 	for i := 1; i < len(s.Parts); i++ {
@@ -100,9 +102,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) e
 				dlogger.Printf("concatenateParts: %q %v", fparti.Name(), err)
 			}
 		}
-		if bar != nil {
-			bar.Increment()
-		}
+		bar.Increment()
 	}
 	return fpart0.Close()
 }

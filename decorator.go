@@ -113,7 +113,9 @@ func (d *padDecorator) Decor(st *decor.Statistics) string {
 	if ch, ok := d.Sync(); ok {
 		ch <- 0
 		max = <-ch
-		max -= d.diff
+		if max > 0 {
+			max -= d.diff
+		}
 	}
 	return strings.Repeat(" ", max)
 }
