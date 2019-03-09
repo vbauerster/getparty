@@ -147,7 +147,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	prefixSnap := p.dlogger.Prefix()
 
 	err = try(func(attempt int) (retry bool, err error) {
-		if attempt >= maxTry {
+		if attempt > maxTry {
 			return false, ErrGiveUp
 		}
 		if p.isDone() {
