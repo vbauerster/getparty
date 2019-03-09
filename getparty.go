@@ -3,6 +3,7 @@ package getparty
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -55,18 +56,19 @@ func (e ExpectedError) Error() string {
 
 // Options struct, represents cmd line options
 type Options struct {
-	Parts        uint              `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
-	Timeout      uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
-	OutFileName  string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
-	JSONFileName string            `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
-	UserAgent    string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
-	BestMirror   bool              `short:"b" long:"best-mirror" description:"pickup the fastest mirror"`
-	Quiet        bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
-	AuthUser     string            `short:"u" long:"username" description:"basic http auth username"`
-	AuthPass     string            `long:"password" description:"basic http auth password"`
-	HeaderMap    map[string]string `long:"header" value-name:"key:value" description:"arbitrary http header"`
-	Debug        bool              `long:"debug" description:"enable debug to stderr"`
-	Version      bool              `long:"version" description:"show version"`
+	Parts              uint              `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
+	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
+	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
+	JSONFileName       string            `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
+	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
+	BestMirror         bool              `short:"b" long:"best-mirror" description:"pickup the fastest mirror"`
+	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
+	AuthUser           string            `short:"u" long:"username" description:"basic http auth username"`
+	AuthPass           string            `long:"password" description:"basic http auth password"`
+	HeaderMap          map[string]string `long:"header" value-name:"key:value" description:"arbitrary http header"`
+	InsecureSkipVerify bool              `long:"no-check-certificate" description:"don't validate the server's certificate"`
+	Debug              bool              `long:"debug" description:"enable debug to stderr"`
+	Version            bool              `long:"version" description:"show version"`
 }
 
 type Cmd struct {
@@ -249,14 +251,16 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 
 	var eg errgroup.Group
 	transport := cleanhttp.DefaultPooledTransport()
-	tlsTimeout := uint64(transport.TLSHandshakeTimeout)
+	transport.TLSHandshakeTimeout = time.Duration(cmd.options.Timeout) * time.Second
+	if cmd.options.InsecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
 	for i, p := range session.Parts {
 		if p.isDone() {
 			continue
 		}
 		p.order = i
 		p.transport = transport
-		p.tlsTimeout = tlsTimeout
 		p.name = fmt.Sprintf("p#%02d", i+1)
 		p.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", p.name), log.LstdFlags)
 		if cmd.options.Debug {

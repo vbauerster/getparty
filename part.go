@@ -10,9 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/VividCortex/ewma"
 	"github.com/pkg/errors"
@@ -41,12 +39,11 @@ type Part struct {
 	Elapsed  time.Duration
 	Skip     bool
 
-	order      int
-	name       string
-	dlogger    *log.Logger
-	bg         *barGate
-	transport  *http.Transport
-	tlsTimeout uint64
+	order     int
+	name      string
+	dlogger   *log.Logger
+	bg        *barGate
+	transport *http.Transport
 }
 
 type barGate struct {
@@ -150,10 +147,14 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	prefixSnap := p.dlogger.Prefix()
 
 	err = try(func(attempt int) (retry bool, err error) {
+		if attempt >= maxTry {
+			return false, ErrGiveUp
+		}
 		if p.isDone() {
 			p.dlogger.Println("done in try, quitting...")
 			return false, nil
 		}
+
 		p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, attempt))
 		writtenSnap := p.Written
 		defer func() {
@@ -200,15 +201,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		resp, err := client.Do(req.WithContext(cctx))
 		if err != nil {
 			p.dlogger.Printf("client do: %s", err.Error())
-			if ue, ok := err.(*url.Error); ok && ue.Timeout() {
-				p.bg.flashMessage(&message{
-					msg: fmt.Sprintf("%.28s...", ue.Err.Error()),
-				})
-				p.incTLSHandshakeTimeout()
-			}
-			if attempt >= maxTry {
-				return false, ErrGiveUp
-			}
 			return ctx.Err() == nil, err
 		}
 
@@ -265,9 +257,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 						max -= written
 						continue
 					}
-					if ue.Timeout() {
-						p.incTLSHandshakeTimeout()
-					}
 				}
 				timer.Stop()
 				break
@@ -289,9 +278,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		if err == io.EOF || ctx.Err() != nil {
 			return false, ctx.Err()
 		}
-		if attempt >= maxTry {
-			return false, ErrGiveUp
-		}
 		// retry
 		return true, err
 	})
@@ -307,16 +293,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	}
 
 	return err
-}
-
-// Once part increased timeout successfully, it will be the only part
-// with such privilege.
-func (p *Part) incTLSHandshakeTimeout() {
-	newT := p.tlsTimeout + uint64(timeoutIncBy*time.Second)
-	if atomic.CompareAndSwapUint64((*uint64)(unsafe.Pointer(&p.transport.TLSHandshakeTimeout)), p.tlsTimeout, newT) {
-		p.tlsTimeout = newT
-		p.dlogger.Printf("TLSHandshakeTimeout increased to: %s", time.Duration(newT))
-	}
 }
 
 func (p Part) getRange() string {
