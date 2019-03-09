@@ -60,10 +60,6 @@ func (d *percentageDecorator) Shutdown() {
 
 func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 	if d.finalMsg != nil {
-		select {
-		case d.finalMsg.done <- struct{}{}:
-		default:
-		}
 		return d.FormatMsg(d.finalMsg.msg)
 	}
 
@@ -71,12 +67,13 @@ func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 	if len(d.messages) > 0 {
 		m := d.messages[0]
 		if m.displayTimes > 0 {
+			if m.final && d.finalMsg == nil {
+				d.finalMsg = m
+				close(m.done)
+			}
 			m.displayTimes--
 			d.mu.Unlock()
 			return d.FormatMsg(m.msg)
-		}
-		if m.final {
-			d.finalMsg = m
 		}
 		copy(d.messages, d.messages[1:])
 		d.messages = d.messages[:len(d.messages)-1]

@@ -92,6 +92,7 @@ func (s *barGate) init(progress *mpb.Progress, name string, order int, total int
 }
 
 func (s *barGate) message(msg *message) {
+	msg.displayTimes = 15
 	select {
 	case s.msgCh <- msg:
 	case <-s.done:
@@ -162,8 +163,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				ctxTimeout += timeoutIncBy
 				msg := fmt.Sprintf("try#%02d with timeout %s", attempt, time.Duration(ctxTimeout)*time.Second)
 				p.bg.message(&message{
-					msg:          msg,
-					displayTimes: 14,
+					msg: msg,
 				})
 				p.dlogger.Print(msg)
 			}
@@ -175,8 +175,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			cancel()
 			msg := "timeout..."
 			p.bg.message(&message{
-				msg:          msg,
-				displayTimes: 14,
+				msg: msg,
 			})
 			p.dlogger.Print(msg)
 		})
@@ -188,12 +187,11 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			p.dlogger.Printf("client do: %s", err.Error())
 			if ue, ok := err.(*url.Error); ok && ue.Timeout() {
 				p.bg.message(&message{
-					msg:          fmt.Sprintf("%.28s...", ue.Err.Error()),
-					displayTimes: 14,
+					msg: fmt.Sprintf("%.28s...", ue.Err.Error()),
 				})
 				p.incTLSHandshakeTimeout()
 			}
-			if attempt > maxTry {
+			if attempt >= maxTry {
 				return false, ErrGiveUp
 			}
 			return ctx.Err() == nil, err
@@ -246,8 +244,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				p.dlogger.Printf("CopyN err: %s", err.Error())
 				if ue, ok := err.(*url.Error); ok {
 					p.bg.message(&message{
-						msg:          fmt.Sprintf("%.28s...", ue.Err.Error()),
-						displayTimes: 14,
+						msg: fmt.Sprintf("%.28s...", ue.Err.Error()),
 					})
 					if ue.Temporary() {
 						max -= written
@@ -277,7 +274,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		if err == io.EOF || ctx.Err() != nil {
 			return false, ctx.Err()
 		}
-		if attempt > maxTry {
+		if attempt >= maxTry {
 			return false, ErrGiveUp
 		}
 		// retry
