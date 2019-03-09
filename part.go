@@ -51,6 +51,7 @@ type Part struct {
 type barGate struct {
 	bar   *mpb.Bar
 	msgCh chan *message
+	done  chan struct{}
 }
 
 func (s *barGate) init(progress *mpb.Progress, name string, order int, total int64) *barGate {
@@ -58,6 +59,7 @@ func (s *barGate) init(progress *mpb.Progress, name string, order int, total int
 	if s == nil {
 		s = new(barGate)
 		s.msgCh = make(chan *message)
+		s.done = make(chan struct{})
 		etaAge := math.Abs(float64(total))
 		if total > bufSize {
 			etaAge = float64(total) / float64(bufSize)
@@ -66,7 +68,7 @@ func (s *barGate) init(progress *mpb.Progress, name string, order int, total int
 			mpb.BarPriority(order),
 			mpb.PrependDecorators(
 				decor.Name(name+":"),
-				percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, s.msgCh),
+				percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, s),
 			),
 			mpb.AppendDecorators(
 				decor.OnComplete(
@@ -88,7 +90,10 @@ func (s *barGate) init(progress *mpb.Progress, name string, order int, total int
 }
 
 func (s *barGate) message(msg *message) {
-	s.msgCh <- msg
+	select {
+	case s.msgCh <- msg:
+	case <-s.done:
+	}
 }
 
 func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.Request, ctxTimeout uint) (err error) {
@@ -192,6 +197,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			// no partial content, so download with single part
 			if p.order > 0 {
 				p.Skip = true
+				p.bg.bar.Abort(true)
 				p.dlogger.Print("no partial content, skipping...")
 				return false, nil
 			}
@@ -268,6 +274,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		})
 		return true, err
 	})
+
 	if err == ErrGiveUp {
 		done := make(chan struct{})
 		p.bg.message(&message{
@@ -277,6 +284,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		})
 		<-done
 	}
+
 	return err
 }
 

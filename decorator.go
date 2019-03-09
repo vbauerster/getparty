@@ -28,14 +28,14 @@ type percentageDecorator struct {
 	finalMsg *message
 }
 
-func percentageWithTotal(pairFormat string, wc decor.WC, ch <-chan *message) decor.Decorator {
+func percentageWithTotal(pairFormat string, wc decor.WC, bg *barGate) decor.Decorator {
 	wc.Init()
 	d := &percentageDecorator{
 		WC:     wc,
 		format: pairFormat,
-		done:   make(chan struct{}),
+		done:   bg.done,
 	}
-	go d.receive(ch)
+	go d.receive(bg.msgCh)
 	return d
 }
 
