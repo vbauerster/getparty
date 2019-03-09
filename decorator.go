@@ -6,56 +6,56 @@ package getparty
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/vbauerster/mpb/v4/decor"
 )
 
+type msgGate struct {
+	msgCh chan *message
+	done  chan struct{}
+}
+
 type message struct {
-	msg          string
-	displayTimes int
-	final        bool
-	done         chan struct{}
+	msg        string
+	flashTimes int
+	final      bool
+	done       chan struct{}
 }
 
 type percentageDecorator struct {
 	decor.WC
 	format   string
-	done     chan struct{}
+	gate     msgGate
 	mu       sync.Mutex
 	messages []*message
 	finalMsg *message
 }
 
-func percentageWithTotal(pairFormat string, wc decor.WC, bg *barGate) decor.Decorator {
+func newPercentageWithTotal(pairFormat string, g msgGate, wc decor.WC) decor.Decorator {
 	wc.Init()
 	d := &percentageDecorator{
 		WC:     wc,
 		format: pairFormat,
-		done:   bg.done,
+		gate:   g,
 	}
-	go d.receive(bg.msgCh)
+	go d.receive()
 	return d
 }
 
-func (d *percentageDecorator) receive(ch <-chan *message) {
+func (d *percentageDecorator) receive() {
 	for {
 		select {
-		case m := <-ch:
+		case m := <-d.gate.msgCh:
 			d.mu.Lock()
 			if d.finalMsg == nil {
 				d.messages = append(d.messages, m)
 			}
 			d.mu.Unlock()
-		case <-d.done:
+		case <-d.gate.done:
 			return
 		}
 	}
-}
-
-func (d *percentageDecorator) Shutdown() {
-	close(d.done)
 }
 
 func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
@@ -66,12 +66,12 @@ func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 	d.mu.Lock()
 	if len(d.messages) > 0 {
 		m := d.messages[0]
-		if m.displayTimes > 0 {
+		if m.flashTimes > 0 {
 			if m.final && d.finalMsg == nil {
 				d.finalMsg = m
 				close(m.done)
 			}
-			m.displayTimes--
+			m.flashTimes--
 			d.mu.Unlock()
 			return d.FormatMsg(m.msg)
 		}
@@ -85,6 +85,10 @@ func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 	return d.FormatMsg(msg)
 }
 
+func (d *percentageDecorator) Shutdown() {
+	close(d.gate.done)
+}
+
 func percentage(total, current, ratio int64) float64 {
 	if total <= 0 {
 		return 0
@@ -92,27 +96,47 @@ func percentage(total, current, ratio int64) float64 {
 	return float64(ratio*current) / float64(total)
 }
 
-func pad(diff int, wc decor.WC) decor.Decorator {
-	wc.Init()
-	return &padDecorator{
-		WC:   wc,
-		diff: diff,
-	}
+type tryGate struct {
+	msgCh chan string
+	done  chan struct{}
 }
 
-type padDecorator struct {
+type triesDecorator struct {
 	decor.WC
-	diff int
+	gate tryGate
+	mu   sync.RWMutex
+	msg  string
 }
 
-func (d *padDecorator) Decor(st *decor.Statistics) string {
-	var max int
-	if ch, ok := d.Sync(); ok {
-		ch <- 0
-		max = <-ch
-		if max > 0 {
-			max -= d.diff
+func newTriesDecorator(g tryGate, wc decor.WC) decor.Decorator {
+	wc.Init()
+	d := &triesDecorator{
+		WC:   wc,
+		gate: g,
+	}
+	go d.receive()
+	return d
+}
+
+func (d *triesDecorator) receive() {
+	for {
+		select {
+		case m := <-d.gate.msgCh:
+			d.mu.Lock()
+			d.msg = m
+			d.mu.Unlock()
+		case <-d.gate.done:
+			return
 		}
 	}
-	return strings.Repeat(" ", max)
+}
+
+func (d *triesDecorator) Decor(_ *decor.Statistics) string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.FormatMsg(d.msg)
+}
+
+func (d *triesDecorator) Shutdown() {
+	close(d.gate.done)
 }

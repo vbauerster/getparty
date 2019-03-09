@@ -50,17 +50,23 @@ type Part struct {
 }
 
 type barGate struct {
-	bar   *mpb.Bar
-	msgCh chan *message
-	done  chan struct{}
+	bar     *mpb.Bar
+	tryGate tryGate
+	msgGate msgGate
 }
 
 func (s *barGate) init(progress *mpb.Progress, name string, order int, total int64) *barGate {
 
 	if s == nil {
 		s = &barGate{
-			msgCh: make(chan *message, 1),
-			done:  make(chan struct{}),
+			tryGate: tryGate{
+				msgCh: make(chan string, 1),
+				done:  make(chan struct{}),
+			},
+			msgGate: msgGate{
+				msgCh: make(chan *message, 1),
+				done:  make(chan struct{}),
+			},
 		}
 		etaAge := math.Abs(float64(total))
 		if total > bufSize {
@@ -69,8 +75,9 @@ func (s *barGate) init(progress *mpb.Progress, name string, order int, total int
 		s.bar = progress.AddBar(total, mpb.BarStyle("[=>-|"),
 			mpb.BarPriority(order),
 			mpb.PrependDecorators(
-				decor.Name(name+":"),
-				percentageWithTotal("%.1f%% of % .1f", decor.WCSyncSpace, s),
+				decor.Name(name+":", decor.WCSyncWidth),
+				newTriesDecorator(s.tryGate, decor.WCSyncWidth),
+				newPercentageWithTotal("%.1f%% of % .1f", s.msgGate, decor.WCSyncSpace),
 			),
 			mpb.AppendDecorators(
 				decor.OnComplete(
@@ -91,11 +98,18 @@ func (s *barGate) init(progress *mpb.Progress, name string, order int, total int
 	return s
 }
 
-func (s *barGate) message(msg *message) {
-	msg.displayTimes = 15
+func (s *barGate) setTryMessage(msg string) {
 	select {
-	case s.msgCh <- msg:
-	case <-s.done:
+	case s.tryGate.msgCh <- msg:
+	case <-s.tryGate.done:
+	}
+}
+
+func (s *barGate) flashMessage(msg *message) {
+	msg.flashTimes = 15
+	select {
+	case s.msgGate.msgCh <- msg:
+	case <-s.msgGate.done:
 	}
 }
 
@@ -161,10 +175,11 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		case <-start:
 			if attempt > 0 {
 				ctxTimeout += timeoutIncBy
-				msg := fmt.Sprintf("try#%02d with timeout %s", attempt, time.Duration(ctxTimeout)*time.Second)
-				p.bg.message(&message{
+				msg := fmt.Sprintf("timeout %s", time.Duration(ctxTimeout)*time.Second)
+				p.bg.flashMessage(&message{
 					msg: msg,
 				})
+				p.bg.setTryMessage(fmt.Sprintf("r#%02d:", attempt))
 				p.dlogger.Print(msg)
 			}
 		case <-ctx.Done():
@@ -174,7 +189,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		timer := time.AfterFunc(time.Duration(ctxTimeout)*time.Second, func() {
 			cancel()
 			msg := "timeout..."
-			p.bg.message(&message{
+			p.bg.flashMessage(&message{
 				msg: msg,
 			})
 			p.dlogger.Print(msg)
@@ -186,7 +201,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		if err != nil {
 			p.dlogger.Printf("client do: %s", err.Error())
 			if ue, ok := err.(*url.Error); ok && ue.Timeout() {
-				p.bg.message(&message{
+				p.bg.flashMessage(&message{
 					msg: fmt.Sprintf("%.28s...", ue.Err.Error()),
 				})
 				p.incTLSHandshakeTimeout()
@@ -243,7 +258,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			if err != nil {
 				p.dlogger.Printf("CopyN err: %s", err.Error())
 				if ue, ok := err.(*url.Error); ok {
-					p.bg.message(&message{
+					p.bg.flashMessage(&message{
 						msg: fmt.Sprintf("%.28s...", ue.Err.Error()),
 					})
 					if ue.Temporary() {
@@ -283,7 +298,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 	if err == ErrGiveUp {
 		done := make(chan struct{})
-		p.bg.message(&message{
+		p.bg.flashMessage(&message{
 			msg:   err.Error(),
 			final: true,
 			done:  done,
