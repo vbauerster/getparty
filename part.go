@@ -22,8 +22,9 @@ import (
 )
 
 const (
-	bufSize = 1 << 12
-	maxTry  = 10
+	bufSize      = 1 << 12
+	maxTry       = 10
+	timeoutIncBy = 3
 )
 
 var (
@@ -57,9 +58,10 @@ type barGate struct {
 func (s *barGate) init(progress *mpb.Progress, name string, order int, total int64) *barGate {
 
 	if s == nil {
-		s = new(barGate)
-		s.msgCh = make(chan *message)
-		s.done = make(chan struct{})
+		s = &barGate{
+			msgCh: make(chan *message, 1),
+			done:  make(chan struct{}),
+		}
 		etaAge := math.Abs(float64(total))
 		if total > bufSize {
 			etaAge = float64(total) / float64(bufSize)
@@ -143,7 +145,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			p.dlogger.Printf("total written: %d", p.Written-writtenSnap)
 		}()
 
-		dur := bOff.Backoff(attempt)
+		dur := bOff.Backoff(attempt + 1)
 		start := time.After(dur)
 
 		total := p.Stop - p.Start + 1
@@ -156,19 +158,27 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 		select {
 		case <-start:
+			if attempt > 0 {
+				ctxTimeout += timeoutIncBy
+				msg := fmt.Sprintf("try#%02d with timeout %s", attempt, time.Duration(ctxTimeout)*time.Second)
+				p.bg.message(&message{
+					msg:          msg,
+					displayTimes: 14,
+				})
+				p.dlogger.Print(msg)
+			}
 		case <-ctx.Done():
 			return false, ctx.Err()
 		}
 		cctx, cancel := context.WithCancel(ctx)
-		timeoutDur := time.Duration(ctxTimeout) * time.Second
-		timeoutMsg := fmt.Sprintf("ctx timeout: %s", timeoutDur)
-		timer := time.AfterFunc(timeoutDur, func() {
+		timer := time.AfterFunc(time.Duration(ctxTimeout)*time.Second, func() {
 			cancel()
+			msg := "timeout..."
 			p.bg.message(&message{
-				msg:          timeoutMsg,
+				msg:          msg,
 				displayTimes: 14,
 			})
-			p.dlogger.Print(timeoutMsg)
+			p.dlogger.Print(msg)
 		})
 		defer cancel()
 
@@ -176,22 +186,17 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		resp, err := client.Do(req.WithContext(cctx))
 		if err != nil {
 			p.dlogger.Printf("client do: %s", err.Error())
-			if ue, ok := err.(*url.Error); ok {
+			if ue, ok := err.(*url.Error); ok && ue.Timeout() {
 				p.bg.message(&message{
 					msg:          fmt.Sprintf("%.28s...", ue.Err.Error()),
 					displayTimes: 14,
 				})
-				if ue.Timeout() {
-					p.incTLSHandshakeTimeout()
-				}
+				p.incTLSHandshakeTimeout()
 			}
 			if attempt > maxTry {
 				return false, ErrGiveUp
 			}
-			if cctx.Err() != nil {
-				ctxTimeout += 5
-			}
-			return true, err
+			return ctx.Err() == nil, err
 		}
 
 		startTime := time.Now()
@@ -276,11 +281,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			return false, ErrGiveUp
 		}
 		// retry
-		ctxTimeout += 5
-		p.bg.message(&message{
-			msg:          fmt.Sprintf("retry: %02d", attempt),
-			displayTimes: 14,
-		})
 		return true, err
 	})
 
@@ -300,7 +300,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 // Once part increased timeout successfully, it will be the only part
 // with such privilege.
 func (p *Part) incTLSHandshakeTimeout() {
-	newT := p.tlsTimeout + uint64(5*time.Second)
+	newT := p.tlsTimeout + uint64(timeoutIncBy*time.Second)
 	if atomic.CompareAndSwapUint64((*uint64)(unsafe.Pointer(&p.transport.TLSHandshakeTimeout)), p.tlsTimeout, newT) {
 		p.tlsTimeout = newT
 		p.dlogger.Printf("TLSHandshakeTimeout increased to: %s", time.Duration(newT))
@@ -321,7 +321,7 @@ func (p Part) isDone() bool {
 func try(fn func(int) (bool, error)) error {
 	var err error
 	var cont bool
-	attempt := 1
+	var attempt int
 	for {
 		cont, err = fn(attempt)
 		if !cont || err == nil {
