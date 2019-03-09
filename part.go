@@ -129,7 +129,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		backoff.WithResetDelay(2*time.Minute),
 	)
 
-	start := make(chan time.Duration)
 	initialWritten := p.Written
 	prefixSnap := p.dlogger.Prefix()
 
@@ -144,11 +143,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			p.dlogger.Printf("total written: %d", p.Written-writtenSnap)
 		}()
 
-		go func() {
-			dur := bOff.Backoff(attempt)
-			time.Sleep(dur)
-			start <- dur
-		}()
+		dur := bOff.Backoff(attempt)
+		start := time.After(dur)
 
 		total := p.Stop - p.Start + 1
 		p.bg = p.bg.init(progress, p.name, p.order, total)
@@ -156,8 +152,13 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		p.dlogger.Printf("GET %q", req.URL)
 		p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
 		p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
-		p.dlogger.Printf("backoff sleep: %s", <-start)
+		p.dlogger.Printf("backoff sleep: %s", dur)
 
+		select {
+		case <-start:
+		case <-ctx.Done():
+			return false, ctx.Err()
+		}
 		cctx, cancel := context.WithCancel(ctx)
 		timeoutDur := time.Duration(ctxTimeout) * time.Second
 		timeoutMsg := fmt.Sprintf("ctx timeout: %s", timeoutDur)
