@@ -22,7 +22,7 @@ import (
 const (
 	bufSize      = 1 << 12
 	maxTry       = 10
-	timeoutIncBy = 3
+	timeoutIncBy = 5
 )
 
 var (
