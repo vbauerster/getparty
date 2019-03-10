@@ -27,9 +27,10 @@ type percentageDecorator struct {
 	decor.WC
 	format   string
 	gate     msgGate
-	mu       sync.Mutex
+	msg      *message
 	messages []*message
-	finalMsg *message
+	mu       sync.Mutex
+	entry    []*message
 }
 
 func newPercentageWithTotal(pairFormat string, g msgGate, wc decor.WC) decor.Decorator {
@@ -48,9 +49,7 @@ func (d *percentageDecorator) receive() {
 		select {
 		case m := <-d.gate.msgCh:
 			d.mu.Lock()
-			if d.finalMsg == nil {
-				d.messages = append(d.messages, m)
-			}
+			d.entry = append(d.entry, m)
 			d.mu.Unlock()
 		case <-d.gate.done:
 			return
@@ -59,26 +58,33 @@ func (d *percentageDecorator) receive() {
 }
 
 func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
-	if d.finalMsg != nil {
-		return d.FormatMsg(d.finalMsg.msg)
+	if d.msg != nil {
+		if d.msg.final || d.msg.flashTimes > 0 {
+			d.msg.flashTimes--
+			return d.FormatMsg(d.msg.msg)
+		}
 	}
 
 	d.mu.Lock()
-	if len(d.messages) > 0 {
-		m := d.messages[0]
-		if m.flashTimes > 0 {
-			if m.final && d.finalMsg == nil {
-				d.finalMsg = m
-				close(m.done)
-			}
-			m.flashTimes--
-			d.mu.Unlock()
-			return d.FormatMsg(m.msg)
-		}
-		copy(d.messages, d.messages[1:])
-		d.messages = d.messages[:len(d.messages)-1]
+	if len(d.entry) > 0 {
+		d.messages = append(d.messages, d.entry[0])
+		copy(d.entry, d.entry[1:])
+		d.entry = d.entry[:len(d.entry)-1]
 	}
 	d.mu.Unlock()
+
+	if len(d.messages) > 0 {
+		d.msg = d.messages[0]
+		copy(d.messages, d.messages[1:])
+		d.messages = d.messages[:len(d.messages)-1]
+		if d.msg.done != nil {
+			close(d.msg.done)
+		}
+		if d.msg.flashTimes > 0 {
+			d.msg.flashTimes--
+			return d.FormatMsg(d.msg.msg)
+		}
+	}
 
 	completed := percentage(stat.Total, stat.Current, 100)
 	msg := fmt.Sprintf(d.format, completed, decor.CounterKiB(stat.Total))
