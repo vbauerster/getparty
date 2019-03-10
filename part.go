@@ -181,7 +181,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				})
 				p.bg.setTryMessage(fmt.Sprintf("r#%02d:", attempt))
 			}
-			p.dlogger.Print("ctxTimeout: %s", time.Duration(ctxTimeout)*time.Second)
+			p.dlogger.Printf("ctxTimeout: %s", time.Duration(ctxTimeout)*time.Second)
 		case <-ctx.Done():
 			return false, ctx.Err()
 		}
