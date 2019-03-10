@@ -4,4 +4,5 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+tags
 cmd/getparty/dist/
