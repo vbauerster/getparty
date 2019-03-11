@@ -62,6 +62,8 @@ func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 		if d.msg.final || d.msg.flashTimes > 0 {
 			d.msg.flashTimes--
 			return d.FormatMsg(d.msg.msg)
+		} else {
+			d.msg = nil
 		}
 	}
 
