@@ -162,7 +162,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		}()
 
 		dur := bOff.Backoff(attempt + 1)
-		start := time.After(dur)
+		start := time.NewTimer(dur)
 
 		total := p.Stop - p.Start + 1
 		p.bg = p.bg.init(progress, p.name, p.order, total)
@@ -173,7 +173,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		p.dlogger.Printf("backoff sleep: %s", dur)
 
 		select {
-		case <-start:
+		case <-start.C:
 			if attempt > 0 {
 				ctxTimeout += timeoutIncBy
 				p.bg.flashMessage(&message{
@@ -183,6 +183,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 			p.dlogger.Printf("ctxTimeout: %s", time.Duration(ctxTimeout)*time.Second)
 		case <-ctx.Done():
+			start.Stop()
 			return false, ctx.Err()
 		}
 		cctx, cancel := context.WithCancel(ctx)
