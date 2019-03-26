@@ -510,7 +510,11 @@ func readLines(r io.Reader) ([]string, error) {
 	var lines []string
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+		text := strings.TrimSpace(scanner.Text())
+		if len(text) == 0 || strings.HasPrefix(text, "#") {
+			continue
+		}
+		lines = append(lines, text)
 	}
 	return lines, scanner.Err()
 }
