@@ -41,6 +41,7 @@ type Part struct {
 
 	order     int
 	name      string
+	quiet     bool
 	dlogger   *log.Logger
 	bg        *barGate
 	transport *http.Transport
@@ -52,18 +53,26 @@ type barGate struct {
 	msgGate msgGate
 }
 
-func (s *barGate) init(progress *mpb.Progress, name string, order int, total int64) *barGate {
+func (s *barGate) init(progress *mpb.Progress, name string, order int, quiet bool, total int64) *barGate {
 
 	if s == nil {
 		s = &barGate{
 			tryGate: tryGate{
 				msgCh: make(chan string, 1),
+				quiet: make(chan struct{}),
 				done:  make(chan struct{}),
 			},
 			msgGate: msgGate{
 				msgCh: make(chan *message, 1),
+				quiet: make(chan struct{}),
 				done:  make(chan struct{}),
 			},
+		}
+		if quiet {
+			s.msgGate.msgCh = nil
+			close(s.msgGate.quiet)
+			s.tryGate.msgCh = nil
+			close(s.tryGate.quiet)
 		}
 		etaAge := math.Abs(float64(total))
 		if total > bufSize {
@@ -98,6 +107,7 @@ func (s *barGate) init(progress *mpb.Progress, name string, order int, total int
 func (s *barGate) setTryMessage(msg string) {
 	select {
 	case s.tryGate.msgCh <- msg:
+	case <-s.msgGate.quiet:
 	case <-s.tryGate.done:
 	}
 }
@@ -106,6 +116,10 @@ func (s *barGate) flashMessage(msg *message) {
 	msg.flashTimes = 15
 	select {
 	case s.msgGate.msgCh <- msg:
+	case <-s.msgGate.quiet:
+		if msg.final {
+			close(msg.done)
+		}
 	case <-s.msgGate.done:
 	}
 }
@@ -165,7 +179,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		start := time.NewTimer(dur)
 
 		total := p.Stop - p.Start + 1
-		p.bg = p.bg.init(progress, p.name, p.order, total)
+		p.bg = p.bg.init(progress, p.name, p.order, p.quiet, total)
 		req.Header.Set(hRange, p.getRange())
 		p.dlogger.Printf("GET %q", req.URL)
 		p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))

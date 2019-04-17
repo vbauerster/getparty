@@ -260,6 +260,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			continue
 		}
 		p.order = i
+		p.quiet = cmd.options.Quiet
 		p.transport = transport
 		p.name = fmt.Sprintf("p#%02d", i+1)
 		p.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", p.name), log.LstdFlags)

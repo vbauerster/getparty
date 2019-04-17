@@ -13,6 +13,7 @@ import (
 
 type msgGate struct {
 	msgCh chan *message
+	quiet chan struct{}
 	done  chan struct{}
 }
 
@@ -106,6 +107,7 @@ func percentage(total, current, ratio int64) float64 {
 
 type tryGate struct {
 	msgCh chan string
+	quiet chan struct{}
 	done  chan struct{}
 }
 
