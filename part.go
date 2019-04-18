@@ -58,21 +58,24 @@ func (s *barGate) init(progress *mpb.Progress, name string, order int, quiet boo
 	if s == nil {
 		s = &barGate{
 			tryGate: tryGate{
-				msgCh: make(chan string, 1),
+				msgCh: make(chan string),
 				quiet: make(chan struct{}),
 				done:  make(chan struct{}),
 			},
 			msgGate: msgGate{
-				msgCh: make(chan *message, 1),
+				msgCh: make(chan *message),
 				quiet: make(chan struct{}),
 				done:  make(chan struct{}),
 			},
 		}
 		if quiet {
-			s.msgGate.msgCh = nil
-			close(s.msgGate.quiet)
 			s.tryGate.msgCh = nil
 			close(s.tryGate.quiet)
+			s.msgGate.msgCh = nil
+			close(s.msgGate.quiet)
+		} else {
+			s.tryGate.quiet = nil
+			s.msgGate.quiet = nil
 		}
 		etaAge := math.Abs(float64(total))
 		if total > bufSize {
