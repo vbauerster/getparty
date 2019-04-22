@@ -53,58 +53,56 @@ type barGate struct {
 	msgGate msgGate
 }
 
-func (s *barGate) init(progress *mpb.Progress, name string, order int, quiet bool, total int64) *barGate {
+func newBarGate(progress *mpb.Progress, name string, order int, quiet bool, total int64) *barGate {
 
-	if s == nil {
-		s = &barGate{
-			tryGate: tryGate{
-				msgCh: make(chan string),
-				quiet: make(chan struct{}),
-				done:  make(chan struct{}),
-			},
-			msgGate: msgGate{
-				msgCh: make(chan *message),
-				quiet: make(chan struct{}),
-				done:  make(chan struct{}),
-			},
-		}
-		if quiet {
-			s.tryGate.msgCh = nil
-			close(s.tryGate.quiet)
-			s.msgGate.msgCh = nil
-			close(s.msgGate.quiet)
-		} else {
-			s.tryGate.quiet = nil
-			s.msgGate.quiet = nil
-		}
-		etaAge := math.Abs(float64(total))
-		if total > bufSize {
-			etaAge = float64(total) / float64(bufSize)
-		}
-		s.bar = progress.AddBar(total, mpb.BarStyle("[=>-|"),
-			mpb.BarPriority(order),
-			mpb.PrependDecorators(
-				decor.Name(name+":", decor.WCSyncWidth),
-				newTriesDecorator(s.tryGate, decor.WCSyncWidth),
-				newPercentageWithTotal("%.1f%% of % .1f", s.msgGate, decor.WCSyncSpace),
-			),
-			mpb.AppendDecorators(
-				decor.OnComplete(
-					decor.MovingAverageETA(
-						decor.ET_STYLE_MMSS,
-						ewma.NewMovingAverage(etaAge),
-						decor.MaxTolerateTimeNormalizer(180*time.Second),
-						decor.WCSyncWidth,
-					),
-					"done!",
-				),
-				decor.Name(" ]"),
-				decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
-			),
-		)
+	bg := &barGate{
+		tryGate: tryGate{
+			msgCh: make(chan string),
+			quiet: make(chan struct{}),
+			done:  make(chan struct{}),
+		},
+		msgGate: msgGate{
+			msgCh: make(chan *message),
+			quiet: make(chan struct{}),
+			done:  make(chan struct{}),
+		},
 	}
+	if quiet {
+		bg.tryGate.msgCh = nil
+		close(bg.tryGate.quiet)
+		bg.msgGate.msgCh = nil
+		close(bg.msgGate.quiet)
+	} else {
+		bg.tryGate.quiet = nil
+		bg.msgGate.quiet = nil
+	}
+	etaAge := math.Abs(float64(total))
+	if total > bufSize {
+		etaAge = float64(total) / float64(bufSize)
+	}
+	bg.bar = progress.AddBar(total, mpb.BarStyle("[=>-|"),
+		mpb.BarPriority(order),
+		mpb.PrependDecorators(
+			decor.Name(name+":", decor.WCSyncWidth),
+			newTriesDecorator(bg.tryGate, decor.WCSyncWidth),
+			newPercentageWithTotal("%.1f%% of % .1f", bg.msgGate, decor.WCSyncSpace),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(
+				decor.MovingAverageETA(
+					decor.ET_STYLE_MMSS,
+					ewma.NewMovingAverage(etaAge),
+					decor.MaxTolerateTimeNormalizer(180*time.Second),
+					decor.WCSyncWidth,
+				),
+				"done!",
+			),
+			decor.Name(" ]"),
+			decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
+		),
+	)
 
-	return s
+	return bg
 }
 
 func (s *barGate) setTryMessage(msg string) {
@@ -160,6 +158,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		backoff.WithResetDelay(2*time.Minute),
 	)
 
+	total := p.Stop - p.Start + 1
+	p.bg = newBarGate(progress, p.name, p.order, p.quiet, total)
 	initialWritten := p.Written
 	prefixSnap := p.dlogger.Prefix()
 
@@ -181,8 +181,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		dur := bOff.Backoff(attempt + 1)
 		start := time.NewTimer(dur)
 
-		total := p.Stop - p.Start + 1
-		p.bg = p.bg.init(progress, p.name, p.order, p.quiet, total)
 		req.Header.Set(hRange, p.getRange())
 		p.dlogger.Printf("GET %q", req.URL)
 		p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
@@ -193,9 +191,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		case <-start.C:
 			if attempt > 0 {
 				ctxTimeout += timeoutIncBy
-				p.bg.flashMessage(&message{
-					msg: "retrying...",
-				})
+				p.bg.flashMessage(&message{msg: "retrying..."})
 				p.bg.setTryMessage(fmt.Sprintf("r#%02d:", attempt))
 			}
 			p.dlogger.Printf("ctxTimeout: %s", time.Duration(ctxTimeout)*time.Second)
@@ -206,10 +202,11 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		cctx, cancel := context.WithCancel(ctx)
 		timer := time.AfterFunc(time.Duration(ctxTimeout)*time.Second, func() {
 			cancel()
+			if p.isDone() {
+				return
+			}
 			msg := "timeout..."
-			p.bg.flashMessage(&message{
-				msg: msg,
-			})
+			p.bg.flashMessage(&message{msg: msg})
 			p.dlogger.Print(msg)
 		})
 		defer cancel()
