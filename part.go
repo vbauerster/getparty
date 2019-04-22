@@ -173,10 +173,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		}
 
 		p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, attempt))
-		writtenSnap := p.Written
-		defer func() {
-			p.dlogger.Printf("total written: %d", p.Written-writtenSnap)
-		}()
 
 		dur := bOff.Backoff(attempt + 1)
 		start := time.NewTimer(dur)
@@ -257,9 +253,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		}
 		defer body.Close()
 
-		var written int64
+		pWrittenSnap := p.Written
+		var n int64
 		for timer.Reset(time.Duration(ctxTimeout) * time.Second) {
-			written, err = io.CopyN(buf, body, max)
+			n, err = io.CopyN(buf, body, max)
 			if err != nil {
 				p.dlogger.Printf("CopyN err: %s", err.Error())
 				if ue, ok := err.(*url.Error); ok {
@@ -267,22 +264,23 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 						msg: fmt.Sprintf("%.28s...", ue.Err.Error()),
 					})
 					if ue.Temporary() {
-						max -= written
+						max -= n
 						continue
 					}
 				}
 				break
 			}
-			written, _ = io.Copy(fpart, buf)
-			p.Written += written
+			n, _ = io.Copy(fpart, buf)
+			p.Written += n
 			if total <= 0 {
 				p.bg.bar.SetTotal(p.Written+max*2, false)
 			}
 			max = bufSize
 		}
 
-		written, _ = io.Copy(fpart, buf)
-		p.Written += written
+		n, _ = io.Copy(fpart, buf)
+		p.Written += n
+		p.dlogger.Printf("total written: %d", p.Written-pWrittenSnap)
 		if total <= 0 {
 			p.Stop = p.Written - 1
 			p.bg.bar.SetTotal(p.Written, err == io.EOF)
