@@ -200,16 +200,14 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			return false, ctx.Err()
 		}
 		cctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 		timer := time.AfterFunc(time.Duration(ctxTimeout)*time.Second, func() {
 			cancel()
-			if p.isDone() {
-				return
-			}
 			msg := "timeout..."
 			p.bg.flashMessage(&message{msg: msg})
 			p.dlogger.Print(msg)
 		})
-		defer cancel()
+		defer timer.Stop()
 
 		client := &http.Client{Transport: p.transport}
 		resp, err := client.Do(req.WithContext(cctx))
@@ -236,6 +234,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 			total = resp.ContentLength
 			p.bg.bar.SetTotal(total, false)
+			p.Stop = total - 1
 			p.dlogger.Printf("resetting written: %d", p.Written)
 			p.Written = 0
 		} else if resp.StatusCode != http.StatusPartialContent {
@@ -272,7 +271,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 						continue
 					}
 				}
-				timer.Stop()
 				break
 			}
 			written, _ = io.Copy(fpart, buf)
@@ -289,7 +287,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			p.Stop = p.Written - 1
 			p.bg.bar.SetTotal(p.Written, err == io.EOF)
 		}
-		if err == io.EOF || ctx.Err() != nil {
+		if p.isDone() || ctx.Err() != nil {
 			return false, ctx.Err()
 		}
 		// retry
