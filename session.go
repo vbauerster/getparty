@@ -70,15 +70,15 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 
 	bar := progress.AddBar(int64(len(s.Parts)-1), mpb.BarStyle("[=>-|"),
 		mpb.BarPriority(len(s.Parts)),
-		mpb.PrependDecorators(
-			decor.Name("", decor.WCSyncWidth),
-			decor.Name("", decor.WCSyncWidth),
-			decor.Name("concatenating...", decor.WCSyncSpace),
-		),
+		mpb.PrependDecorators(decor.Merge(
+			decor.Name("concatenating...", decor.WCSyncWidth),
+			decor.WCSyncWidth,
+			decor.WCSyncSpace,
+		)),
 		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "done!"),
-			decor.Name(" ] "),
-			decor.Percentage(),
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), "done!"),
+			decor.Name(" ]"),
+			decor.Percentage(decor.WCSyncSpace),
 		),
 	)
 	defer func() {
