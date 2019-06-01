@@ -83,7 +83,7 @@ func newBarGate(progress *mpb.Progress, name string, order int, quiet bool, tota
 	bg.bar = progress.AddBar(total, mpb.BarStyle("[=>-|"),
 		mpb.BarPriority(order),
 		mpb.PrependDecorators(
-			decor.Name(name+":", decor.WCSyncWidth),
+			decor.Name(name, decor.WCSyncWidth),
 			newTriesDecorator(bg.tryGate, decor.WCSyncWidth),
 			newPercentageWithTotal("%.1f%% of % .1f", bg.msgGate, decor.WCSyncSpace),
 		),
@@ -188,7 +188,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			if attempt > 0 {
 				ctxTimeout += timeoutIncBy
 				p.bg.flashMessage(&message{msg: "retrying..."})
-				p.bg.setTryMessage(fmt.Sprintf("r#%02d:", attempt))
+				p.bg.setTryMessage(fmt.Sprintf(":r#%02d", attempt))
 			}
 			p.dlogger.Printf("ctxTimeout: %s", time.Duration(ctxTimeout)*time.Second)
 		case <-ctx.Done():
