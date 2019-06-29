@@ -217,6 +217,9 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		lastSession.Location = session.Location
 		session = lastSession
 	} else if cmd.options.Parts > 0 {
+		if !session.isAcceptRanges() {
+			cmd.options.Parts = 1
+		}
 		session.HeaderMap = cmd.options.HeaderMap
 		session.Parts = session.calcParts(int64(cmd.options.Parts))
 		if _, err := os.Stat(session.SuggestedFileName); err == nil {

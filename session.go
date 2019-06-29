@@ -6,9 +6,14 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/vbauerster/mpb/v4"
 	"github.com/vbauerster/mpb/v4/decor"
+)
+
+const (
+	acceptRangesType = "bytes"
 )
 
 // Session represents download session state
@@ -22,6 +27,13 @@ type Session struct {
 	ContentType       string
 	HeaderMap         map[string]string
 	Parts             []*Part
+}
+
+func (s Session) isAcceptRanges() bool {
+	if strings.ToLower(s.AcceptRanges) == acceptRangesType {
+		return true
+	}
+	return false
 }
 
 func (s Session) calcParts(parts int64) []*Part {
@@ -167,9 +179,8 @@ func (s Session) writeSummary(w io.Writer) {
 	if s.ContentMD5 != "" {
 		fmt.Fprintf(w, "MD5: %s\n", s.ContentMD5)
 	}
-	switch s.AcceptRanges {
-	case "", "none":
-		fmt.Fprintln(w, "Looks like server doesn't support range requests (no party, no resume)")
+	if !s.isAcceptRanges() {
+		fmt.Fprintln(w, "Looks like server doesn't accept ranges (no party, no resume)")
 	}
 	fmt.Fprintf(w, "Saving to: %q\n\n", s.SuggestedFileName)
 }
