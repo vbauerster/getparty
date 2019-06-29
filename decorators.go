@@ -60,12 +60,16 @@ func (d *percentageDecorator) receive() {
 
 func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 	if d.msg != nil {
-		if d.msg.final || d.msg.flashTimes > 0 {
+		m := d.msg.msg
+		if d.msg.flashTimes > 0 {
 			d.msg.flashTimes--
-			return d.FormatMsg(d.msg.msg)
+		} else if d.msg.final && d.msg.done != nil {
+			close(d.msg.done)
+			d.msg = nil
 		} else {
 			d.msg = nil
 		}
+		return d.FormatMsg(m)
 	}
 
 	d.mu.Lock()
@@ -80,13 +84,8 @@ func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 		d.msg = d.messages[0]
 		copy(d.messages, d.messages[1:])
 		d.messages = d.messages[:len(d.messages)-1]
-		if d.msg.done != nil {
-			close(d.msg.done)
-		}
-		if d.msg.flashTimes > 0 {
-			d.msg.flashTimes--
-			return d.FormatMsg(d.msg.msg)
-		}
+		d.msg.flashTimes--
+		return d.FormatMsg(d.msg.msg)
 	}
 
 	completed := percentage(stat.Total, stat.Current, 100)

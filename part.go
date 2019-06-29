@@ -114,14 +114,17 @@ func (s *barGate) setTryMessage(msg string) {
 }
 
 func (s *barGate) flashMessage(msg *message) {
-	msg.flashTimes = 15
+	msg.flashTimes = 14
 	select {
 	case s.msgGate.msgCh <- msg:
 	case <-s.msgGate.quiet:
-		if msg.final {
+		if msg.final && msg.done != nil {
 			close(msg.done)
 		}
 	case <-s.msgGate.done:
+		if msg.final && msg.done != nil {
+			close(msg.done)
+		}
 	}
 }
 
