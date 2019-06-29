@@ -316,7 +316,7 @@ func (p Part) getRange() string {
 }
 
 func (p Part) isDone() bool {
-	return p.Skip || p.Stop-p.Start == p.Written-1
+	return p.Skip || p.Written > p.Stop-p.Start
 }
 
 func try(fn func(int) (bool, error)) error {
