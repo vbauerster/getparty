@@ -30,10 +30,7 @@ type Session struct {
 }
 
 func (s Session) isAcceptRanges() bool {
-	if strings.ToLower(s.AcceptRanges) == acceptRangesType {
-		return true
-	}
-	return false
+	return strings.ToLower(s.AcceptRanges) == acceptRangesType
 }
 
 func (s Session) calcParts(parts int64) []*Part {
