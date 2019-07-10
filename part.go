@@ -21,7 +21,6 @@ import (
 
 const (
 	bufSize      = 1 << 12
-	maxTry       = 12
 	timeoutIncBy = 5
 )
 
@@ -40,6 +39,7 @@ type Part struct {
 	Skip     bool
 
 	order     int
+	maxTry    int
 	name      string
 	quiet     bool
 	dlogger   *log.Logger
@@ -116,7 +116,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	prefixSnap := p.dlogger.Prefix()
 
 	err = try(func(attempt int) (retry bool, err error) {
-		if attempt > maxTry {
+		if attempt > p.maxTry {
 			return false, ErrGiveUp
 		}
 		if p.isDone() {

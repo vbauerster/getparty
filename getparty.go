@@ -57,6 +57,7 @@ func (e ExpectedError) Error() string {
 // Options struct, represents cmd line options
 type Options struct {
 	Parts              uint              `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
+	MaxRetry           uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retries per each part"`
 	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName       string            `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
@@ -263,6 +264,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			continue
 		}
 		p.order = i
+		p.maxTry = int(cmd.options.MaxRetry)
 		p.quiet = cmd.options.Quiet
 		p.transport = transport
 		p.name = fmt.Sprintf("P%02d", i+1)
