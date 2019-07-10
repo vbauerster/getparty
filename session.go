@@ -30,7 +30,7 @@ type Session struct {
 }
 
 func (s Session) isAcceptRanges() bool {
-	return strings.ToLower(s.AcceptRanges) == acceptRangesType
+	return strings.EqualFold(s.AcceptRanges, acceptRangesType)
 }
 
 func (s Session) calcParts(parts int64) []*Part {
@@ -77,17 +77,16 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 		return err
 	}
 
-	bar := progress.AddBar(int64(len(s.Parts)-1), mpb.BarStyle("[=>-|"),
+	bar := progress.AddBar(int64(len(s.Parts)-1), mpb.BarStyle("|=>-|"),
 		mpb.BarPriority(len(s.Parts)),
-		mpb.PrependDecorators(decor.Merge(
-			decor.Name("concatenating...", decor.WCSyncWidth),
-			decor.WCSyncWidth,
-			decor.WCSyncSpace,
-		)),
+		mpb.PrependDecorators(
+			decor.Name("concatenating:", decor.WCSyncWidth),
+			decor.Name(" ["),
+			decor.Percentage(decor.WCSyncSpace),
+		),
 		mpb.AppendDecorators(
 			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), "done!"),
 			decor.Name(" ]"),
-			decor.Percentage(decor.WCSyncSpace),
 		),
 	)
 	defer func() {

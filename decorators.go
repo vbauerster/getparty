@@ -1,56 +1,95 @@
-// Copyright (C) 2016-2017 Vladimir Bauer
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 package getparty
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/vbauerster/mpb/v4/decor"
 )
 
+type message struct {
+	msg   string
+	times int
+	final bool
+	done  chan struct{}
+}
+
 type msgGate struct {
+	tryCh chan int
 	msgCh chan *message
 	quiet chan struct{}
 	done  chan struct{}
 }
 
-type message struct {
-	msg        string
-	flashTimes int
-	final      bool
-	done       chan struct{}
+func newMsgGate(quiet bool) msgGate {
+	gate := msgGate{
+		tryCh: make(chan int),
+		msgCh: make(chan *message, 2),
+		done:  make(chan struct{}),
+	}
+	if quiet {
+		gate.tryCh = nil
+		gate.msgCh = nil
+		gate.quiet = make(chan struct{})
+		close(gate.quiet)
+	}
+	return gate
 }
 
-type percentageDecorator struct {
+func (s msgGate) flash(msg *message) {
+	msg.times = 14
+	select {
+	case s.msgCh <- msg:
+	case <-s.quiet:
+		if msg.final && msg.done != nil {
+			close(msg.done)
+		}
+	case <-s.done:
+		if msg.final && msg.done != nil {
+			close(msg.done)
+		}
+	}
+}
+
+func (s msgGate) setRetry(r int) {
+	select {
+	case s.tryCh <- r:
+	case <-s.quiet:
+	case <-s.done:
+	}
+}
+
+type mainDecorator struct {
 	decor.WC
+	name     string
 	format   string
-	gate     msgGate
 	msg      *message
 	messages []*message
-	mu       sync.Mutex
-	entry    []*message
+	gate     msgGate
+
+	mu    sync.RWMutex
+	retry int
 }
 
-func newPercentageWithTotal(pairFormat string, g msgGate, wc decor.WC) decor.Decorator {
+func newMainDecorator(format, name string, gate msgGate, wc decor.WC) decor.Decorator {
 	wc.Init()
-	d := &percentageDecorator{
+	d := &mainDecorator{
 		WC:     wc,
-		format: pairFormat,
-		gate:   g,
+		name:   name,
+		format: format,
+		gate:   gate,
 	}
-	go d.receive()
+	go d.receiveTries()
 	return d
 }
 
-func (d *percentageDecorator) receive() {
+func (d *mainDecorator) receiveTries() {
 	for {
 		select {
-		case m := <-d.gate.msgCh:
+		case r := <-d.gate.tryCh:
 			d.mu.Lock()
-			d.entry = append(d.entry, m)
+			d.retry = r
 			d.mu.Unlock()
 		case <-d.gate.done:
 			return
@@ -58,11 +97,22 @@ func (d *percentageDecorator) receive() {
 	}
 }
 
-func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
+func (d *mainDecorator) depleteMessages() {
+	for {
+		select {
+		case m := <-d.gate.msgCh:
+			d.messages = append(d.messages, m)
+		default:
+			return
+		}
+	}
+}
+
+func (d *mainDecorator) Decor(stat *decor.Statistics) string {
 	if d.msg != nil {
 		m := d.msg.msg
-		if d.msg.flashTimes > 0 {
-			d.msg.flashTimes--
+		if d.msg.times > 0 {
+			d.msg.times--
 		} else if d.msg.final {
 			if d.msg.done != nil {
 				close(d.msg.done)
@@ -74,80 +124,24 @@ func (d *percentageDecorator) Decor(stat *decor.Statistics) string {
 		return d.FormatMsg(m)
 	}
 
-	d.mu.Lock()
-	if len(d.entry) > 0 {
-		d.messages = append(d.messages, d.entry[0])
-		copy(d.entry, d.entry[1:])
-		d.entry = d.entry[:len(d.entry)-1]
-	}
-	d.mu.Unlock()
+	d.depleteMessages()
 
 	if len(d.messages) > 0 {
 		d.msg = d.messages[0]
 		copy(d.messages, d.messages[1:])
 		d.messages = d.messages[:len(d.messages)-1]
-		d.msg.flashTimes--
+		d.msg.times--
 		return d.FormatMsg(d.msg.msg)
 	}
 
-	completed := percentage(stat.Total, stat.Current, 100)
-	msg := fmt.Sprintf(d.format, completed, decor.CounterKiB(stat.Total))
-	return d.FormatMsg(msg)
-}
-
-func (d *percentageDecorator) Shutdown() {
-	close(d.gate.done)
-}
-
-func percentage(total, current, ratio int64) float64 {
-	if total <= 0 {
-		return 0
-	}
-	return float64(ratio*current) / float64(total)
-}
-
-type tryGate struct {
-	msgCh chan string
-	quiet chan struct{}
-	done  chan struct{}
-}
-
-type triesDecorator struct {
-	decor.WC
-	gate tryGate
-	mu   sync.RWMutex
-	msg  string
-}
-
-func newTriesDecorator(g tryGate, wc decor.WC) decor.Decorator {
-	wc.Init()
-	d := &triesDecorator{
-		WC:   wc,
-		gate: g,
-	}
-	go d.receive()
-	return d
-}
-
-func (d *triesDecorator) receive() {
-	for {
-		select {
-		case m := <-d.gate.msgCh:
-			d.mu.Lock()
-			d.msg = m
-			d.mu.Unlock()
-		case <-d.gate.done:
-			return
-		}
-	}
-}
-
-func (d *triesDecorator) Decor(_ *decor.Statistics) string {
+	var sb strings.Builder
+	sb.WriteString(d.name)
 	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.FormatMsg(d.msg)
+	sb.WriteString(fmt.Sprintf(":R%02d", d.retry))
+	d.mu.RUnlock()
+	return d.FormatMsg(fmt.Sprintf(d.format, sb.String(), decor.CounterKiB(stat.Total)))
 }
 
-func (d *triesDecorator) Shutdown() {
+func (d *mainDecorator) Shutdown() {
 	close(d.gate.done)
 }

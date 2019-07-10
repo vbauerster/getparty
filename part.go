@@ -21,12 +21,12 @@ import (
 
 const (
 	bufSize      = 1 << 12
-	maxTry       = 10
+	maxTry       = 12
 	timeoutIncBy = 5
 )
 
 var (
-	ErrGiveUp  = fmt.Errorf("give up after %d tries", maxTry)
+	ErrGiveUp  = errors.New("give up!")
 	ErrNilBody = errors.New("nil body")
 )
 
@@ -43,49 +43,20 @@ type Part struct {
 	name      string
 	quiet     bool
 	dlogger   *log.Logger
-	bg        *barGate
 	transport *http.Transport
 }
 
-type barGate struct {
-	bar     *mpb.Bar
-	tryGate tryGate
-	msgGate msgGate
-}
-
-func newBarGate(progress *mpb.Progress, name string, order int, quiet bool, total int64) *barGate {
-
-	bg := &barGate{
-		tryGate: tryGate{
-			msgCh: make(chan string),
-			quiet: make(chan struct{}),
-			done:  make(chan struct{}),
-		},
-		msgGate: msgGate{
-			msgCh: make(chan *message),
-			quiet: make(chan struct{}),
-			done:  make(chan struct{}),
-		},
-	}
-	if quiet {
-		bg.tryGate.msgCh = nil
-		close(bg.tryGate.quiet)
-		bg.msgGate.msgCh = nil
-		close(bg.msgGate.quiet)
-	} else {
-		bg.tryGate.quiet = nil
-		bg.msgGate.quiet = nil
-	}
+func newBar(progress *mpb.Progress, gate msgGate, name string, order int, total int64) *mpb.Bar {
 	etaAge := math.Abs(float64(total))
 	if total > bufSize {
 		etaAge = float64(total) / float64(bufSize)
 	}
-	bg.bar = progress.AddBar(total, mpb.BarStyle("[=>-|"),
+	bar := progress.AddBar(total, mpb.BarStyle("|=>-|"),
 		mpb.BarPriority(order),
 		mpb.PrependDecorators(
-			decor.Name(name, decor.WCSyncWidth),
-			newTriesDecorator(bg.tryGate, decor.WCSyncWidth),
-			newPercentageWithTotal("%.1f%% of % .1f", bg.msgGate, decor.WCSyncSpace),
+			newMainDecorator("%s % .1f", name, gate, decor.WCSyncWidth),
+			decor.Name(" ["),
+			decor.Percentage(decor.WCSyncSpace),
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(
@@ -101,39 +72,16 @@ func newBarGate(progress *mpb.Progress, name string, order int, quiet bool, tota
 			decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
 		),
 	)
-
-	return bg
-}
-
-func (s *barGate) setTryMessage(msg string) {
-	select {
-	case s.tryGate.msgCh <- msg:
-	case <-s.msgGate.quiet:
-	case <-s.tryGate.done:
-	}
-}
-
-func (s *barGate) flashMessage(msg *message) {
-	msg.flashTimes = 14
-	select {
-	case s.msgGate.msgCh <- msg:
-	case <-s.msgGate.quiet:
-		if msg.final && msg.done != nil {
-			close(msg.done)
-		}
-	case <-s.msgGate.done:
-		if msg.final && msg.done != nil {
-			close(msg.done)
-		}
-	}
+	return bar
 }
 
 func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.Request, ctxTimeout uint) (err error) {
 
+	var bar *mpb.Bar
 	defer func() {
 		if err != nil {
-			if !p.isDone() && p.bg != nil {
-				p.bg.bar.Abort(false)
+			if !p.isDone() && bar != nil {
+				bar.Abort(false)
 			}
 			// just add method name, without stack trace at the point
 			err = errors.WithMessage(err, "download: "+p.name)
@@ -162,7 +110,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	)
 
 	total := p.Stop - p.Start + 1
-	p.bg = newBarGate(progress, p.name, p.order, p.quiet, total)
+	mg := newMsgGate(p.quiet)
+	bar = newBar(progress, mg, p.name, p.order, total)
 	initialWritten := p.Written
 	prefixSnap := p.dlogger.Prefix()
 
@@ -190,8 +139,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		case <-start.C:
 			if attempt > 0 {
 				ctxTimeout += timeoutIncBy
-				p.bg.flashMessage(&message{msg: "retrying..."})
-				p.bg.setTryMessage(fmt.Sprintf(":r#%02d", attempt))
+				mg.flash(&message{msg: "retrying..."})
+				mg.setRetry(attempt)
 			}
 			p.dlogger.Printf("ctxTimeout: %s", time.Duration(ctxTimeout)*time.Second)
 		case <-ctx.Done():
@@ -203,7 +152,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		timer := time.AfterFunc(time.Duration(ctxTimeout)*time.Second, func() {
 			cancel()
 			msg := "timeout..."
-			p.bg.flashMessage(&message{msg: msg})
+			mg.flash(&message{msg: msg})
 			p.dlogger.Print(msg)
 		})
 		defer timer.Stop()
@@ -227,12 +176,12 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			// no partial content, so download with single part
 			if p.order > 0 {
 				p.Skip = true
-				p.bg.bar.Abort(true)
+				bar.Abort(true)
 				p.dlogger.Print("no partial content, skipping...")
 				return false, nil
 			}
 			total = resp.ContentLength
-			p.bg.bar.SetTotal(total, false)
+			bar.SetTotal(total, false)
 			p.Stop = total - 1
 			p.dlogger.Printf("resetting written: %d", p.Written)
 			p.Written = 0
@@ -242,15 +191,15 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 		if p.Written > 0 {
 			p.dlogger.Printf("bar refill written: %d", p.Written)
-			p.bg.bar.SetRefill(p.Written)
+			bar.SetRefill(p.Written)
 			if p.Written-initialWritten == 0 {
-				p.bg.bar.IncrBy(int(p.Written), p.Elapsed)
+				bar.IncrBy(int(p.Written), p.Elapsed)
 			}
 		}
 
 		max := int64(bufSize)
 		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-		body := p.bg.bar.ProxyReader(resp.Body)
+		body := bar.ProxyReader(resp.Body)
 		if body == nil {
 			return false, ErrNilBody
 		}
@@ -263,7 +212,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			if err != nil {
 				p.dlogger.Printf("CopyN err: %s", err.Error())
 				if ue, ok := err.(*url.Error); ok {
-					p.bg.flashMessage(&message{
+					mg.flash(&message{
 						msg: fmt.Sprintf("%.28s...", ue.Err.Error()),
 					})
 					if ue.Temporary() {
@@ -276,7 +225,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			n, _ = io.Copy(fpart, buf)
 			p.Written += n
 			if total <= 0 {
-				p.bg.bar.SetTotal(p.Written+max*2, false)
+				bar.SetTotal(p.Written+max*2, false)
 			}
 			max = bufSize
 		}
@@ -286,7 +235,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		p.dlogger.Printf("total written: %d", p.Written-pWrittenSnap)
 		if total <= 0 {
 			p.Stop = p.Written - 1
-			p.bg.bar.SetTotal(p.Written, err == io.EOF)
+			bar.SetTotal(p.Written, err == io.EOF)
 		}
 		if p.isDone() || ctx.Err() != nil {
 			return false, ctx.Err()
@@ -297,7 +246,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 	if err == ErrGiveUp {
 		done := make(chan struct{})
-		p.bg.flashMessage(&message{
+		mg.flash(&message{
 			msg:   err.Error(),
 			final: true,
 			done:  done,
