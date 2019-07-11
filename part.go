@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/VividCortex/ewma"
@@ -38,23 +39,24 @@ type Part struct {
 	Elapsed  time.Duration
 	Skip     bool
 
+	name      string
 	order     int
 	maxTry    int
-	name      string
+	curTry    int32
 	quiet     bool
 	dlogger   *log.Logger
 	transport *http.Transport
 }
 
-func newBar(progress *mpb.Progress, gate msgGate, name string, order int, total int64) *mpb.Bar {
+func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.Bar {
 	etaAge := math.Abs(float64(total))
 	if total > bufSize {
 		etaAge = float64(total) / float64(bufSize)
 	}
 	bar := progress.AddBar(total, mpb.BarStyle("|=>-|"),
-		mpb.BarPriority(order),
+		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
-			newMainDecorator("%s % .1f", name, gate, decor.WCSyncWidth),
+			newMainDecorator("%s % .1f", p.name, &p.curTry, gate, decor.WCSyncWidth),
 			decor.Name(" ["),
 			decor.Percentage(decor.WCSyncSpace),
 		),
@@ -111,7 +113,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 	total := p.Stop - p.Start + 1
 	mg := newMsgGate(p.quiet)
-	bar = newBar(progress, mg, p.name, p.order, total)
+	bar = p.makeBar(total, progress, mg)
 	initialWritten := p.Written
 	prefixSnap := p.dlogger.Prefix()
 
@@ -140,7 +142,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			if attempt > 0 {
 				ctxTimeout += timeoutIncBy
 				mg.flash(&message{msg: "retrying..."})
-				mg.setRetry(attempt)
+				atomic.StoreInt32(&p.curTry, int32(attempt))
 			}
 			p.dlogger.Printf("ctxTimeout: %s", time.Duration(ctxTimeout)*time.Second)
 		case <-ctx.Done():

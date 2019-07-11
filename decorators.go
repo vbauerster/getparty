@@ -2,8 +2,7 @@ package getparty
 
 import (
 	"fmt"
-	"strings"
-	"sync"
+	"sync/atomic"
 
 	"github.com/vbauerster/mpb/v4/decor"
 )
@@ -16,7 +15,6 @@ type message struct {
 }
 
 type msgGate struct {
-	tryCh chan int
 	msgCh chan *message
 	quiet chan struct{}
 	done  chan struct{}
@@ -24,12 +22,10 @@ type msgGate struct {
 
 func newMsgGate(quiet bool) msgGate {
 	gate := msgGate{
-		tryCh: make(chan int),
-		msgCh: make(chan *message, 2),
+		msgCh: make(chan *message, 4),
 		done:  make(chan struct{}),
 	}
 	if quiet {
-		gate.tryCh = nil
 		gate.msgCh = nil
 		gate.quiet = make(chan struct{})
 		close(gate.quiet)
@@ -52,49 +48,26 @@ func (s msgGate) flash(msg *message) {
 	}
 }
 
-func (s msgGate) setRetry(r int) {
-	select {
-	case s.tryCh <- r:
-	case <-s.quiet:
-	case <-s.done:
-	}
-}
-
 type mainDecorator struct {
 	decor.WC
-	name     string
 	format   string
-	msg      *message
+	name     string
+	curTry   *int32
+	flashMsg *message
 	messages []*message
 	gate     msgGate
-
-	mu    sync.RWMutex
-	retry int
 }
 
-func newMainDecorator(format, name string, gate msgGate, wc decor.WC) decor.Decorator {
+func newMainDecorator(format, name string, curTry *int32, gate msgGate, wc decor.WC) decor.Decorator {
 	wc.Init()
 	d := &mainDecorator{
 		WC:     wc,
-		name:   name,
 		format: format,
+		name:   name,
+		curTry: curTry,
 		gate:   gate,
 	}
-	go d.receiveTries()
 	return d
-}
-
-func (d *mainDecorator) receiveTries() {
-	for {
-		select {
-		case r := <-d.gate.tryCh:
-			d.mu.Lock()
-			d.retry = r
-			d.mu.Unlock()
-		case <-d.gate.done:
-			return
-		}
-	}
 }
 
 func (d *mainDecorator) depleteMessages() {
@@ -109,17 +82,17 @@ func (d *mainDecorator) depleteMessages() {
 }
 
 func (d *mainDecorator) Decor(stat *decor.Statistics) string {
-	if d.msg != nil {
-		m := d.msg.msg
-		if d.msg.times > 0 {
-			d.msg.times--
-		} else if d.msg.final {
-			if d.msg.done != nil {
-				close(d.msg.done)
-				d.msg.done = nil
+	if d.flashMsg != nil {
+		m := d.flashMsg.msg
+		if d.flashMsg.times > 0 {
+			d.flashMsg.times--
+		} else if d.flashMsg.final {
+			if d.flashMsg.done != nil {
+				close(d.flashMsg.done)
+				d.flashMsg.done = nil
 			}
 		} else {
-			d.msg = nil
+			d.flashMsg = nil
 		}
 		return d.FormatMsg(m)
 	}
@@ -127,19 +100,15 @@ func (d *mainDecorator) Decor(stat *decor.Statistics) string {
 	d.depleteMessages()
 
 	if len(d.messages) > 0 {
-		d.msg = d.messages[0]
+		d.flashMsg = d.messages[0]
 		copy(d.messages, d.messages[1:])
 		d.messages = d.messages[:len(d.messages)-1]
-		d.msg.times--
-		return d.FormatMsg(d.msg.msg)
+		d.flashMsg.times--
+		return d.FormatMsg(d.flashMsg.msg)
 	}
 
-	var sb strings.Builder
-	sb.WriteString(d.name)
-	d.mu.RLock()
-	sb.WriteString(fmt.Sprintf(":R%02d", d.retry))
-	d.mu.RUnlock()
-	return d.FormatMsg(fmt.Sprintf(d.format, sb.String(), decor.CounterKiB(stat.Total)))
+	name := fmt.Sprintf("%s:R%02d", d.name, atomic.LoadInt32(d.curTry))
+	return d.FormatMsg(fmt.Sprintf(d.format, name, decor.CounterKiB(stat.Total)))
 }
 
 func (d *mainDecorator) Shutdown() {
