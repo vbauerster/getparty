@@ -36,8 +36,8 @@ type Part struct {
 	Start    int64
 	Stop     int64
 	Written  int64
-	Elapsed  time.Duration
 	Skip     bool
+	Elapsed  time.Duration
 
 	name      string
 	order     int
@@ -196,6 +196,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			bar.SetRefill(p.Written)
 			if p.Written-initialWritten == 0 {
 				bar.IncrBy(int(p.Written), p.Elapsed)
+				bar.AdjustAverageDecorators(time.Now().Add(-p.Elapsed))
 			}
 		}
 
