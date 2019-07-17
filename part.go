@@ -129,7 +129,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, attempt))
 
 		dur := bOff.Backoff(attempt + 1)
-		start := time.NewTimer(dur)
+		startTimer := time.NewTimer(dur)
 
 		req.Header.Set(hRange, p.getRange())
 		p.dlogger.Printf("GET %q", req.URL)
@@ -138,15 +138,20 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		p.dlogger.Printf("backoff sleep: %s", dur)
 
 		select {
-		case <-start.C:
+		case startTime := <-startTimer.C:
+			defer func() {
+				p.Elapsed += time.Since(startTime)
+			}()
 			if attempt > 0 {
 				ctxTimeout += timeoutIncBy
 				mg.flash(&message{msg: "retrying..."})
 				atomic.StoreInt32(&p.curTry, int32(attempt))
+			} else {
+				bar.AdjustAverageDecorators(startTime)
 			}
 			p.dlogger.Printf("ctxTimeout: %s", time.Duration(ctxTimeout)*time.Second)
 		case <-ctx.Done():
-			start.Stop()
+			startTimer.Stop()
 			return false, ctx.Err()
 		}
 		cctx, cancel := context.WithCancel(ctx)
@@ -165,11 +170,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			p.dlogger.Printf("client do: %s", err.Error())
 			return ctx.Err() == nil, err
 		}
-
-		startTime := time.Now()
-		defer func() {
-			p.Elapsed += time.Since(startTime)
-		}()
 
 		p.dlogger.Printf("resp.Status: %s", resp.Status)
 		p.dlogger.Printf("resp.ContentLength: %d", resp.ContentLength)
