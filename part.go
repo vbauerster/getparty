@@ -200,15 +200,17 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 		}
 
-		max := int64(bufSize)
-		buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-		body := bar.ProxyReader(resp.Body)
+		body := resp.Body
+		if !p.quiet {
+			body = bar.ProxyReader(resp.Body)
+		}
 		if body == nil {
 			return false, ErrNilBody
 		}
 		defer body.Close()
 
 		pWrittenSnap := p.Written
+		buf, max := bytes.NewBuffer(make([]byte, 0, bufSize)), int64(bufSize)
 		var n int64
 		for timer.Reset(time.Duration(ctxTimeout) * time.Second) {
 			n, err = io.CopyN(buf, body, max)
