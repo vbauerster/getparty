@@ -33,7 +33,7 @@ Application Options:
   -u, --username=                             basic http auth username
       --password=                             basic http auth password
       --header=key:value                      arbitrary http header
-      --no-check-certificate                  don't validate the server's certificate
+      --no-check-cert                         don't validate the server's certificate
       --debug                                 enable debug to stderr
       --version                               show version
 
