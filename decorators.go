@@ -108,7 +108,7 @@ func (d *mainDecorator) Decor(stat *decor.Statistics) string {
 	}
 
 	name := fmt.Sprintf("%s:R%02d", d.name, atomic.LoadInt32(d.curTry))
-	return d.FormatMsg(fmt.Sprintf(d.format, name, decor.CounterKiB(stat.Total)))
+	return d.FormatMsg(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
 }
 
 func (d *mainDecorator) Shutdown() {

@@ -161,14 +161,14 @@ func (s Session) totalWritten() int64 {
 }
 
 func (s Session) writeSummary(w io.Writer) {
-	humanSize := decor.CounterKiB(s.ContentLength)
+	humanSize := decor.SizeB1024(s.ContentLength)
 	format := fmt.Sprintf("Length: %%s [%s]\n", s.ContentType)
 	lengthSummary := "unknown"
 	if s.ContentLength >= 0 {
 		lengthSummary = fmt.Sprintf("%d (% .2f)", s.ContentLength, humanSize)
 		if totalWritten := s.totalWritten(); totalWritten > 0 {
 			remaining := s.ContentLength - totalWritten
-			lengthSummary += fmt.Sprintf(", %d (% .2f) remaining", remaining, decor.CounterKiB(remaining))
+			lengthSummary += fmt.Sprintf(", %d (% .2f) remaining", remaining, decor.SizeB1024(remaining))
 		}
 	}
 	fmt.Fprintf(w, format, lengthSummary)
