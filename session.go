@@ -82,7 +82,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 		mpb.PrependDecorators(
 			decor.Name("concatenating:", decor.WCSyncWidth),
 			decor.Name(" ["),
-			decor.Percentage(decor.WCSyncSpace),
+			decor.NewPercentage("%d", decor.WCSyncSpace),
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), "done!"),
