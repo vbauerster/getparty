@@ -39,7 +39,8 @@ changelog:
     exclude:
     - '^docs:'
     - '^test:'
-brew:
+brews:
+-
   commit_author:
     email: vbauerster@gmail.com
     name:  vbauerster
