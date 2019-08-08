@@ -16,19 +16,15 @@ type message struct {
 
 type msgGate struct {
 	msgCh chan *message
-	quiet chan struct{}
 	done  chan struct{}
 }
 
 func newMsgGate(quiet bool) msgGate {
 	gate := msgGate{
-		msgCh: make(chan *message, 4),
-		done:  make(chan struct{}),
+		done: make(chan struct{}),
 	}
-	if quiet {
-		gate.msgCh = nil
-		gate.quiet = make(chan struct{})
-		close(gate.quiet)
+	if !quiet {
+		gate.msgCh = make(chan *message, 4)
 	}
 	return gate
 }
@@ -37,10 +33,6 @@ func (s msgGate) flash(msg *message) {
 	msg.times = 14
 	select {
 	case s.msgCh <- msg:
-	case <-s.quiet:
-		if msg.final && msg.done != nil {
-			close(msg.done)
-		}
 	case <-s.done:
 		if msg.final && msg.done != nil {
 			close(msg.done)
