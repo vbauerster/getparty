@@ -183,18 +183,17 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				return false, errors.Errorf("unexpected status: %s", resp.Status)
 			}
 
-			if p.Written > 0 {
-				p.dlogger.Printf("bar refill written: %d", p.Written)
-				bar.SetRefill(p.Written)
-				if p.Written-initialWritten == 0 {
-					bar.IncrBy(int(p.Written), p.Elapsed)
-					bar.AdjustAverageDecorators(time.Now().Add(-p.Elapsed))
-				}
-			}
-
 			body := resp.Body
 			if !p.quiet {
 				body = bar.ProxyReader(resp.Body)
+				if p.Written > 0 {
+					p.dlogger.Printf("bar refill written: %d", p.Written)
+					bar.SetRefill(p.Written)
+					if p.Written-initialWritten == 0 {
+						bar.IncrBy(int(p.Written), p.Elapsed)
+						bar.AdjustAverageDecorators(time.Now().Add(-p.Elapsed))
+					}
+				}
 			} else {
 				bar.Abort(true)
 			}
