@@ -6,8 +6,8 @@ github.com/jessevdk/go-flags v1.4.0 h1:4IU2WS7AumrZ/40jfhf4QVDMsQwqA7VEHozFRrGAR
 github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
 github.com/pkg/errors v0.8.1 h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
-github.com/vbauerster/backoff v0.0.0-20181208103505-4a397a2ed207 h1:mruvor5aQskq3fC4VuuC+lCcfF7FMNlyOdH7ZYuwh2A=
-github.com/vbauerster/backoff v0.0.0-20181208103505-4a397a2ed207/go.mod h1:4n8MUPanyimvPJGVSIdWstdHjBIj7lKd2zdz1opy34I=
+github.com/vbauerster/backoff v0.0.0-20190808210930-2e41ebfd67b4 h1:OpS2UC4Ot22PSQHWYp6p9ws0mlZctqUvuPibbdKPX/Y=
+github.com/vbauerster/backoff v0.0.0-20190808210930-2e41ebfd67b4/go.mod h1:4n8MUPanyimvPJGVSIdWstdHjBIj7lKd2zdz1opy34I=
 github.com/vbauerster/mpb/v4 v4.9.1 h1:MJ8bzewKBxC4fgaxIhqCFrBT6o8CAZFpyYX+b4kfNiQ=
 github.com/vbauerster/mpb/v4 v4.9.1/go.mod h1:MM0Eq8ttL3Nwb/Rd5X25NH4ONvi3n7V2D4acLUrxAYo=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
