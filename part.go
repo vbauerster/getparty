@@ -146,7 +146,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 			p.dlogger.Printf("ctxTimeout: %s", ctxTimeout)
 
-			cctx, cancel := context.WithCancel(ctx)
+			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			timer := time.AfterFunc(ctxTimeout, func() {
 				msg := "timeout..."
@@ -157,7 +157,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			defer timer.Stop()
 
 			client := &http.Client{Transport: p.transport}
-			resp, err := client.Do(req.WithContext(cctx))
+			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
 				p.dlogger.Printf("client do: %s", err.Error())
 				return true, err
