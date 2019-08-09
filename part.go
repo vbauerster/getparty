@@ -82,11 +82,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	var bar *mpb.Bar
 	defer func() {
 		if err != nil {
-			if !p.isDone() && bar != nil {
+			if bar != nil && !p.isDone() && !p.quiet {
 				bar.Abort(false)
 			}
-			// just add method name, without stack trace at the point
-			err = errors.WithMessage(err, "download: "+p.name)
+			err = errors.WithMessage(err, p.name)
 		}
 		p.dlogger.Printf("quit: %v", err)
 	}()
