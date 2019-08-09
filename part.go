@@ -117,8 +117,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	err = backoff.Retry(ctx,
 		exponential.New(exponential.WithBaseDelay(50*time.Millisecond)),
 		3*time.Minute,
-		func(attempt int, now time.Time) (retry bool, err error) {
-			if attempt > p.maxTry {
+		func(count int, now time.Time) (retry bool, err error) {
+			if count > p.maxTry {
 				return false, ErrGiveUp
 			}
 			if p.isDone() {
@@ -126,7 +126,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				return false, nil
 			}
 
-			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, attempt))
+			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, count))
 
 			req.Header.Set(hRange, p.getRange())
 			p.dlogger.Printf("GET %q", req.URL)
@@ -137,10 +137,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				p.Elapsed += time.Since(now)
 			}()
 
-			if attempt > 0 {
-				ctxTimeout = time.Duration((1<<uint(attempt))*(timeout-5)) * time.Second
+			if count > 0 {
+				ctxTimeout = time.Duration((1<<uint(count))*(timeout-5)) * time.Second
 				mg.flash(&message{msg: "retrying..."})
-				atomic.StoreInt32(&p.curTry, int32(attempt))
+				atomic.StoreInt32(&p.curTry, int32(count))
 			} else {
 				bar.AdjustAverageDecorators(now)
 			}
