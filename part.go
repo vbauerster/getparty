@@ -209,11 +209,11 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				n, err = io.CopyN(buf, body, max)
 				if err != nil {
 					p.dlogger.Printf("CopyN err: %s", err.Error())
-					if ue, ok := err.(*url.Error); ok {
+					if e, ok := err.(*url.Error); ok {
 						mg.flash(&message{
-							msg: fmt.Sprintf("%.30s..", ue.Err.Error()),
+							msg: fmt.Sprintf("%.30s..", e.Err.Error()),
 						})
-						if ue.Temporary() {
+						if e.Temporary() {
 							max -= n
 							continue
 						}
