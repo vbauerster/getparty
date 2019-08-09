@@ -235,6 +235,9 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				p.Stop = p.Written - 1
 			}
 
+			if err == io.EOF {
+				return false, nil
+			}
 			return !p.isDone(), err
 		})
 
