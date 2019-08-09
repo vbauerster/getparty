@@ -96,11 +96,11 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	}
 	defer func() {
 		if err := fpart.Close(); err != nil {
-			p.dlogger.Printf("%q close error: %v", fpart.Name(), err)
+			p.dlogger.Printf("%q close error: %s", fpart.Name(), err.Error())
 		}
 		if p.Skip {
 			if err := os.Remove(fpart.Name()); err != nil {
-				p.dlogger.Printf("%q remove error: %v", fpart.Name(), err)
+				p.dlogger.Printf("%q remove error: %s", fpart.Name(), err.Error())
 			}
 		}
 	}()
