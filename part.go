@@ -109,9 +109,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	mg := newMsgGate(p.quiet)
 	bar = p.makeBar(total, progress, mg)
 	initialWritten := p.Written
-	prefixSnap := p.dlogger.Prefix()
-
-	ctxTimeout := time.Duration(timeout) * time.Second
+	prefix := p.dlogger.Prefix()
 
 	err = backoff.Retry(ctx,
 		exponential.New(exponential.WithBaseDelay(50*time.Millisecond)),
@@ -125,7 +123,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				return false, nil
 			}
 
-			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefixSnap, count))
+			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefix, count))
 
 			req.Header.Set(hRange, p.getRange())
 			p.dlogger.Printf("GET %q", req.URL)
@@ -136,6 +134,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				p.Elapsed += time.Since(now)
 			}()
 
+			ctxTimeout := time.Duration(timeout) * time.Second
 			if count > 0 {
 				ctxTimeout = time.Duration((1<<uint(count-1))*timeout) * time.Second
 				if ctxTimeout > time.Hour {

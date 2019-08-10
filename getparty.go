@@ -73,7 +73,8 @@ type Options struct {
 }
 
 type Cmd struct {
-	Out, Err io.Writer
+	Out      io.Writer
+	Err      io.Writer
 	userInfo *url.Userinfo
 	options  *Options
 	parser   *flags.Parser
