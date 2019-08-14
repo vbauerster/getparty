@@ -176,7 +176,7 @@ func (s Session) writeSummary(w io.Writer) {
 		fmt.Fprintf(w, "MD5: %s\n", s.ContentMD5)
 	}
 	if !s.isAcceptRanges() {
-		fmt.Fprintln(w, "Looks like server doesn't accept ranges (no party, no resume)")
+		fmt.Fprintln(w, "HTTP server doesn't seem to support byte ranges. Cannot resume.")
 	}
 	fmt.Fprintf(w, "Saving to: %q\n\n", s.SuggestedFileName)
 }
