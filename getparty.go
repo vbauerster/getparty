@@ -135,18 +135,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		return new(flags.Error)
 	}
 
-	if cmd.options.Quiet {
-		cmd.Out = ioutil.Discard
-	}
-	cmd.logger = log.New(cmd.Out, "", log.LstdFlags)
-	cmd.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
-	if cmd.options.Debug {
-		cmd.dlogger.SetOutput(cmd.Err)
-	}
-
-	ctx, cancel := backgroundContext()
-	defer cancel()
-
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
 			cmd.options.AuthPass, err = cmd.readPassword()
@@ -156,6 +144,18 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 		cmd.userInfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
+
+	cmd.logger = log.New(cmd.Out, "", log.LstdFlags)
+	if cmd.options.Quiet {
+		cmd.logger.SetOutput(ioutil.Discard)
+	}
+	cmd.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
+	if cmd.options.Debug {
+		cmd.dlogger.SetOutput(cmd.Err)
+	}
+
+	ctx, cancel := backgroundContext()
+	defer cancel()
 
 	var userUrl string
 	var lastSession *Session
@@ -226,7 +226,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		session.Parts = session.calcParts(int64(cmd.options.Parts))
 		if _, err := os.Stat(session.SuggestedFileName); err == nil {
 			var answer string
-			fmt.Printf("File %q already exists, overwrite? [y/n] ", session.SuggestedFileName)
+			fmt.Fprintf(cmd.Out, "File %q already exists, overwrite? [y/n] ", session.SuggestedFileName)
 			if _, err := fmt.Scanf("%s", &answer); err != nil {
 				return err
 			}
@@ -241,15 +241,13 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 	}
 
-	session.writeSummary(cmd.Out)
+	if !cmd.options.Quiet {
+		session.writeSummary(cmd.Out)
+	}
 	progress := mpb.NewWithContext(ctx,
-		mpb.WithOutput(cmd.Out),
-		mpb.ContainerOptOnCond(mpb.WithDebugOutput(cmd.Err), func() bool {
-			return cmd.options.Debug
-		}),
-		mpb.ContainerOptOnCond(mpb.WithManualRefresh(make(chan time.Time)), func() bool {
-			return cmd.options.Quiet
-		}),
+		mpb.ContainerOptOnCond(mpb.WithOutput(cmd.Out), func() bool { return !cmd.options.Quiet }),
+		mpb.ContainerOptOnCond(mpb.WithDebugOutput(cmd.Err), func() bool { return cmd.options.Debug }),
+		mpb.ContainerOptOnCond(mpb.WithManualRefresh(make(chan time.Time)), func() bool { return cmd.options.Quiet }),
 		mpb.WithRefreshRate(180*time.Millisecond),
 		mpb.WithWidth(60),
 	)
