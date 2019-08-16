@@ -140,8 +140,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			ctxTimeout := time.Duration(timeout) * time.Second
 			if count > 0 {
 				ctxTimeout = time.Duration((1<<uint(count-1))*timeout) * time.Second
-				if ctxTimeout > time.Hour {
-					ctxTimeout = time.Hour
+				if bound := 10 * time.Minute; ctxTimeout > bound {
+					ctxTimeout = bound
 				}
 				mg.flash(&message{msg: "retrying..."})
 				atomic.StoreInt32(&p.curTry, int32(count))
