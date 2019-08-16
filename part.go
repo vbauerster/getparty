@@ -58,7 +58,10 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 		mpb.PrependDecorators(
 			newMainDecorator("%s %.2f", p.name, &p.curTry, gate, decor.WCSyncWidth),
 			decor.Name(" ["),
-			decor.NewPercentage("%d", decor.WCSyncSpace),
+			decor.OnComplete(
+				decor.NewPercentage("%.2f", decor.WCSyncSpace),
+				"100%",
+			),
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(
