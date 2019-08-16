@@ -116,7 +116,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 	err = backoff.Retry(ctx,
 		exponential.New(exponential.WithBaseDelay(50*time.Millisecond)),
-		3*time.Minute,
+		time.Minute,
 		func(count int, now time.Time) (retry bool, err error) {
 			if count > p.maxTry {
 				return false, ErrGiveUp
