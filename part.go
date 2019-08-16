@@ -170,8 +170,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			p.dlogger.Printf("resp.Status: %s", resp.Status)
 			p.dlogger.Printf("resp.ContentLength: %d", resp.ContentLength)
 
-			if resp.StatusCode == http.StatusOK {
-				// no partial content, so download with single part
+			switch resp.StatusCode {
+			case http.StatusOK: // no partial content, so download with single part
 				if p.order > 0 {
 					p.Skip = true
 					bar.Abort(true)
@@ -183,8 +183,19 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				p.Stop = total - 1
 				p.dlogger.Printf("resetting written: %d", p.Written)
 				p.Written = 0
-			} else if resp.StatusCode != http.StatusPartialContent {
-				return false, errors.Errorf("unexpected status: %s", resp.Status)
+			case http.StatusForbidden:
+				flushed := make(chan struct{})
+				mg.flash(&message{
+					msg:   resp.Status,
+					final: true,
+					done:  flushed,
+				})
+				<-flushed
+				fallthrough
+			default:
+				if resp.StatusCode != http.StatusPartialContent {
+					return false, errors.Errorf("unexpected status: %s", resp.Status)
+				}
 			}
 
 			body := resp.Body
