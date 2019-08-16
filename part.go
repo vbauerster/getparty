@@ -66,12 +66,12 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 		mpb.AppendDecorators(
 			decor.OnComplete(
 				decor.MovingAverageETA(
-					decor.ET_STYLE_MMSS,
+					decor.ET_STYLE_GO,
 					ewma.NewMovingAverage(etaAge),
 					decor.MaxTolerateTimeNormalizer(180*time.Second),
 					decor.WCSyncWidth,
 				),
-				"done!",
+				"ok!",
 			),
 			decor.Name(" ]"),
 			decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
