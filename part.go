@@ -246,13 +246,13 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		})
 
 	if err == ErrGiveUp {
-		done := make(chan struct{})
+		flushed := make(chan struct{})
 		mg.flash(&message{
 			msg:   err.Error(),
 			final: true,
-			done:  done,
+			done:  flushed,
 		})
-		<-done
+		<-flushed
 	}
 
 	return err
