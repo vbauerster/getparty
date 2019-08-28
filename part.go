@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -49,14 +48,10 @@ type Part struct {
 }
 
 func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.Bar {
-	etaAge := math.Abs(float64(total))
-	if total > bufSize {
-		etaAge = float64(total) / float64(bufSize)
-	}
 	bar := progress.AddBar(total, mpb.BarStyle("|=>-|"),
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
-			newMainDecorator("%s %.2f", p.name, &p.curTry, gate, decor.WCSyncWidth),
+			newMainDecorator("%s %.2f", p.name, &p.curTry, gate, decor.WCSyncWidthR),
 			decor.Name(" ["),
 			decor.OnComplete(
 				decor.NewPercentage("%.2f", decor.WCSyncSpace),
@@ -67,14 +62,14 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 			decor.OnComplete(
 				decor.MovingAverageETA(
 					decor.ET_STYLE_GO,
-					ewma.NewMovingAverage(etaAge),
+					ewma.NewMovingAverage(666),
 					decor.MaxTolerateTimeNormalizer(180*time.Second),
-					decor.WCSyncWidth,
+					decor.WCSyncWidthR,
 				),
-				"ok!",
+				"done!",
 			),
 			decor.Name(" ]"),
-			decor.AverageSpeed(decor.UnitKiB, "% .2f", decor.WCSyncSpace),
+			decor.EwmaSpeed(decor.UnitKiB, "% .2f", 333, decor.WCSyncSpace),
 		),
 	)
 	return bar
@@ -109,7 +104,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	}()
 
 	total := p.Stop - p.Start + 1
-	mg := newMsgGate(p.quiet)
+	mg := newMsgGate(p.name, p.quiet)
 	bar = p.makeBar(total, progress, mg)
 	initialWritten := p.Written
 	prefix := p.dlogger.Prefix()

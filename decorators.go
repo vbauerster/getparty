@@ -15,13 +15,15 @@ type message struct {
 }
 
 type msgGate struct {
-	msgCh chan *message
-	done  chan struct{}
+	prefix string
+	msgCh  chan *message
+	done   chan struct{}
 }
 
-func newMsgGate(quiet bool) msgGate {
+func newMsgGate(prefix string, quiet bool) msgGate {
 	gate := msgGate{
-		done: make(chan struct{}),
+		prefix: prefix,
+		done:   make(chan struct{}),
 	}
 	if !quiet {
 		gate.msgCh = make(chan *message, 4)
@@ -31,6 +33,7 @@ func newMsgGate(quiet bool) msgGate {
 
 func (s msgGate) flash(msg *message) {
 	msg.times = 14
+	msg.msg = fmt.Sprintf("%s: %s", s.prefix, msg.msg)
 	select {
 	case s.msgCh <- msg:
 	case <-s.done:
