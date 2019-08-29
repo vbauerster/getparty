@@ -62,14 +62,14 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 			decor.OnComplete(
 				decor.MovingAverageETA(
 					decor.ET_STYLE_GO,
-					ewma.NewMovingAverage(666),
-					decor.MaxTolerateTimeNormalizer(180*time.Second),
+					ewma.NewMovingAverage(90),
+					decor.FixedIntervalTimeNormalizer(60),
 					decor.WCSyncWidthR,
 				),
 				"done!",
 			),
 			decor.Name(" ]"),
-			decor.EwmaSpeed(decor.UnitKiB, "% .2f", 333, decor.WCSyncSpace),
+			decor.EwmaSpeed(decor.UnitKiB, "% .2f", 0, decor.WCSyncSpace),
 		),
 	)
 	return bar
