@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/VividCortex/ewma"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
@@ -60,16 +59,16 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(
-				decor.MovingAverageETA(
+				decor.NewAverageETA(
 					decor.ET_STYLE_GO,
-					ewma.NewMovingAverage(90),
+					time.Now(),
 					decor.FixedIntervalTimeNormalizer(60),
 					decor.WCSyncWidthR,
 				),
 				"done!",
 			),
 			decor.Name(" ]"),
-			decor.EwmaSpeed(decor.UnitKiB, "% .2f", 0, decor.WCSyncSpace),
+			decor.EwmaSpeed(decor.UnitKiB, "% .2f", 60, decor.WCSyncSpace),
 		),
 	)
 	return bar
