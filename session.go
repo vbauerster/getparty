@@ -81,12 +81,11 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 		mpb.BarPriority(len(s.Parts)),
 		mpb.PrependDecorators(
 			decor.Name("concatenating:", decor.WCSyncWidth),
-			decor.Name(" ["),
 			decor.NewPercentage("%d", decor.WCSyncSpace),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), "done!"),
-			decor.Name(" ]"),
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_GO, decor.WCSyncSpaceR), "done"),
+			decor.OnComplete(decor.Name(""), "✓"),
 		),
 	)
 	defer func() {

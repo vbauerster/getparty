@@ -51,11 +51,7 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
 			newMainDecorator("%s %.2f", p.name, &p.curTry, gate, decor.WCSyncWidthR),
-			decor.Name(" ["),
-			decor.OnComplete(
-				decor.NewPercentage("%.2f", decor.WCSyncSpace),
-				"100%",
-			),
+			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(
@@ -63,11 +59,11 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 					decor.ET_STYLE_GO,
 					time.Now(),
 					decor.FixedIntervalTimeNormalizer(60),
-					decor.WCSyncWidthR,
+					decor.WCSyncSpaceR,
 				),
-				"done!",
+				"done",
 			),
-			decor.Name(" ]"),
+			decor.OnComplete(decor.Spinner(nil), "✓"),
 			decor.EwmaSpeed(decor.UnitKiB, "% .2f", 60, decor.WCSyncSpace),
 		),
 	)
