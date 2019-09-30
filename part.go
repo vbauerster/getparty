@@ -47,7 +47,9 @@ type Part struct {
 }
 
 func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.Bar {
-	bar := progress.AddBar(total, mpb.BarStyle("|=>-|"),
+	bar := progress.AddBar(total,
+		mpb.TrimSpace(),
+		mpb.BarStyle(" =>- "),
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
 			newMainDecorator("%s %.2f", p.name, &p.curTry, gate, decor.WCSyncWidthR),
@@ -56,14 +58,13 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 		mpb.AppendDecorators(
 			decor.OnComplete(
 				decor.NewAverageETA(
-					decor.ET_STYLE_GO,
+					decor.ET_STYLE_MMSS,
 					time.Now(),
 					decor.FixedIntervalTimeNormalizer(60),
-					decor.WCSyncSpaceR,
+					decor.WCSyncWidth,
 				),
-				"done",
+				"done!",
 			),
-			decor.OnComplete(decor.Spinner(nil), "✓"),
 			decor.EwmaSpeed(decor.UnitKiB, "% .2f", 60, decor.WCSyncSpace),
 		),
 	)

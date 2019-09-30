@@ -77,15 +77,16 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 		return err
 	}
 
-	bar := progress.AddBar(int64(len(s.Parts)-1), mpb.BarStyle("|=>-|"),
+	bar := progress.AddBar(int64(len(s.Parts)-1),
+		mpb.TrimSpace(),
+		mpb.BarStyle(" =>- "),
 		mpb.BarPriority(len(s.Parts)),
 		mpb.PrependDecorators(
 			decor.Name("concatenating:", decor.WCSyncWidth),
 			decor.NewPercentage("%d", decor.WCSyncSpace),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_GO, decor.WCSyncSpaceR), "done"),
-			decor.OnComplete(decor.Name(""), "✓"),
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), "done!"),
 		),
 	)
 	defer func() {
