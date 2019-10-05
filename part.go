@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/VividCortex/ewma"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
@@ -47,12 +48,13 @@ type Part struct {
 }
 
 func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.Bar {
+	spm, spc := newCompoundSpeed("%.1f", ewma.NewMovingAverage(60), decor.WCSyncSpace)
 	bar := progress.AddBar(total,
 		mpb.TrimSpace(),
 		mpb.BarStyle(" =>- "),
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
-			newMainDecorator("%s %.2f", p.name, &p.curTry, gate, decor.WCSyncWidthR),
+			newMainDecorator("%s %.1f", p.name, &p.curTry, gate, decor.WCSyncWidthR),
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 		),
 		mpb.AppendDecorators(
@@ -63,9 +65,9 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 					decor.FixedIntervalTimeNormalizer(60),
 					decor.WCSyncWidth,
 				),
-				"done!",
+				"m/M:",
 			),
-			decor.EwmaSpeed(decor.UnitKiB, "% .2f", 60, decor.WCSyncSpace),
+			spm, spc,
 		),
 	)
 	return bar
