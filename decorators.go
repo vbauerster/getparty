@@ -37,7 +37,7 @@ func newMsgGate(prefix string, quiet bool) msgGate {
 
 func (s msgGate) flash(msg *message) {
 	msg.times = 14
-	msg.msg = fmt.Sprintf("%s: %s", s.prefix, msg.msg)
+	msg.msg = fmt.Sprintf("%s:%s", s.prefix, msg.msg)
 	select {
 	case s.msgCh <- msg:
 	case <-s.done:

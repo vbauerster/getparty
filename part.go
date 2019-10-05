@@ -136,7 +136,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				if bound := 10 * time.Minute; ctxTimeout > bound {
 					ctxTimeout = bound
 				}
-				mg.flash(&message{msg: "retrying..."})
+				mg.flash(&message{msg: "Retrying..."})
 				atomic.StoreInt32(&p.curTry, int32(count))
 			} else {
 				bar.AdjustAverageDecorators(now)
@@ -146,7 +146,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			timer := time.AfterFunc(ctxTimeout, func() {
-				msg := "timeout..."
+				msg := "Timeout..."
 				mg.flash(&message{msg: msg})
 				p.dlogger.Print(msg)
 				cancel()
