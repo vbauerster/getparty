@@ -2,8 +2,12 @@ package getparty
 
 import (
 	"fmt"
+	"math"
+	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/VividCortex/ewma"
 	"github.com/vbauerster/mpb/v4/decor"
 )
 
@@ -108,4 +112,93 @@ func (d *mainDecorator) Decor(stat *decor.Statistics) string {
 
 func (d *mainDecorator) Shutdown() {
 	close(d.gate.done)
+}
+
+type speedMain struct {
+	decor.Decorator
+	average ewma.MovingAverage
+	cm      decor.OnCompleteMessenger
+	ar      decor.AmountReceiver
+	format  string
+	min     int64
+	max     int64
+	maxCh   chan string
+}
+
+func newCompoundSpeed(format string, average ewma.MovingAverage, wc decor.WC) (main, complement decor.Decorator) {
+	ch := make(chan string)
+	spm := &speedMain{
+		Decorator: decor.MovingAverageSpeed(decor.UnitKiB, format, average, wc),
+		average:   average,
+		format:    format,
+		min:       math.MaxInt64,
+		max:       math.MinInt64,
+		maxCh:     ch,
+	}
+	if cm, ok := spm.Decorator.(decor.OnCompleteMessenger); ok {
+		spm.cm = cm
+	}
+	if ar, ok := spm.Decorator.(decor.AmountReceiver); ok {
+		spm.ar = ar
+	}
+
+	sdc := &speedComplement{
+		WC:    decor.WCSyncSpace,
+		msgCh: ch,
+	}
+	sdc.WC.Init()
+
+	return spm, sdc
+}
+
+func (spm *speedMain) NextAmount(n int64, wdd ...time.Duration) {
+	spm.ar.NextAmount(n, wdd...)
+}
+
+func (spm *speedMain) Decor(st *decor.Statistics) string {
+	if st.Completed {
+		if spm.cm != nil {
+			min := 1 / time.Duration(spm.max).Seconds()
+			max := 1 / time.Duration(spm.min).Seconds()
+			spm.cm.OnCompleteMessage(fmt.Sprintf(
+				spm.format,
+				&decor.SpeedFormatter{decor.SizeB1024(math.Round(min))},
+			))
+			spm.cm = nil
+			go func() {
+				spm.maxCh <- fmt.Sprintf(
+					spm.format,
+					&decor.SpeedFormatter{decor.SizeB1024(math.Round(max))},
+				)
+			}()
+		}
+		return spm.Decorator.Decor(st)
+	}
+	if v := int64(math.Round(spm.average.Value())); v > 0 {
+		if v > spm.max {
+			spm.max = v
+		}
+		if v < spm.min {
+			spm.min = v
+		}
+	}
+	return spm.Decorator.Decor(st)
+}
+
+type speedComplement struct {
+	decor.WC
+	once  sync.Once
+	msgCh chan string
+	msg   string
+}
+
+func (spc *speedComplement) getMsg() {
+	spc.msg = <-spc.msgCh
+}
+
+func (spc *speedComplement) Decor(st *decor.Statistics) string {
+	if st.Completed {
+		spc.once.Do(spc.getMsg)
+	}
+	return spc.WC.FormatMsg(spc.msg)
 }
