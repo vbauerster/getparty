@@ -2,7 +2,6 @@ package getparty
 
 import (
 	"fmt"
-	"io"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -163,13 +162,13 @@ func (spm *speedMain) Decor(st *decor.Statistics) string {
 			max := 1 / time.Duration(spm.min).Seconds()
 			spm.cm.OnCompleteMessage(fmt.Sprintf(
 				spm.format,
-				&speedType{decor.SizeB1024(math.Round(min))},
+				&decor.SpeedFormatter{decor.SizeB1024(math.Round(min))},
 			))
 			spm.cm = nil
 			go func() {
 				spm.maxCh <- fmt.Sprintf(
 					spm.format,
-					&speedType{decor.SizeB1024(math.Round(max))},
+					&decor.SpeedFormatter{decor.SizeB1024(math.Round(max))},
 				)
 			}()
 		}
@@ -202,13 +201,4 @@ func (spc *speedComplement) Decor(st *decor.Statistics) string {
 		spc.once.Do(spc.getMsg)
 	}
 	return spc.WC.FormatMsg(spc.msg)
-}
-
-type speedType struct {
-	fmt.Formatter
-}
-
-func (self *speedType) Format(st fmt.State, verb rune) {
-	self.Formatter.Format(st, verb)
-	io.WriteString(st, "/s")
 }
