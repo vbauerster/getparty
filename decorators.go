@@ -116,37 +116,38 @@ func (d *mainDecorator) Shutdown() {
 
 type speedMain struct {
 	decor.Decorator
-	average ewma.MovingAverage
-	cm      decor.OnCompleteMessenger
-	ar      decor.AmountReceiver
-	format  string
-	min     int64
-	max     int64
-	maxCh   chan string
+	wc          decor.WC
+	average     ewma.MovingAverage
+	ar          decor.AmountReceiver
+	format      string
+	min         int64
+	max         int64
+	maxCh       chan string
+	once        sync.Once
+	completeMsg string
 }
 
 func newCompoundSpeed(format string, average ewma.MovingAverage, wc decor.WC) (main, complement decor.Decorator) {
 	ch := make(chan string)
+	decorator := decor.MovingAverageSpeed(decor.UnitKiB, format, average, wc)
 	spm := &speedMain{
-		Decorator: decor.MovingAverageSpeed(decor.UnitKiB, format, average, wc),
+		Decorator: decorator,
+		wc:        decorator.GetConf(),
 		average:   average,
 		format:    format,
 		min:       math.MaxInt64,
 		max:       math.MinInt64,
 		maxCh:     ch,
 	}
-	if cm, ok := spm.Decorator.(decor.OnCompleteMessenger); ok {
-		spm.cm = cm
-	}
+
 	if ar, ok := spm.Decorator.(decor.AmountReceiver); ok {
 		spm.ar = ar
 	}
 
 	sdc := &speedComplement{
-		WC:    decor.WCSyncSpace,
+		WC:    decor.WCSyncSpace.Init(),
 		msgCh: ch,
 	}
-	sdc.WC.Init()
 
 	return spm, sdc
 }
@@ -155,24 +156,25 @@ func (spm *speedMain) NextAmount(n int64, wdd ...time.Duration) {
 	spm.ar.NextAmount(n, wdd...)
 }
 
+func (spm *speedMain) onceOnComplete() {
+	min := 1 / time.Duration(spm.max).Seconds()
+	max := 1 / time.Duration(spm.min).Seconds()
+	spm.completeMsg = fmt.Sprintf(
+		spm.format,
+		&decor.SpeedFormatter{decor.SizeB1024(math.Round(min))},
+	)
+	go func() {
+		spm.maxCh <- fmt.Sprintf(
+			spm.format,
+			&decor.SpeedFormatter{decor.SizeB1024(math.Round(max))},
+		)
+	}()
+}
+
 func (spm *speedMain) Decor(st *decor.Statistics) string {
 	if st.Completed {
-		if spm.cm != nil {
-			min := 1 / time.Duration(spm.max).Seconds()
-			max := 1 / time.Duration(spm.min).Seconds()
-			spm.cm.OnCompleteMessage(fmt.Sprintf(
-				spm.format,
-				&decor.SpeedFormatter{decor.SizeB1024(math.Round(min))},
-			))
-			spm.cm = nil
-			go func() {
-				spm.maxCh <- fmt.Sprintf(
-					spm.format,
-					&decor.SpeedFormatter{decor.SizeB1024(math.Round(max))},
-				)
-			}()
-		}
-		return spm.Decorator.Decor(st)
+		spm.once.Do(spm.onceOnComplete)
+		return spm.wc.FormatMsg(spm.completeMsg)
 	}
 	if v := int64(math.Round(spm.average.Value())); v > 0 {
 		if v > spm.max {
