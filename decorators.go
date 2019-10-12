@@ -81,7 +81,7 @@ func (d *mainDecorator) depleteMessages() {
 }
 
 func (d *mainDecorator) Decor(stat *decor.Statistics) string {
-	if d.flashMsg != nil {
+	if !stat.Completed && d.flashMsg != nil {
 		m := d.flashMsg.msg
 		if d.flashMsg.times > 0 {
 			d.flashMsg.times--
