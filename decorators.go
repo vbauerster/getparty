@@ -202,5 +202,5 @@ func (spc *speedComplement) Decor(st *decor.Statistics) string {
 	if st.Completed {
 		spc.once.Do(spc.getMsg)
 	}
-	return spc.WC.FormatMsg(spc.msg)
+	return spc.FormatMsg(spc.msg)
 }
