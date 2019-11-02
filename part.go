@@ -48,7 +48,7 @@ type Part struct {
 }
 
 func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.Bar {
-	spm, spc := newCompoundSpeed("%.1f", ewma.NewMovingAverage(60), decor.WCSyncSpace)
+	spm, spc := newCompoundSpeed("%.1f", ewma.NewMovingAverage(90), decor.WCSyncSpace)
 	bar := progress.AddBar(total,
 		mpb.TrimSpace(),
 		mpb.BarStyle(" =>- "),
@@ -65,9 +65,11 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 					decor.FixedIntervalTimeNormalizer(60),
 					decor.WCSyncWidth,
 				),
-				"m/M:",
+				"avg:",
 			),
-			spm, spc,
+			spm,
+			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "peak:"),
+			spc,
 		),
 	)
 	return bar

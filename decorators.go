@@ -116,15 +116,12 @@ func (d *mainDecorator) Shutdown() {
 
 type speedMain struct {
 	decor.Decorator
-	wc          decor.WC
-	average     ewma.MovingAverage
-	ar          decor.AmountReceiver
-	format      string
-	min         int64
-	max         int64
-	maxCh       chan string
-	once        sync.Once
-	completeMsg string
+	average ewma.MovingAverage
+	arec    decor.AmountReceiver
+	format  string
+	min     int64
+	maxCh   chan string
+	once    sync.Once
 }
 
 func newCompoundSpeed(format string, average ewma.MovingAverage, wc decor.WC) (main, complement decor.Decorator) {
@@ -132,20 +129,15 @@ func newCompoundSpeed(format string, average ewma.MovingAverage, wc decor.WC) (m
 	decorator := decor.MovingAverageSpeed(decor.UnitKiB, format, average, wc)
 	spm := &speedMain{
 		Decorator: decorator,
-		wc:        decorator.GetConf(),
 		average:   average,
+		arec:      decorator.(decor.AmountReceiver),
 		format:    format,
 		min:       math.MaxInt64,
-		max:       math.MinInt64,
 		maxCh:     ch,
 	}
 
-	if ar, ok := spm.Decorator.(decor.AmountReceiver); ok {
-		spm.ar = ar
-	}
-
 	sdc := &speedComplement{
-		WC:    decor.WCSyncSpace.Init(),
+		WC:    wc.Init(),
 		msgCh: ch,
 	}
 
@@ -153,17 +145,12 @@ func newCompoundSpeed(format string, average ewma.MovingAverage, wc decor.WC) (m
 }
 
 func (spm *speedMain) NextAmount(n int64, wdd ...time.Duration) {
-	spm.ar.NextAmount(n, wdd...)
+	spm.arec.NextAmount(n, wdd...)
 }
 
 func (spm *speedMain) onceOnComplete() {
-	min := 1 / time.Duration(spm.max).Seconds()
-	max := 1 / time.Duration(spm.min).Seconds()
-	spm.completeMsg = fmt.Sprintf(
-		spm.format,
-		&decor.SpeedFormatter{decor.SizeB1024(math.Round(min))},
-	)
 	go func() {
+		max := 1 / time.Duration(spm.min).Seconds()
 		spm.maxCh <- fmt.Sprintf(
 			spm.format,
 			&decor.SpeedFormatter{decor.SizeB1024(math.Round(max))},
@@ -174,12 +161,9 @@ func (spm *speedMain) onceOnComplete() {
 func (spm *speedMain) Decor(st *decor.Statistics) string {
 	if st.Completed {
 		spm.once.Do(spm.onceOnComplete)
-		return spm.wc.FormatMsg(spm.completeMsg)
+		return spm.Decorator.Decor(st)
 	}
 	if v := int64(math.Round(spm.average.Value())); v > 0 {
-		if v > spm.max {
-			spm.max = v
-		}
 		if v < spm.min {
 			spm.min = v
 		}
