@@ -119,7 +119,7 @@ type speedMain struct {
 	average ewma.MovingAverage
 	arec    decor.AmountReceiver
 	format  string
-	min     int64
+	min     float64
 	maxCh   chan string
 	once    sync.Once
 }
@@ -132,7 +132,7 @@ func newCompoundSpeed(format string, average ewma.MovingAverage, wc decor.WC) (m
 		average:   average,
 		arec:      decorator.(decor.AmountReceiver),
 		format:    format,
-		min:       math.MaxInt64,
+		min:       math.MaxFloat64,
 		maxCh:     ch,
 	}
 
@@ -150,10 +150,10 @@ func (spm *speedMain) NextAmount(n int64, wdd ...time.Duration) {
 
 func (spm *speedMain) onceOnComplete() {
 	go func() {
-		max := 1 / time.Duration(spm.min).Seconds()
+		max := 1 / spm.min
 		spm.maxCh <- fmt.Sprintf(
 			spm.format,
-			&decor.SpeedFormatter{decor.SizeB1024(math.Round(max))},
+			&decor.SpeedFormatter{decor.SizeB1024(math.Round(max * 1e9))},
 		)
 	}()
 }
@@ -163,10 +163,8 @@ func (spm *speedMain) Decor(st *decor.Statistics) string {
 		spm.once.Do(spm.onceOnComplete)
 		return spm.Decorator.Decor(st)
 	}
-	if v := int64(math.Round(spm.average.Value())); v > 0 {
-		if v < spm.min {
-			spm.min = v
-		}
+	if v := spm.average.Value(); v > 0 {
+		spm.min = math.Min(spm.min, v)
 	}
 	return spm.Decorator.Decor(st)
 }
