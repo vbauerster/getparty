@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/VividCortex/ewma"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
@@ -48,7 +47,6 @@ type Part struct {
 }
 
 func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.Bar {
-	spm, spc := newCompoundSpeed("%.1f", ewma.NewMovingAverage(90), decor.WCSyncSpace)
 	bar := progress.AddBar(total,
 		mpb.TrimSpace(),
 		mpb.BarStyle(" =>- "),
@@ -67,16 +65,15 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 				),
 				"avg:",
 			),
-			spm,
+			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "peak:"),
-			spc,
+			newSpeedPeak("%.1f", decor.WCSyncSpace),
 		),
 	)
 	return bar
 }
 
 func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.Request, timeout uint) (err error) {
-
 	var bar *mpb.Bar
 	defer func() {
 		if err != nil {

@@ -3,7 +3,6 @@ package getparty
 import (
 	"fmt"
 	"math"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -114,75 +113,45 @@ func (d *mainDecorator) Shutdown() {
 	close(d.gate.done)
 }
 
-type speedMain struct {
-	decor.Decorator
-	average ewma.MovingAverage
-	arec    decor.AmountReceiver
-	format  string
-	min     float64
-	maxCh   chan string
-	once    sync.Once
-}
-
-func newCompoundSpeed(format string, average ewma.MovingAverage, wc decor.WC) (main, complement decor.Decorator) {
-	ch := make(chan string)
-	decorator := decor.MovingAverageSpeed(decor.UnitKiB, format, average, wc)
-	spm := &speedMain{
-		Decorator: decorator,
-		average:   average,
-		arec:      decorator.(decor.AmountReceiver),
-		format:    format,
-		min:       math.MaxFloat64,
-		maxCh:     ch,
-	}
-
-	sdc := &speedComplement{
-		WC:    wc.Init(),
-		msgCh: ch,
-	}
-
-	return spm, sdc
-}
-
-func (spm *speedMain) NextAmount(n int64, wdd ...time.Duration) {
-	spm.arec.NextAmount(n, wdd...)
-}
-
-func (spm *speedMain) onceOnComplete() {
-	go func() {
-		max := 1 / spm.min
-		spm.maxCh <- fmt.Sprintf(
-			spm.format,
-			&decor.SpeedFormatter{decor.SizeB1024(math.Round(max * 1e9))},
-		)
-	}()
-}
-
-func (spm *speedMain) Decor(st *decor.Statistics) string {
-	if st.Completed {
-		spm.once.Do(spm.onceOnComplete)
-		return spm.Decorator.Decor(st)
-	}
-	if v := spm.average.Value(); v > 0 {
-		spm.min = math.Min(spm.min, v)
-	}
-	return spm.Decorator.Decor(st)
-}
-
-type speedComplement struct {
+type speedPeak struct {
 	decor.WC
-	once  sync.Once
-	msgCh chan string
-	msg   string
+	mAvg   ewma.MovingAverage
+	max    float64
+	format string
+	msg    string
 }
 
-func (spc *speedComplement) getMsg() {
-	spc.msg = <-spc.msgCh
-}
-
-func (spc *speedComplement) Decor(st *decor.Statistics) string {
-	if st.Completed {
-		spc.once.Do(spc.getMsg)
+func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
+	d := &speedPeak{
+		WC:     wc.Init(),
+		mAvg:   ewma.NewMovingAverage(),
+		format: format,
 	}
-	return spc.FormatMsg(spc.msg)
+	return d
+}
+
+func (s *speedPeak) NextAmount(n int64, wdd ...time.Duration) {
+	var workDuration time.Duration
+	for _, wd := range wdd {
+		workDuration = wd
+	}
+	durPerByte := float64(workDuration) / float64(n)
+	if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) {
+		return
+	}
+	s.mAvg.Add(durPerByte)
+}
+
+func (s *speedPeak) Decor(st *decor.Statistics) string {
+	if st.Completed && s.msg == "" {
+		s.msg = fmt.Sprintf(
+			s.format,
+			&decor.SpeedFormatter{decor.SizeB1024(math.Round(s.max * 1e9))},
+		)
+		return s.FormatMsg(s.msg)
+	}
+	if v := s.mAvg.Value(); v > 0 {
+		s.max = math.Max(s.max, 1/v)
+	}
+	return s.FormatMsg(s.msg)
 }
