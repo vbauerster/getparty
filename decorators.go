@@ -3,6 +3,7 @@ package getparty
 import (
 	"fmt"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -118,13 +119,14 @@ type speedPeak struct {
 	mAvg   ewma.MovingAverage
 	max    float64
 	format string
+	once   sync.Once
 	msg    string
 }
 
 func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	d := &speedPeak{
 		WC:     wc.Init(),
-		mAvg:   ewma.NewMovingAverage(),
+		mAvg:   ewma.NewMovingAverage(60),
 		format: format,
 	}
 	return d
@@ -142,15 +144,17 @@ func (s *speedPeak) NextAmount(n int64, wdd ...time.Duration) {
 	s.mAvg.Add(durPerByte)
 }
 
+func (s *speedPeak) onComplete() {
+	s.msg = fmt.Sprintf(
+		s.format,
+		&decor.SpeedFormatter{decor.SizeB1024(math.Round(s.max * 1e9))},
+	)
+}
+
 func (s *speedPeak) Decor(st *decor.Statistics) string {
-	if st.Completed && s.msg == "" {
-		s.msg = fmt.Sprintf(
-			s.format,
-			&decor.SpeedFormatter{decor.SizeB1024(math.Round(s.max * 1e9))},
-		)
-		return s.FormatMsg(s.msg)
-	}
-	if v := s.mAvg.Value(); v > 0 {
+	if st.Completed {
+		s.once.Do(s.onComplete)
+	} else if v := s.mAvg.Value(); v > 0 {
 		s.max = math.Max(s.max, 1/v)
 	}
 	return s.FormatMsg(s.msg)
