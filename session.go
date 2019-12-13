@@ -82,11 +82,14 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 		mpb.BarStyle(" =>- "),
 		mpb.BarPriority(len(s.Parts)),
 		mpb.PrependDecorators(
-			decor.Name("concatenating:", decor.WCSyncWidth),
+			decor.Name("Concatenating:", decor.WCSyncWidth),
 			decor.NewPercentage("%d", decor.WCSyncSpace),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidthR), "done"),
+			decor.OnComplete(
+				decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidthR),
+				"Done",
+			),
 		),
 	)
 	defer func() {
@@ -165,10 +168,10 @@ func (s Session) writeSummary(w io.Writer) {
 	format := fmt.Sprintf("Length: %%s [%s]\n", s.ContentType)
 	lengthSummary := "unknown"
 	if s.ContentLength >= 0 {
-		lengthSummary = fmt.Sprintf("%d (% .2f)", s.ContentLength, humanSize)
+		lengthSummary = fmt.Sprintf("%d (%.1f)", s.ContentLength, humanSize)
 		if totalWritten := s.totalWritten(); totalWritten > 0 {
 			remaining := s.ContentLength - totalWritten
-			lengthSummary += fmt.Sprintf(", %d (% .2f) remaining", remaining, decor.SizeB1024(remaining))
+			lengthSummary += fmt.Sprintf(", %d (%.1f) remaining", remaining, decor.SizeB1024(remaining))
 		}
 	}
 	fmt.Fprintf(w, format, lengthSummary)
