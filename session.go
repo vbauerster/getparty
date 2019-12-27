@@ -82,7 +82,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 		mpb.BarStyle(" =>- "),
 		mpb.BarPriority(len(s.Parts)),
 		mpb.PrependDecorators(
-			decor.Name("Concatenating:", decor.WCSyncWidth),
+			decor.Name("Concatenating:", decor.WCSyncWidthR),
 			decor.NewPercentage("%d", decor.WCSyncSpace),
 		),
 		mpb.AppendDecorators(
