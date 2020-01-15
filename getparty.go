@@ -32,6 +32,7 @@ const (
 	projectHome = "https://github.com/vbauerster/getparty"
 
 	maxRedirects        = 10
+	refreshRate         = 200
 	hUserAgentKey       = "User-Agent"
 	hContentDisposition = "Content-Disposition"
 	hRange              = "Range"
@@ -248,7 +249,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		mpb.ContainerOptOnCond(mpb.WithOutput(cmd.Out), func() bool { return !cmd.options.Quiet }),
 		mpb.ContainerOptOnCond(mpb.WithDebugOutput(cmd.Err), func() bool { return cmd.options.Debug }),
 		mpb.ContainerOptOnCond(mpb.WithManualRefresh(make(chan time.Time)), func() bool { return cmd.options.Quiet }),
-		mpb.WithRefreshRate(180*time.Millisecond),
+		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(60),
 	)
 

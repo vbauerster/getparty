@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/VividCortex/ewma"
 	"github.com/vbauerster/mpb/v4/decor"
 )
 
@@ -116,18 +115,24 @@ func (d *mainDecorator) Shutdown() {
 
 type speedPeak struct {
 	decor.WC
-	mAvg   ewma.MovingAverage
-	max    float64
-	format string
-	once   sync.Once
-	msg    string
+	format       string
+	msg          string
+	max          float64
+	window       int
+	displayCount int
+	peak         struct {
+		sync.Mutex
+		sum   float64
+		total int
+	}
+	once sync.Once
 }
 
 func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	d := &speedPeak{
 		WC:     wc.Init(),
-		mAvg:   ewma.NewMovingAverage(60),
 		format: format,
+		window: 1200 / refreshRate,
 	}
 	return d
 }
@@ -141,7 +146,10 @@ func (s *speedPeak) NextAmount(n int64, wdd ...time.Duration) {
 	if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) {
 		return
 	}
-	s.mAvg.Add(durPerByte)
+	s.peak.Lock()
+	s.peak.sum += durPerByte
+	s.peak.total++
+	s.peak.Unlock()
 }
 
 func (s *speedPeak) onComplete() {
@@ -152,10 +160,20 @@ func (s *speedPeak) onComplete() {
 }
 
 func (s *speedPeak) Decor(st *decor.Statistics) string {
+	s.displayCount++
 	if st.Completed {
 		s.once.Do(s.onComplete)
-	} else if v := s.mAvg.Value(); v > 0 {
-		s.max = math.Max(s.max, 1/v)
+	} else if s.displayCount%s.window == 0 {
+		s.peak.Lock()
+		if s.peak.total > 0 {
+			v := s.peak.sum / float64(s.peak.total)
+			s.peak.sum = 0
+			s.peak.total = 0
+			s.peak.Unlock()
+			s.max = math.Max(s.max, 1/v)
+		} else {
+			s.peak.Unlock()
+		}
 	}
 	return s.FormatMsg(s.msg)
 }
