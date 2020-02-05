@@ -118,8 +118,8 @@ type speedPeak struct {
 	format       string
 	msg          string
 	max          float64
-	window       int
-	displayCount int
+	window       uint
+	displayCount uint
 	peak         struct {
 		sync.Mutex
 		sum   float64
@@ -160,10 +160,9 @@ func (s *speedPeak) onComplete() {
 }
 
 func (s *speedPeak) Decor(st *decor.Statistics) string {
-	s.displayCount++
 	if st.Completed {
 		s.once.Do(s.onComplete)
-	} else if s.displayCount%s.window == 0 {
+	} else if s.displayCount != 0 && s.displayCount%s.window == 0 {
 		s.peak.Lock()
 		if s.peak.total > 0 {
 			v := s.peak.sum / float64(s.peak.total)
@@ -175,5 +174,6 @@ func (s *speedPeak) Decor(st *decor.Statistics) string {
 			s.peak.Unlock()
 		}
 	}
+	s.displayCount++
 	return s.FormatMsg(s.msg)
 }
