@@ -246,9 +246,9 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		session.writeSummary(cmd.Out)
 	}
 	progress := mpb.NewWithContext(ctx,
-		mpb.ContainerOptOnCond(mpb.WithOutput(cmd.Out), func() bool { return !cmd.options.Quiet }),
-		mpb.ContainerOptOnCond(mpb.WithDebugOutput(cmd.Err), func() bool { return cmd.options.Debug }),
-		mpb.ContainerOptOnCond(mpb.WithManualRefresh(make(chan time.Time)), func() bool { return cmd.options.Quiet }),
+		mpb.ContainerOptOn(mpb.WithOutput(cmd.Out), func() bool { return !cmd.options.Quiet }),
+		mpb.ContainerOptOn(mpb.WithDebugOutput(cmd.Err), func() bool { return cmd.options.Debug }),
+		mpb.ContainerOptOn(mpb.WithManualRefresh(make(chan time.Time)), func() bool { return cmd.options.Quiet }),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(60),
 	)
