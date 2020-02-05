@@ -155,7 +155,7 @@ func (s *speedPeak) NextAmount(n int64, wdd ...time.Duration) {
 func (s *speedPeak) onComplete() {
 	s.msg = fmt.Sprintf(
 		s.format,
-		&decor.SpeedFormatter{decor.SizeB1024(math.Round(s.max * 1e9))},
+		decor.FmtAsSpeed(decor.SizeB1024(math.Round(s.max*1e9))),
 	)
 }
 
