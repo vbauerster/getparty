@@ -28,6 +28,8 @@ var (
 	ErrNilBody = errors.New("nil body")
 )
 
+var globTry uint32
+
 // Part represents state of each download part
 type Part struct {
 	FileName string
@@ -40,7 +42,7 @@ type Part struct {
 	name      string
 	order     int
 	maxTry    int
-	curTry    int32
+	curTry    uint32
 	quiet     bool
 	dlogger   *log.Logger
 	transport *http.Transport
@@ -52,7 +54,7 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 		mpb.BarStyle(" =>- "),
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
-			newMainDecorator("%s %.1f", p.name, &p.curTry, gate, decor.WCSyncWidthR),
+			newMainDecorator(&p.curTry, "%s %.1f", p.name, gate, decor.WCSyncWidthR),
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 		),
 		mpb.AppendDecorators(
@@ -135,8 +137,9 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				if bound := 10 * time.Minute; ctxTimeout > bound {
 					ctxTimeout = bound
 				}
+				atomic.AddUint32(&globTry, 1)
+				atomic.StoreUint32(&p.curTry, uint32(count))
 				mg.flash(&message{msg: "Retrying..."})
-				atomic.StoreInt32(&p.curTry, int32(count))
 			} else {
 				bar.AdjustAverageDecorators(now)
 			}

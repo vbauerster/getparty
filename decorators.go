@@ -48,21 +48,20 @@ func (s msgGate) flash(msg *message) {
 
 type mainDecorator struct {
 	decor.WC
-	format   string
+	curTry   *uint32
 	name     string
-	curTry   *int32
+	format   string
 	flashMsg *message
 	messages []*message
 	gate     msgGate
 }
 
-func newMainDecorator(format, name string, curTry *int32, gate msgGate, wc decor.WC) decor.Decorator {
-	wc.Init()
+func newMainDecorator(curTry *uint32, format, name string, gate msgGate, wc decor.WC) decor.Decorator {
 	d := &mainDecorator{
-		WC:     wc,
-		format: format,
-		name:   name,
+		WC:     wc.Init(),
 		curTry: curTry,
+		name:   name,
+		format: format,
 		gate:   gate,
 	}
 	return d
@@ -105,7 +104,10 @@ func (d *mainDecorator) Decor(stat *decor.Statistics) string {
 		return d.FormatMsg(d.flashMsg.msg)
 	}
 
-	name := fmt.Sprintf("%s:R%02d", d.name, atomic.LoadInt32(d.curTry))
+	name := d.name
+	if atomic.LoadUint32(&globTry) > 0 {
+		name = fmt.Sprintf("%s:R%02d", name, atomic.LoadUint32(d.curTry))
+	}
 	return d.FormatMsg(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
 }
 
