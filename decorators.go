@@ -125,7 +125,7 @@ type speedPeak struct {
 	peak         struct {
 		sync.Mutex
 		sum   float64
-		total int
+		total uint
 	}
 	once sync.Once
 }
@@ -134,7 +134,7 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	d := &speedPeak{
 		WC:     wc.Init(),
 		format: format,
-		window: 1200 / refreshRate,
+		window: 800 / refreshRate,
 	}
 	return d
 }
@@ -166,7 +166,7 @@ func (s *speedPeak) Decor(st *decor.Statistics) string {
 		s.once.Do(s.onComplete)
 	} else if s.displayCount != 0 && s.displayCount%s.window == 0 {
 		s.peak.Lock()
-		if s.peak.total > 0 {
+		if s.peak.total >= s.displayCount {
 			v := s.peak.sum / float64(s.peak.total)
 			s.peak.sum = 0
 			s.peak.total = 0
