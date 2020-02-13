@@ -117,15 +117,14 @@ func (d *mainDecorator) Shutdown() {
 
 type speedPeak struct {
 	decor.WC
-	format       string
-	msg          string
-	max          float64
-	window       uint
-	displayCount uint
-	peak         struct {
+	format string
+	msg    string
+	max    float64
+	peak   struct {
 		sync.Mutex
-		sum   float64
-		total uint
+		d time.Duration
+		n int64
+		c uint
 	}
 	once sync.Once
 }
@@ -134,23 +133,20 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	d := &speedPeak{
 		WC:     wc.Init(),
 		format: format,
-		window: 800 / refreshRate,
 	}
 	return d
 }
 
 func (s *speedPeak) NextAmount(n int64, wdd ...time.Duration) {
-	var workDuration time.Duration
-	for _, wd := range wdd {
-		workDuration = wd
-	}
-	durPerByte := float64(workDuration) / float64(n)
+	wd := wdd[0]
+	durPerByte := float64(wd) / float64(n)
 	if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) {
 		return
 	}
 	s.peak.Lock()
-	s.peak.sum += durPerByte
-	s.peak.total++
+	s.peak.d += wd
+	s.peak.n += n
+	s.peak.c++
 	s.peak.Unlock()
 }
 
@@ -164,18 +160,18 @@ func (s *speedPeak) onComplete() {
 func (s *speedPeak) Decor(st *decor.Statistics) string {
 	if st.Completed {
 		s.once.Do(s.onComplete)
-	} else if s.displayCount != 0 && s.displayCount%s.window == 0 {
+	} else {
 		s.peak.Lock()
-		if s.peak.total >= s.displayCount {
-			v := s.peak.sum / float64(s.peak.total)
-			s.peak.sum = 0
-			s.peak.total = 0
+		if s.peak.c > 1 {
+			durPerByte := float64(s.peak.d) / float64(s.peak.n)
+			s.peak.d = 0
+			s.peak.n = 0
+			s.peak.c = 0
 			s.peak.Unlock()
-			s.max = math.Max(s.max, 1/v)
+			s.max = math.Max(s.max, 1/durPerByte)
 		} else {
 			s.peak.Unlock()
 		}
 	}
-	s.displayCount++
 	return s.FormatMsg(s.msg)
 }
