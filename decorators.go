@@ -115,63 +115,48 @@ func (d *mainDecorator) Shutdown() {
 	close(d.gate.done)
 }
 
-type speedPeak struct {
+type peek struct {
 	decor.WC
 	format string
 	msg    string
+	n      int64
+	d      time.Duration
 	max    float64
-	peak   struct {
-		sync.Mutex
-		d time.Duration
-		n int64
-		c uint
-	}
-	once sync.Once
+	once   sync.Once
 }
 
 func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
-	d := &speedPeak{
+	d := &peek{
 		WC:     wc.Init(),
 		format: format,
 	}
 	return d
 }
 
-func (s *speedPeak) NextAmount(n int64, wdd ...time.Duration) {
-	wd := wdd[0]
-	durPerByte := float64(wd) / float64(n)
-	if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) {
-		return
+func (s *peek) NextAmount(n int64, wdd ...time.Duration) {
+	s.n += n
+	s.d += wdd[0]
+	if s.n >= 1024*64 {
+		durPerByte := float64(s.d) / float64(s.n)
+		s.max = math.Max(s.max, 1/durPerByte)
+		s.n, s.d = 0, 0
 	}
-	s.peak.Lock()
-	s.peak.d += wd
-	s.peak.n += n
-	s.peak.c++
-	s.peak.Unlock()
 }
 
-func (s *speedPeak) onComplete() {
+func (s *peek) onComplete() {
+	if s.max == 0 && s.n != 0 {
+		durPerByte := float64(s.d) / float64(s.n)
+		s.max = 1 / durPerByte
+	}
 	s.msg = fmt.Sprintf(
 		s.format,
 		decor.FmtAsSpeed(decor.SizeB1024(math.Round(s.max*1e9))),
 	)
 }
 
-func (s *speedPeak) Decor(st *decor.Statistics) string {
+func (s *peek) Decor(st *decor.Statistics) string {
 	if st.Completed {
 		s.once.Do(s.onComplete)
-	} else {
-		s.peak.Lock()
-		if s.peak.c > 1 {
-			durPerByte := float64(s.peak.d) / float64(s.peak.n)
-			s.peak.d = 0
-			s.peak.n = 0
-			s.peak.c = 0
-			s.peak.Unlock()
-			s.max = math.Max(s.max, 1/durPerByte)
-		} else {
-			s.peak.Unlock()
-		}
 	}
 	return s.FormatMsg(s.msg)
 }
