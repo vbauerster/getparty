@@ -200,8 +200,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					p.dlogger.Printf("bar refill written: %d", p.Written)
 					bar.SetRefill(p.Written)
 					if p.Written-initialWritten == 0 {
-						bar.IncrInt64(p.Written, p.Elapsed)
 						bar.AdjustAverageDecorators(time.Now().Add(-p.Elapsed))
+						bar.IncrInt64(p.Written, p.Elapsed)
 					}
 				}
 			} else {
