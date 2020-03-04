@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/vbauerster/mpb/v4/decor"
+	"github.com/vbauerster/mpb/v5/decor"
 )
 
 type message struct {
@@ -133,9 +133,9 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	return d
 }
 
-func (s *peek) NextAmount(n int64, wdd ...time.Duration) {
+func (s *peek) EwmaUpdate(n int64, dur time.Duration) {
 	s.n += n
-	s.d += wdd[0]
+	s.d += dur
 	if s.n >= 1024*64 {
 		durPerByte := float64(s.d) / float64(s.n)
 		s.max = math.Max(s.max, 1/durPerByte)

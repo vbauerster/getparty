@@ -15,8 +15,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
-	"github.com/vbauerster/mpb/v4"
-	"github.com/vbauerster/mpb/v4/decor"
+	"github.com/vbauerster/mpb/v5"
+	"github.com/vbauerster/mpb/v5/decor"
 )
 
 const (
@@ -141,7 +141,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				atomic.StoreUint32(&p.curTry, uint32(count))
 				mg.flash(&message{msg: "Retrying..."})
 			} else {
-				bar.AdjustAverageDecorators(now)
+				bar.DecoratorAverageAdjust(now)
 			}
 			p.dlogger.Printf("ctxTimeout: %s", ctxTimeout)
 
@@ -200,8 +200,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					p.dlogger.Printf("bar refill written: %d", p.Written)
 					bar.SetRefill(p.Written)
 					if p.Written-initialWritten == 0 {
-						bar.AdjustAverageDecorators(time.Now().Add(-p.Elapsed))
-						bar.IncrInt64(p.Written, p.Elapsed)
+						bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
+						bar.IncrInt64(p.Written)
 					}
 				}
 			} else {

@@ -22,7 +22,7 @@ import (
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
-	"github.com/vbauerster/mpb/v4"
+	"github.com/vbauerster/mpb/v5"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/sync/errgroup"
 )
