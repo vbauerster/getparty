@@ -178,7 +178,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				p.Stop = total - 1
 				p.dlogger.Printf("resetting written: %d", p.Written)
 				p.Written = 0
-			case http.StatusForbidden:
+			case http.StatusForbidden, http.StatusTooManyRequests:
 				flushed := make(chan struct{})
 				mg.flash(&message{
 					msg:   resp.Status,
