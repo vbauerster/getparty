@@ -115,7 +115,7 @@ func (d *mainDecorator) Shutdown() {
 	close(d.gate.done)
 }
 
-type peek struct {
+type peak struct {
 	decor.WC
 	format string
 	msg    string
@@ -126,14 +126,14 @@ type peek struct {
 }
 
 func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
-	d := &peek{
+	d := &peak{
 		WC:     wc.Init(),
 		format: format,
 	}
 	return d
 }
 
-func (s *peek) EwmaUpdate(n int64, dur time.Duration) {
+func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 	s.n += n
 	s.d += dur
 	if s.n >= 1024*64 {
@@ -143,7 +143,7 @@ func (s *peek) EwmaUpdate(n int64, dur time.Duration) {
 	}
 }
 
-func (s *peek) onComplete() {
+func (s *peak) onComplete() {
 	if s.max == 0 && s.n != 0 {
 		durPerByte := float64(s.d) / float64(s.n)
 		s.max = 1 / durPerByte
@@ -154,7 +154,7 @@ func (s *peek) onComplete() {
 	)
 }
 
-func (s *peek) Decor(st *decor.Statistics) string {
+func (s *peak) Decor(st *decor.Statistics) string {
 	if st.Completed {
 		s.once.Do(s.onComplete)
 	}
