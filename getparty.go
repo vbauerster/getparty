@@ -289,13 +289,9 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	err = eg.Wait()
 	session.actualPartsOnly()
 
-	if err != nil {
-		if ctx.Err() == context.Canceled {
-			// most probably user hit ^C, so mark as expected
-			err = ExpectedError{ctx.Err()}
-		} else {
-			cancel()
-		}
+	if err != nil && ctx.Err() == context.Canceled {
+		// most probably user hit ^C, so mark as expected
+		err = ExpectedError{ctx.Err()}
 	} else if cmd.options.Parts > 0 {
 		if written := session.totalWritten(); written == session.ContentLength || session.ContentLength <= 0 {
 			err = session.concatenateParts(cmd.dlogger, progress)
