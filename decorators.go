@@ -78,7 +78,7 @@ func (d *mainDecorator) depleteMessages() {
 	}
 }
 
-func (d *mainDecorator) Decor(stat *decor.Statistics) string {
+func (d *mainDecorator) Decor(stat decor.Statistics) string {
 	if !stat.Completed && d.flashMsg != nil {
 		m := d.flashMsg.msg
 		if d.flashMsg.times > 0 {
@@ -154,8 +154,8 @@ func (s *peak) onComplete() {
 	)
 }
 
-func (s *peak) Decor(st *decor.Statistics) string {
-	if st.Completed {
+func (s *peak) Decor(stat decor.Statistics) string {
+	if stat.Completed {
 		s.once.Do(s.onComplete)
 	}
 	return s.FormatMsg(s.msg)
