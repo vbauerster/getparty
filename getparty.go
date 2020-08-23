@@ -146,14 +146,15 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		cmd.userInfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	cmd.logger = log.New(cmd.Out, "", log.LstdFlags)
-	if cmd.options.Quiet {
-		cmd.logger.SetOutput(ioutil.Discard)
+	setupLogger := func(out io.Writer, prefix string, discard bool) *log.Logger {
+		if discard {
+			out = ioutil.Discard
+		}
+		return log.New(out, prefix, log.LstdFlags)
 	}
-	cmd.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
-	if cmd.options.Debug {
-		cmd.dlogger.SetOutput(cmd.Err)
-	}
+
+	cmd.logger = setupLogger(cmd.Out, "", cmd.options.Quiet)
+	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
 	ctx, cancel := backgroundContext()
 	defer cancel()
@@ -268,10 +269,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		p.quiet = cmd.options.Quiet
 		p.transport = transport
 		p.name = fmt.Sprintf("P%02d", i+1)
-		p.dlogger = log.New(ioutil.Discard, fmt.Sprintf("[%s] ", p.name), log.LstdFlags)
-		if cmd.options.Debug {
-			p.dlogger.SetOutput(cmd.Err)
-		}
+		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, session.Location, nil)
 		if err != nil {
 			cmd.logger.Fatalf("%s: %v", p.name, err)
