@@ -286,9 +286,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			cmd.logger.Fatalf("%s: %v", p.name, err)
 		}
 		req.URL.User = cmd.userInfo
-		for k, v := range cmd.options.HeaderMap {
-			req.Header.Set(k, v)
-		}
+		cmd.applyHeaders(req)
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			return p.download(ctx, progress, req, cmd.options.Timeout)
@@ -365,26 +363,25 @@ func (cmd Cmd) follow(ctx context.Context, jar http.CookieJar, userUrl string) (
 	}()
 	for i := 0; i < maxRedirects; i++ {
 		cmd.logger.Printf("GET: %s", userUrl)
+		cmd.dlogger.Printf("GET: %s", userUrl)
 		req, err := http.NewRequest(http.MethodGet, userUrl, nil)
 		if err != nil {
 			return nil, err
 		}
 		req.URL.User = cmd.userInfo
-		for k, v := range cmd.options.HeaderMap {
-			if k == hCookie {
-				continue
-			}
-			req.Header.Set(k, v)
-		}
+		cmd.applyHeaders(req)
 
 		resp, err := client.Do(req.WithContext(ctx))
 		if err != nil {
 			return nil, err
 		}
 		cmd.logger.Printf("HTTP response: %s", resp.Status)
-		cmd.dlogger.Printf("CookieJar after GET %s", userUrl)
-		for _, cookie := range jar.Cookies(req.URL) {
-			cmd.dlogger.Printf("  %q", cookie)
+		cmd.dlogger.Printf("HTTP response: %s", resp.Status)
+		if cookies := jar.Cookies(req.URL); len(cookies) != 0 {
+			cmd.dlogger.Println("CookieJar:")
+			for _, cookie := range cookies {
+				cmd.dlogger.Printf("  %q", cookie)
+			}
 		}
 
 		if isRedirect(resp.StatusCode) {
@@ -432,6 +429,15 @@ func (cmd Cmd) follow(ctx context.Context, jar http.CookieJar, userUrl string) (
 		return session, resp.Body.Close()
 	}
 	return
+}
+
+func (cmd Cmd) applyHeaders(req *http.Request) {
+	for k, v := range cmd.options.HeaderMap {
+		if k == hCookie {
+			continue
+		}
+		req.Header.Set(k, v)
+	}
 }
 
 func (cmd Cmd) bestMirror(ctx context.Context, input io.Reader) (best string, err error) {

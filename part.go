@@ -168,10 +168,16 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 			p.dlogger.Printf("resp.Status: %s", resp.Status)
 			p.dlogger.Printf("resp.ContentLength: %d", resp.ContentLength)
+			if cookies := p.jar.Cookies(req.URL); len(cookies) != 0 {
+				p.dlogger.Println("CookieJar:")
+				for _, cookie := range cookies {
+					p.dlogger.Printf("  %q", cookie)
+				}
+			}
 
 			switch resp.StatusCode {
 			case http.StatusOK: // no partial content, so download with single part
-				if p.order > 0 {
+				if p.order != 0 {
 					p.Skip = true
 					bar.Abort(true)
 					p.dlogger.Print("no partial content, skipping...")
@@ -180,7 +186,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				total = resp.ContentLength
 				bar.SetTotal(total, false)
 				p.Stop = total - 1
-				p.dlogger.Printf("resetting written: %d", p.Written)
 				p.Written = 0
 			case http.StatusForbidden, http.StatusTooManyRequests:
 				flushed := make(chan struct{})
