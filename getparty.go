@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"os/signal"
@@ -24,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v5"
 	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/net/publicsuffix"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -36,6 +38,7 @@ const (
 	hUserAgentKey       = "User-Agent"
 	hContentDisposition = "Content-Disposition"
 	hRange              = "Range"
+	hCookie             = "Cookie"
 )
 
 // https://regex101.com/r/N4AovD/3
@@ -196,7 +199,14 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
 		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	}
-	session, err := cmd.follow(ctx, userUrl)
+
+	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		return err
+	}
+
+	session, err := cmd.follow(ctx, jar, userUrl)
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			// most probably user hit ^C, so mark as expected
@@ -267,6 +277,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		p.order = i
 		p.maxTry = int(cmd.options.MaxRetry)
 		p.quiet = cmd.options.Quiet
+		p.jar = jar
 		p.transport = transport
 		p.name = fmt.Sprintf("P%02d", i+1)
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
@@ -320,29 +331,49 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	return err
 }
 
-func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, err error) {
-	defer func() {
-		if session == nil && err == nil {
-			err = ExpectedError{
-				errors.Errorf("maximum number of redirects (%d) followed", maxRedirects),
+func (cmd Cmd) follow(ctx context.Context, jar http.CookieJar, userUrl string) (session *Session, err error) {
+	var redirected bool
+	if hc, ok := cmd.options.HeaderMap[hCookie]; ok {
+		var cookies []*http.Cookie
+		for _, cookie := range strings.Split(hc, "; ") {
+			pair := strings.SplitN(cookie, "=", 2)
+			if len(pair) != 2 {
+				continue
 			}
+			cookies = append(cookies, &http.Cookie{Name: pair[0], Value: pair[1]})
+		}
+		if u, err := url.Parse(userUrl); err == nil {
+			jar.SetCookies(u, cookies)
+		}
+	}
+	client := cleanhttp.DefaultClient()
+	client.Jar = jar
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	defer func() {
+		if redirected {
+			if session == nil && err == nil {
+				err = ExpectedError{
+					errors.Errorf("maximum number of redirects (%d) followed", maxRedirects),
+				}
+			}
+			client.CloseIdleConnections()
 		}
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "follow")
 	}()
-	client := cleanhttp.DefaultClient()
-	client.CheckRedirect = func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	next := userUrl
 	for i := 0; i < maxRedirects; i++ {
-		cmd.logger.Printf("GET: %s", next)
-		req, err := http.NewRequest(http.MethodGet, next, nil)
+		cmd.logger.Printf("GET: %s", userUrl)
+		req, err := http.NewRequest(http.MethodGet, userUrl, nil)
 		if err != nil {
 			return nil, err
 		}
 		req.URL.User = cmd.userInfo
 		for k, v := range cmd.options.HeaderMap {
+			if k == hCookie {
+				continue
+			}
 			req.Header.Set(k, v)
 		}
 
@@ -351,13 +382,18 @@ func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, er
 			return nil, err
 		}
 		cmd.logger.Printf("HTTP response: %s", resp.Status)
+		cmd.dlogger.Printf("CookieJar after GET %s", userUrl)
+		for _, cookie := range jar.Cookies(req.URL) {
+			cmd.dlogger.Printf("  %q", cookie)
+		}
 
 		if isRedirect(resp.StatusCode) {
+			redirected = true
 			loc, err := resp.Location()
 			if err != nil {
 				return nil, err
 			}
-			next = loc.String()
+			userUrl = loc.String()
 			// don't bother closing resp.Body here,
 			// it will be closed by underlying RoundTripper
 			continue
@@ -370,14 +406,14 @@ func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, er
 		if name := cmd.options.OutFileName; name == "" {
 			name = parseContentDisposition(resp.Header.Get(hContentDisposition))
 			if name == "" {
-				if nURL, err := url.Parse(next); err == nil {
+				if nURL, err := url.Parse(userUrl); err == nil {
 					nURL.RawQuery = ""
 					name, err = url.QueryUnescape(nURL.String())
 					if err != nil {
 						name = nURL.String()
 					}
 				} else {
-					name = next
+					name = userUrl
 				}
 				name = filepath.Base(name)
 			}
@@ -385,7 +421,7 @@ func (cmd Cmd) follow(ctx context.Context, userUrl string) (session *Session, er
 		}
 
 		session = &Session{
-			Location:          next,
+			Location:          userUrl,
 			SuggestedFileName: cmd.options.OutFileName,
 			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
 			ContentType:       resp.Header.Get("Content-Type"),

@@ -44,8 +44,9 @@ type Part struct {
 	maxTry    int
 	curTry    uint32
 	quiet     bool
-	dlogger   *log.Logger
+	jar       http.CookieJar
 	transport *http.Transport
+	dlogger   *log.Logger
 }
 
 func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.Bar {
@@ -155,7 +156,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			})
 			defer timer.Stop()
 
-			client := &http.Client{Transport: p.transport}
+			client := &http.Client{
+				Transport: p.transport,
+				Jar:       p.jar,
+			}
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
 				p.dlogger.Printf("client do: %s", err.Error())
