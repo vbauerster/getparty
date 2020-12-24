@@ -78,7 +78,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 	}
 
 	bar := progress.AddBar(int64(len(s.Parts)-1),
-		mpb.TrimSpace(),
+		mpb.BarFillerTrim(),
 		mpb.BarStyle(" =>- "),
 		mpb.BarPriority(len(s.Parts)),
 		mpb.PrependDecorators(

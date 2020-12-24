@@ -51,7 +51,7 @@ type Part struct {
 
 func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.Bar {
 	bar := progress.AddBar(total,
-		mpb.TrimSpace(),
+		mpb.BarFillerTrim(),
 		mpb.BarStyle(" =>- "),
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
