@@ -6,3 +6,4 @@
 
 tags
 cmd/getparty/dist/
+.envrc
