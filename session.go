@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v5"
 	"github.com/vbauerster/mpb/v5/decor"
 )
@@ -191,4 +192,32 @@ func (s Session) removeFiles() (err error) {
 		}
 	}
 	return err
+}
+
+func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
+	stat, err := os.Stat(s.SuggestedFileName)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if stat.IsDir() {
+		return errors.Errorf("%q is a directory", stat.Name())
+	}
+	if forceOverwrite {
+		return s.removeFiles()
+	} else {
+		var answer string
+		fmt.Fprintf(w, "File %q already exists, overwrite? [y/n] ", stat.Name())
+		if _, err := fmt.Scanf("%s", &answer); err != nil {
+			return err
+		}
+		switch strings.ToLower(answer) {
+		case "y", "yes":
+			return s.removeFiles()
+		default:
+			return ErrCanceledByUser
+		}
+	}
 }

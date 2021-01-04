@@ -29,6 +29,17 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+type ExpectedError string
+
+func (s ExpectedError) Error() string {
+	return string(s)
+}
+
+const (
+	ErrCanceledByUser = ExpectedError("canceled by user")
+	ErrMaxRedirects   = ExpectedError("max redirects reached")
+)
+
 const (
 	cmdName     = "getparty"
 	projectHome = "https://github.com/vbauerster/getparty"
@@ -50,14 +61,6 @@ var userAgents = map[string]string{
 	"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.1 Safari/605.1.15",
 }
 
-type ExpectedError struct {
-	Err error
-}
-
-func (e ExpectedError) Error() string {
-	return e.Err.Error()
-}
-
 // Options struct, represents cmd line options
 type Options struct {
 	Parts              uint              `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
@@ -68,6 +71,7 @@ type Options struct {
 	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
 	BestMirror         bool              `short:"b" long:"best-mirror" description:"pickup the fastest mirror"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
+	ForceOverwrite     bool              `short:"f" long:"force" description:"overwrite existing file silently"`
 	AuthUser           string            `short:"u" long:"username" description:"basic http auth username"`
 	AuthPass           string            `long:"password" description:"basic http auth password"`
 	HeaderMap          map[string]string `short:"H" long:"header" value-name:"key:value" description:"arbitrary http header"`
@@ -77,6 +81,7 @@ type Options struct {
 }
 
 type Cmd struct {
+	Ctx      context.Context
 	Out      io.Writer
 	Err      io.Writer
 	userInfo *url.Userinfo
@@ -89,6 +94,10 @@ type Cmd struct {
 func (cmd Cmd) Exit(err error) int {
 	if err == nil {
 		return 0
+	}
+	if cmd.Ctx.Err() == context.Canceled {
+		// most probably user hit ^C, so mark as expected
+		err = errors.WithMessage(ErrCanceledByUser, err.Error())
 	}
 	switch e := errors.Cause(err).(type) {
 	case *flags.Error:
@@ -159,9 +168,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	cmd.logger = setupLogger(cmd.Out, "", cmd.options.Quiet)
 	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
-	ctx, cancel := backgroundContext()
-	defer cancel()
-
 	var userUrl string
 	var lastSession *Session
 
@@ -187,7 +193,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		} else {
 			input = os.Stdin
 		}
-		userUrl, err = cmd.bestMirror(ctx, input)
+		userUrl, err = cmd.bestMirror(input)
 		cmd.closeReaders(rr)
 		if err != nil {
 			return err
@@ -206,12 +212,8 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		return err
 	}
 
-	session, err := cmd.follow(ctx, jar, userUrl)
+	session, err := cmd.follow(jar, userUrl)
 	if err != nil {
-		if ctx.Err() == context.Canceled {
-			// most probably user hit ^C, so mark as expected
-			return ExpectedError{ctx.Err()}
-		}
 		return err
 	}
 
@@ -236,20 +238,9 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 		session.HeaderMap = cmd.options.HeaderMap
 		session.Parts = session.calcParts(int64(cmd.options.Parts))
-		if _, err := os.Stat(session.SuggestedFileName); err == nil {
-			var answer string
-			fmt.Fprintf(cmd.Out, "File %q already exists, overwrite? [y/n] ", session.SuggestedFileName)
-			if _, err := fmt.Scanf("%s", &answer); err != nil {
-				return err
-			}
-			switch strings.ToLower(answer) {
-			case "y", "yes":
-				if err := session.removeFiles(); err != nil {
-					return err
-				}
-			default:
-				return nil
-			}
+		err := session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -289,47 +280,47 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		cmd.applyHeaders(req)
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
-			return p.download(ctx, progress, req, cmd.options.Timeout)
+			return p.download(cmd.Ctx, progress, req, cmd.options.Timeout)
 		})
 	}
 
 	err = eg.Wait()
 	session.actualPartsOnly()
 
-	if err != nil && ctx.Err() == context.Canceled {
-		// most probably user hit ^C, so mark as expected
-		err = ExpectedError{ctx.Err()}
-	} else if cmd.options.Parts > 0 {
-		if written := session.totalWritten(); written == session.ContentLength || session.ContentLength <= 0 {
-			err = session.concatenateParts(cmd.dlogger, progress)
-			progress.Wait()
-			if err != nil {
-				return err
-			}
-			fmt.Fprintln(cmd.Out)
-			cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, written)
-			if cmd.options.JSONFileName != "" {
-				return os.Remove(cmd.options.JSONFileName)
-			}
-			return nil
+	if err != nil {
+		// preserve user provided url
+		session.Location = userUrl
+		stateName := session.SuggestedFileName + ".json"
+		progress.Wait()
+		fmt.Fprintln(cmd.Out)
+		if e := session.saveState(stateName); e == nil {
+			cmd.logger.Printf("session state saved to %q", stateName)
+		} else {
+			fmt.Fprintf(cmd.Err, "session state save failure: %v\n", e)
+		}
+		return err
+	}
+
+	if cmd.options.Parts > 0 {
+		written := session.totalWritten()
+		if session.ContentLength > 0 && written != session.ContentLength {
+			return errors.Errorf("Corrupted download: ContentLength=%d Saved=%d", session.ContentLength, written)
+		}
+		err := session.concatenateParts(cmd.dlogger, progress)
+		if err != nil {
+			return err
+		}
+		progress.Wait()
+		fmt.Fprintln(cmd.Out)
+		cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, written)
+		if cmd.options.JSONFileName != "" {
+			return os.Remove(cmd.options.JSONFileName)
 		}
 	}
-
-	progress.Wait()
-
-	// preserve user provided url
-	session.Location = userUrl
-	stateName := session.SuggestedFileName + ".json"
-	if e := session.saveState(stateName); e == nil {
-		fmt.Fprintln(cmd.Out)
-		cmd.logger.Printf("session state saved to %q", stateName)
-	} else if err == nil {
-		err = e
-	}
-	return err
+	return nil
 }
 
-func (cmd Cmd) follow(ctx context.Context, jar http.CookieJar, userUrl string) (session *Session, err error) {
+func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err error) {
 	var redirected bool
 	if hc, ok := cmd.options.HeaderMap[hCookie]; ok {
 		var cookies []*http.Cookie
@@ -351,15 +342,12 @@ func (cmd Cmd) follow(ctx context.Context, jar http.CookieJar, userUrl string) (
 	}
 	defer func() {
 		if redirected {
-			if session == nil && err == nil {
-				err = ExpectedError{
-					errors.Errorf("maximum number of redirects (%d) followed", maxRedirects),
-				}
-			}
 			client.CloseIdleConnections()
+			if session == nil && err == nil {
+				err = ErrMaxRedirects
+			}
 		}
-		// just add method name, without stack trace at the point
-		err = errors.WithMessage(err, "follow")
+		err = errors.Wrap(err, "follow")
 	}()
 	for i := 0; i < maxRedirects; i++ {
 		cmd.logger.Printf("GET: %s", userUrl)
@@ -371,7 +359,7 @@ func (cmd Cmd) follow(ctx context.Context, jar http.CookieJar, userUrl string) (
 		req.URL.User = cmd.userInfo
 		cmd.applyHeaders(req)
 
-		resp, err := client.Do(req.WithContext(ctx))
+		resp, err := client.Do(req.WithContext(cmd.Ctx))
 		if err != nil {
 			return nil, err
 		}
@@ -440,7 +428,7 @@ func (cmd Cmd) applyHeaders(req *http.Request) {
 	}
 }
 
-func (cmd Cmd) bestMirror(ctx context.Context, input io.Reader) (best string, err error) {
+func (cmd Cmd) bestMirror(input io.Reader) (best string, err error) {
 	defer func() {
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "bestMirror")
@@ -454,7 +442,7 @@ func (cmd Cmd) bestMirror(ctx context.Context, input io.Reader) (best string, er
 	start := make(chan struct{})
 	first := make(chan string, 1)
 	client := cleanhttp.DefaultClient()
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(cmd.Ctx, 15*time.Second)
 	defer cancel()
 
 	for _, u := range urls {
