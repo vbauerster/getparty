@@ -12,7 +12,6 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -550,18 +549,4 @@ func readLines(r io.Reader) ([]string, error) {
 		lines = append(lines, text)
 	}
 	return lines, scanner.Err()
-}
-
-func backgroundContext() (context.Context, func()) {
-	ctx, cancel := context.WithCancel(context.Background())
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		defer signal.Stop(quit)
-		<-quit
-		cancel()
-	}()
-
-	return ctx, cancel
 }
