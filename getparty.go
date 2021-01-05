@@ -108,16 +108,16 @@ func (cmd Cmd) Exit(err error) int {
 		return 2
 	case ExpectedError:
 		if cmd.options.Debug {
-			cmd.dlogger.Printf("exit error: %+v", err)
+			cmd.dlogger.Printf("exit: %+v", err)
 		} else {
-			fmt.Fprintf(cmd.Err, "exit error: %v\n", err)
+			fmt.Fprintf(cmd.Err, "exit: %v\n", err)
 		}
 		return 1
 	default:
 		if cmd.options.Debug {
-			cmd.dlogger.Printf("unexpected error: %+v", err)
+			cmd.dlogger.Printf("unexpected exit: %+v", err)
 		} else {
-			fmt.Fprintf(cmd.Err, "unexpected error: %v\n", err)
+			fmt.Fprintf(cmd.Err, "unexpected exit: %v\n", err)
 		}
 		return 3
 	}
