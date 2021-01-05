@@ -255,7 +255,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		mpb.ContainerOptOn(mpb.WithOutput(nil), predicate(cmd.options.Quiet)),
 		mpb.ContainerOptOn(mpb.WithDebugOutput(cmd.Err), predicate(cmd.options.Debug)),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
-		mpb.WithWidth(60),
+		mpb.WithWidth(64),
 	)
 
 	var eg errgroup.Group
