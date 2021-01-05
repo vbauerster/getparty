@@ -247,10 +247,13 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	if !cmd.options.Quiet {
 		session.writeSummary(cmd.Out)
 	}
-	progress := mpb.NewWithContext(ctx,
-		mpb.ContainerOptOn(mpb.WithOutput(cmd.Out), func() bool { return !cmd.options.Quiet }),
-		mpb.ContainerOptOn(mpb.WithDebugOutput(cmd.Err), func() bool { return cmd.options.Debug }),
-		mpb.ContainerOptOn(mpb.WithManualRefresh(make(chan time.Time)), func() bool { return cmd.options.Quiet }),
+	predicate := func(cond bool) func() bool {
+		return func() bool { return cond }
+	}
+	progress := mpb.NewWithContext(cmd.Ctx,
+		mpb.ContainerOptOn(mpb.WithOutput(cmd.Out), predicate(!cmd.options.Quiet)),
+		mpb.ContainerOptOn(mpb.WithOutput(nil), predicate(cmd.options.Quiet)),
+		mpb.ContainerOptOn(mpb.WithDebugOutput(cmd.Err), predicate(cmd.options.Debug)),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(60),
 	)
