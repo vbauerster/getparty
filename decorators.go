@@ -136,7 +136,7 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 	s.n += uint(n)
 	s.d += dur
-	if s.n >= 1024*64 {
+	if s.n >= 1024*64 && s.d != 0 {
 		durPerByte := float64(s.d) / float64(s.n)
 		s.max = math.Max(s.max, 1/durPerByte)
 		s.n, s.d = 0, 0
