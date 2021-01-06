@@ -119,7 +119,7 @@ type peak struct {
 	decor.WC
 	format string
 	msg    string
-	n      int64
+	n      uint
 	d      time.Duration
 	max    float64
 	once   sync.Once
@@ -134,7 +134,7 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 }
 
 func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
-	s.n += n
+	s.n += uint(n)
 	s.d += dur
 	if s.n >= 1024*64 {
 		durPerByte := float64(s.d) / float64(s.n)
@@ -144,7 +144,7 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 }
 
 func (s *peak) onComplete() {
-	if s.max == 0 && s.n != 0 {
+	if s.max == 0.0 && s.n != 0 {
 		durPerByte := float64(s.d) / float64(s.n)
 		s.max = 1 / durPerByte
 	}
