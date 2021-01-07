@@ -5,12 +5,16 @@ HTTP Download Manager with multi-parts
 ![showcase](showcase.gif)
 
 ## Installation
+
 #### Homebrew
+
 ```
 $ brew tap vbauerster/getparty
 $ brew install getparty
 ```
+
 #### Manual
+
 ```
 $ go get -u github.com/vbauerster/getparty
 $ cd $GOPATH/src/github.com/vbauerster/getparty/cmd/getparty
@@ -18,6 +22,7 @@ $ go install
 ```
 
 ## Usage
+
 ```
 Usage:
   getparty [OPTIONS] url
@@ -31,6 +36,7 @@ Application Options:
   -a, --user-agent=[chrome|firefox|safari]    User-Agent header (default: chrome)
   -b, --best-mirror                           pickup the fastest mirror
   -q, --quiet                                 quiet mode, no progress bars
+  -f, --force                                 overwrite existing file silently
   -u, --username=                             basic http auth username
       --password=                             basic http auth password
       --header=key:value                      arbitrary http header
@@ -43,7 +49,9 @@ Help Options:
 ```
 
 #### Best mirror example:
+
 `cat` [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt) `| getparty -p 8 -b`
 
 ## License
+
 [BSD 3-Clause](https://opensource.org/licenses/BSD-3-Clause)
