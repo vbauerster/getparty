@@ -158,10 +158,6 @@ func (s *peak) onComplete() {
 	} else {
 		s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(1e9/s.minDurPerByte)))
 	}
-	s.msg = fmt.Sprintf(
-		s.format,
-		decor.FmtAsSpeed(decor.SizeB1024(math.Round(s.max*1e9))),
-	)
 }
 
 func (s *peak) Decor(stat decor.Statistics) string {
