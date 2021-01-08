@@ -117,36 +117,46 @@ func (d *mainDecorator) Shutdown() {
 
 type peak struct {
 	decor.WC
-	format string
-	msg    string
-	n      uint
-	d      time.Duration
-	max    float64
-	once   sync.Once
+	format        string
+	msg           string
+	byteAcc       int64
+	durAcc        int64
+	minDurPerByte int64
+	once          sync.Once
 }
 
 func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	d := &peak{
-		WC:     wc.Init(),
-		format: format,
+		WC:            wc.Init(),
+		format:        format,
+		minDurPerByte: math.MaxInt64,
 	}
 	return d
 }
 
 func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
-	s.n += uint(n)
-	s.d += dur
-	if s.n >= 1024*64 && s.d != 0 {
-		durPerByte := float64(s.d) / float64(s.n)
-		s.max = math.Max(s.max, 1/durPerByte)
-		s.n, s.d = 0, 0
+	s.byteAcc += n
+	s.durAcc += int64(dur)
+	if s.byteAcc >= 1024*64 {
+		durPerByte := s.durAcc / s.byteAcc
+		if durPerByte < s.minDurPerByte {
+			s.minDurPerByte = durPerByte
+		}
+		s.byteAcc, s.durAcc = 0, 0
 	}
 }
 
 func (s *peak) onComplete() {
-	if s.max == 0.0 && s.n != 0 {
-		durPerByte := float64(s.d) / float64(s.n)
-		s.max = 1 / durPerByte
+	if s.byteAcc > 0 {
+		durPerByte := s.durAcc / s.byteAcc
+		if durPerByte < s.minDurPerByte {
+			s.minDurPerByte = durPerByte
+		}
+	}
+	if s.minDurPerByte == 0 {
+		s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(0)))
+	} else {
+		s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(1e9/s.minDurPerByte)))
 	}
 	s.msg = fmt.Sprintf(
 		s.format,
