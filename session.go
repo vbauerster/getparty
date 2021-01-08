@@ -78,7 +78,14 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 		return err
 	}
 
+	nlOnComplete := func(w io.Writer, _ int, s decor.Statistics) {
+		if s.Completed {
+			fmt.Fprintln(w)
+		}
+	}
+
 	bar := progress.AddBar(int64(len(s.Parts)-1),
+		mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)),
 		mpb.BarFillerTrim(),
 		mpb.BarStyle(" =>- "),
 		mpb.PrependDecorators(

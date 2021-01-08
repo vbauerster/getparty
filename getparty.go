@@ -294,9 +294,8 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		session.Location = userUrl
 		stateName := session.SuggestedFileName + ".json"
 		progress.Wait()
-		fmt.Fprintln(cmd.Out)
 		if e := session.saveState(stateName); e == nil {
-			cmd.logger.Printf("session state saved to %q", stateName)
+			fmt.Fprintf(cmd.Err, "session state saved to %q\n", stateName)
 		} else {
 			fmt.Fprintf(cmd.Err, "session state save failure: %v\n", e)
 		}
@@ -313,7 +312,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 			return err
 		}
 		progress.Wait()
-		fmt.Fprintln(cmd.Out)
 		cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, written)
 		if cmd.options.JSONFileName != "" {
 			return os.Remove(cmd.options.JSONFileName)
