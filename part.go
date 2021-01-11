@@ -123,6 +123,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					done:  flushed,
 				})
 				<-flushed
+				bar.Abort(false)
 				return false, ErrMaxRetry
 			}
 			if p.isDone() {
