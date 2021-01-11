@@ -18,32 +18,36 @@ type message struct {
 }
 
 type msgGate struct {
-	prefix string
-	msgCh  chan *message
-	done   chan struct{}
+	msgCh   chan *message
+	done    chan struct{}
+	flash func(*message)
 }
 
 func newMsgGate(prefix string, quiet bool) msgGate {
-	gate := msgGate{
-		prefix: prefix,
-		done:   make(chan struct{}),
-	}
-	if !quiet {
-		gate.msgCh = make(chan *message, 4)
-	}
-	return gate
-}
-
-func (s msgGate) flash(msg *message) {
-	msg.times = 14
-	msg.msg = fmt.Sprintf("%s:%s", s.prefix, msg.msg)
-	select {
-	case s.msgCh <- msg:
-	case <-s.done:
+	closeFinalMsg := func(msg *message) {
 		if msg.final && msg.done != nil {
 			close(msg.done)
 		}
 	}
+	msgCh := make(chan *message, 4)
+	done := make(chan struct{})
+	gate := &msgGate{
+		msgCh: msgCh,
+		done:  done,
+		flash: closeFinalMsg,
+	}
+	if !quiet {
+		gate.flash = func(msg *message) {
+			msg.times = 14
+			msg.msg = fmt.Sprintf("%s:%s", prefix, msg.msg)
+			select {
+			case msgCh <- msg:
+			case <-done:
+				closeFinalMsg(msg)
+			}
+		}
+	}
+	return *gate
 }
 
 type mainDecorator struct {
@@ -51,9 +55,9 @@ type mainDecorator struct {
 	curTry   *uint32
 	name     string
 	format   string
+	gate     msgGate
 	flashMsg *message
 	messages []*message
-	gate     msgGate
 }
 
 func newMainDecorator(curTry *uint32, format, name string, gate msgGate, wc decor.WC) decor.Decorator {
@@ -65,6 +69,10 @@ func newMainDecorator(curTry *uint32, format, name string, gate msgGate, wc deco
 		gate:   gate,
 	}
 	return d
+}
+
+func (d *mainDecorator) Shutdown() {
+	close(d.gate.done)
 }
 
 func (d *mainDecorator) depleteMessages() {
@@ -83,13 +91,16 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 		m := d.flashMsg.msg
 		if d.flashMsg.times > 0 {
 			d.flashMsg.times--
-		} else if d.flashMsg.final {
+			if d.flashMsg.times%2 == 0 {
+				d.depleteMessages()
+			}
+		} else if !d.flashMsg.final {
+			d.flashMsg = nil
+		} else {
 			if d.flashMsg.done != nil {
 				close(d.flashMsg.done)
 				d.flashMsg.done = nil
 			}
-		} else {
-			d.flashMsg = nil
 		}
 		return d.FormatMsg(m)
 	}
@@ -109,10 +120,6 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 		name = fmt.Sprintf("%s:R%02d", name, atomic.LoadUint32(d.curTry))
 	}
 	return d.FormatMsg(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
-}
-
-func (d *mainDecorator) Shutdown() {
-	close(d.gate.done)
 }
 
 type peak struct {
