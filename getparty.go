@@ -349,10 +349,10 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 			}
 		}
 		err = errors.Wrap(err, "follow")
+		cmd.dlogger.Printf("follow: %v", err)
 	}()
 	for i := 0; i < maxRedirects; i++ {
 		cmd.logger.Printf("GET: %s", userUrl)
-		cmd.dlogger.Printf("GET: %s", userUrl)
 		req, err := http.NewRequest(http.MethodGet, userUrl, nil)
 		if err != nil {
 			return nil, err
@@ -365,7 +365,6 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 			return nil, err
 		}
 		cmd.logger.Printf("HTTP response: %s", resp.Status)
-		cmd.dlogger.Printf("HTTP response: %s", resp.Status)
 		if cookies := jar.Cookies(req.URL); len(cookies) != 0 {
 			cmd.dlogger.Println("CookieJar:")
 			for _, cookie := range cookies {
