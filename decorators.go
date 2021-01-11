@@ -146,6 +146,9 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 	s.durAcc += int64(dur)
 	if s.byteAcc >= 1024*64 {
 		durPerByte := s.durAcc / s.byteAcc
+		if durPerByte == 0 {
+			return
+		}
 		if durPerByte < s.minDurPerByte {
 			s.minDurPerByte = durPerByte
 		}
@@ -156,7 +159,7 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 func (s *peak) onComplete() {
 	if s.byteAcc > 0 {
 		durPerByte := s.durAcc / s.byteAcc
-		if durPerByte < s.minDurPerByte {
+		if durPerByte != 0 && durPerByte < s.minDurPerByte {
 			s.minDurPerByte = durPerByte
 		}
 	}
