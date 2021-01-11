@@ -216,7 +216,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				return false, errors.New("nil body")
 			}
 
-			if count == 0 {
+			if bar == nil {
+				if count != 0 {
+					panic("double make bar!")
+				}
 				bar = p.makeBar(progress, mg, total, single)
 			}
 
