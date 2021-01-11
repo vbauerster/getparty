@@ -23,11 +23,6 @@ const (
 	bufSize = 1 << 12
 )
 
-var (
-	ErrGiveUp  = errors.New("give up!")
-	ErrNilBody = errors.New("nil body")
-)
-
 var globTry uint32
 
 // Part represents state of each download part
@@ -49,11 +44,24 @@ type Part struct {
 	dlogger   *log.Logger
 }
 
-func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.Bar {
-	bar := progress.AddBar(total,
+func (p *Part) makeBar(progress *mpb.Progress, gate msgGate, total int64, single bool) *mpb.Bar {
+	predicate := func(cond bool) func() bool {
+		return func() bool { return cond }
+	}
+	nlOnComplete := func(w io.Writer, _ int, s decor.Statistics) {
+		if s.Completed {
+			fmt.Fprintln(w)
+		}
+	}
+
+	bar := progress.Add(total,
+		mpb.NewBarFiller(" =>- "),
 		mpb.BarFillerTrim(),
-		mpb.BarStyle(" =>- "),
 		mpb.BarPriority(p.order),
+		mpb.BarOptOn(
+			mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)),
+			predicate(single),
+		),
 		mpb.PrependDecorators(
 			newMainDecorator(&p.curTry, "%s %.1f", p.name, gate, decor.WCSyncWidthR),
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
@@ -77,14 +85,8 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate msgGate) *mpb.B
 }
 
 func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.Request, timeout uint) (err error) {
-	var bar *mpb.Bar
 	defer func() {
-		if err != nil {
-			if bar != nil && !p.isDone() && !p.quiet {
-				bar.Abort(false)
-			}
-			err = errors.WithMessage(err, p.name)
-		}
+		err = errors.Wrap(err, p.name)
 		p.dlogger.Printf("quit: %v", err)
 	}()
 
@@ -103,18 +105,25 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		}
 	}()
 
-	total := p.Stop - p.Start + 1
+	var bar *mpb.Bar
 	mg := newMsgGate(p.name, p.quiet)
-	bar = p.makeBar(total, progress, mg)
+	total := p.Stop - p.Start + 1
 	initialWritten := p.Written
 	prefix := p.dlogger.Prefix()
 
-	err = backoff.Retry(ctx,
+	return backoff.Retry(ctx,
 		exponential.New(exponential.WithBaseDelay(50*time.Millisecond)),
 		time.Minute,
 		func(count int, now time.Time) (retry bool, err error) {
 			if count > p.maxTry {
-				return false, ErrGiveUp
+				flushed := make(chan struct{})
+				mg.flash(&message{
+					msg:   "max retry!",
+					final: true,
+					done:  flushed,
+				})
+				<-flushed
+				return false, ErrMaxRetry
 			}
 			if p.isDone() {
 				p.dlogger.Println("done in try, quitting...")
@@ -141,10 +150,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				atomic.AddUint32(&globTry, 1)
 				atomic.StoreUint32(&p.curTry, uint32(count))
 				mg.flash(&message{msg: "Retrying..."})
-			} else {
-				bar.DecoratorAverageAdjust(now)
 			}
-			p.dlogger.Printf("ctxTimeout: %s", ctxTimeout)
 
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
@@ -175,16 +181,16 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 			}
 
+			var single bool
 			switch resp.StatusCode {
 			case http.StatusOK: // no partial content, so download with single part
 				if p.order != 0 {
 					p.Skip = true
-					bar.Abort(true)
 					p.dlogger.Print("no partial content, skipping...")
 					return false, nil
 				}
+				single = true
 				total = resp.ContentLength
-				bar.SetTotal(total, false)
 				p.Stop = total - 1
 				p.Written = 0
 			case http.StatusForbidden, http.StatusTooManyRequests:
@@ -198,28 +204,32 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				fallthrough
 			default:
 				if resp.StatusCode != http.StatusPartialContent {
+					if bar != nil {
+						bar.Abort(false)
+					}
 					return false, errors.Errorf("unexpected status: %s", resp.Status)
 				}
 			}
 
-			body := resp.Body
-			if !p.quiet {
-				body = bar.ProxyReader(resp.Body)
-				if p.Written > 0 {
-					p.dlogger.Printf("bar refill written: %d", p.Written)
-					bar.SetRefill(p.Written)
-					if p.Written-initialWritten == 0 {
-						bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
-						bar.IncrInt64(p.Written)
-					}
-				}
-			} else {
-				bar.Abort(true)
+			if resp.Body == nil {
+				return false, errors.New("nil body")
 			}
-			if body == nil {
-				return false, ErrNilBody
+
+			if count == 0 {
+				bar = p.makeBar(progress, mg, total, single)
 			}
+
+			body := bar.ProxyReader(resp.Body)
 			defer body.Close()
+
+			if p.Written > 0 {
+				p.dlogger.Printf("bar refill written: %d", p.Written)
+				bar.SetRefill(p.Written)
+				if p.Written-initialWritten == 0 {
+					bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
+					bar.IncrInt64(p.Written)
+				}
+			}
 
 			pWrittenSnap := p.Written
 			buf, max := bytes.NewBuffer(make([]byte, 0, bufSize)), int64(bufSize)
@@ -241,7 +251,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 				n, _ = io.Copy(fpart, buf)
 				p.Written += n
-				if total <= 0 && !p.quiet {
+				if total <= 0 {
 					bar.SetTotal(p.Written+max*2, false)
 				}
 				max = bufSize
@@ -259,18 +269,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 			return !p.isDone(), err
 		})
-
-	if err == ErrGiveUp {
-		flushed := make(chan struct{})
-		mg.flash(&message{
-			msg:   err.Error(),
-			final: true,
-			done:  flushed,
-		})
-		<-flushed
-	}
-
-	return err
 }
 
 func (p Part) getRange() string {
