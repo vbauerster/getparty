@@ -84,10 +84,10 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 		}
 	}
 
-	bar := progress.AddBar(int64(len(s.Parts)-1),
-		mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)),
+	bar := progress.Add(int64(len(s.Parts)-1),
+		mpb.NewBarFiller(" =>- "),
 		mpb.BarFillerTrim(),
-		mpb.BarStyle(" =>- "),
+		mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)),
 		mpb.PrependDecorators(
 			decor.Name("Concatenating:", decor.WCSyncWidthR),
 			decor.NewPercentage("%d", decor.WCSyncSpace),
