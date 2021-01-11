@@ -112,7 +112,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	prefix := p.dlogger.Prefix()
 
 	return backoff.Retry(ctx,
-		exponential.New(exponential.WithBaseDelay(50*time.Millisecond)),
+		exponential.New(exponential.WithBaseDelay(100*time.Millisecond)),
 		time.Minute,
 		func(count int, now time.Time) (retry bool, err error) {
 			if count > p.maxTry {
