@@ -45,9 +45,6 @@ type Part struct {
 }
 
 func (p *Part) makeBar(progress *mpb.Progress, gate msgGate, total int64, single bool) *mpb.Bar {
-	predicate := func(cond bool) func() bool {
-		return func() bool { return cond }
-	}
 	nlOnComplete := func(w io.Writer, _ int, s decor.Statistics) {
 		if s.Completed {
 			fmt.Fprintln(w)
@@ -58,10 +55,7 @@ func (p *Part) makeBar(progress *mpb.Progress, gate msgGate, total int64, single
 		mpb.NewBarFiller(" =>- "),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
-		mpb.BarOptOn(
-			mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)),
-			predicate(single),
-		),
+		mpb.BarOptional(mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)), single),
 		mpb.PrependDecorators(
 			newMainDecorator(&p.curTry, "%s %.1f", p.name, gate, decor.WCSyncWidthR),
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),

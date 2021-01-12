@@ -247,13 +247,10 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	if !cmd.options.Quiet {
 		session.writeSummary(cmd.Out)
 	}
-	predicate := func(cond bool) func() bool {
-		return func() bool { return cond }
-	}
 	progress := mpb.NewWithContext(cmd.Ctx,
-		mpb.ContainerOptOn(mpb.WithOutput(cmd.Out), predicate(!cmd.options.Quiet)),
-		mpb.ContainerOptOn(mpb.WithOutput(nil), predicate(cmd.options.Quiet)),
-		mpb.ContainerOptOn(mpb.WithDebugOutput(cmd.Err), predicate(cmd.options.Debug)),
+		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
+		mpb.ContainerOptional(mpb.WithOutput(nil), cmd.options.Quiet),
+		mpb.ContainerOptional(mpb.WithDebugOutput(cmd.Err), cmd.options.Debug),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
