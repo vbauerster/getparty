@@ -38,13 +38,14 @@ type Part struct {
 	order     int
 	maxTry    int
 	curTry    uint32
+	single    bool
 	quiet     bool
 	jar       http.CookieJar
 	transport *http.Transport
 	dlogger   *log.Logger
 }
 
-func (p *Part) makeBar(progress *mpb.Progress, gate msgGate, total int64, single bool) *mpb.Bar {
+func (p *Part) makeBar(progress *mpb.Progress, gate msgGate, total int64) *mpb.Bar {
 	nlOnComplete := func(w io.Writer, _ int, s decor.Statistics) {
 		if s.Completed {
 			fmt.Fprintln(w)
@@ -55,7 +56,7 @@ func (p *Part) makeBar(progress *mpb.Progress, gate msgGate, total int64, single
 		mpb.NewBarFiller(" =>- "),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
-		mpb.BarOptional(mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)), single),
+		mpb.BarOptional(mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)), p.single),
 		mpb.PrependDecorators(
 			newMainDecorator(&p.curTry, "%s %.1f", p.name, gate, decor.WCSyncWidthR),
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
@@ -176,7 +177,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 			}
 
-			var single bool
 			switch resp.StatusCode {
 			case http.StatusOK: // no partial content, so download with single part
 				if p.order != 0 {
@@ -184,10 +184,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					p.dlogger.Print("no partial content, skipping...")
 					return false, nil
 				}
-				single = true
 				total = resp.ContentLength
 				p.Stop = total - 1
 				p.Written = 0
+				p.single = true
 			case http.StatusForbidden, http.StatusTooManyRequests:
 				flushed := make(chan struct{})
 				mg.flash(&message{
@@ -210,7 +210,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				if count != 0 {
 					panic("double make bar!")
 				}
-				bar = p.makeBar(progress, mg, total, single)
+				bar = p.makeBar(progress, mg, total)
 			}
 
 			body := bar.ProxyReader(resp.Body)

@@ -261,13 +261,15 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	if cmd.options.InsecureSkipVerify {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
+	single := len(session.Parts) == 1
 	for i, p := range session.Parts {
 		if p.isDone() {
 			continue
 		}
 		p.order = i
-		p.maxTry = int(cmd.options.MaxRetry)
+		p.single = single
 		p.quiet = cmd.options.Quiet
+		p.maxTry = int(cmd.options.MaxRetry)
 		p.jar = jar
 		p.transport = transport
 		p.name = fmt.Sprintf("P%02d", i+1)
