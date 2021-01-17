@@ -153,17 +153,6 @@ func (s *Session) loadState(fileName string) error {
 	return err
 }
 
-func (s *Session) actualPartsOnly() {
-	parts := s.Parts[:0]
-	for _, p := range s.Parts {
-		if p.Skip {
-			continue
-		}
-		parts = append(parts, p)
-	}
-	s.Parts = parts
-}
-
 func (s Session) totalWritten() int64 {
 	var total int64
 	for _, p := range s.Parts {

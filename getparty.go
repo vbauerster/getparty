@@ -285,7 +285,8 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	}
 
 	err = eg.Wait()
-	session.actualPartsOnly()
+
+	session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
 
 	if err != nil {
 		// preserve user provided url
@@ -544,4 +545,14 @@ func readLines(r io.Reader) ([]string, error) {
 		lines = append(lines, text)
 	}
 	return lines, scanner.Err()
+}
+
+func filter(parts []*Part, predicate func(*Part) bool) []*Part {
+	filtered := parts[:0]
+	for _, p := range parts {
+		if predicate(p) {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
 }
