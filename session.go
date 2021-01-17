@@ -48,7 +48,7 @@ func (s Session) calcParts(parts int64) []*Part {
 	}
 
 	stop := s.ContentLength
-	start := stop
+	start := s.ContentLength
 	for i := parts - 1; i > 0; i-- {
 		stop = start - 1
 		start = stop - partSize
@@ -61,6 +61,8 @@ func (s Session) calcParts(parts int64) []*Part {
 
 	stop = start - 1
 	if stop < parts*8 {
+		// fragments are too small, so return as single part
+		// no need to set *Part.Stop here, it's handled at *Part.getRange()
 		return ps[:1]
 	}
 
