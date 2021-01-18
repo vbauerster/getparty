@@ -34,12 +34,9 @@ func (s Session) isAcceptRanges() bool {
 	return strings.EqualFold(s.AcceptRanges, acceptRangesType)
 }
 
-func (s Session) calcParts(parts int64) []*Part {
-	var partSize int64
-	if s.ContentLength <= 0 {
+func (s Session) calcParts(dlogger *log.Logger, parts int64) []*Part {
+	if !s.isAcceptRanges() || s.ContentLength <= 0 || parts == 0 {
 		parts = 1
-	} else {
-		partSize = s.ContentLength / parts
 	}
 
 	ps := make([]*Part, parts)
@@ -49,24 +46,28 @@ func (s Session) calcParts(parts int64) []*Part {
 
 	stop := s.ContentLength
 	start := s.ContentLength
+	fragment := s.ContentLength / parts
 	for i := parts - 1; i > 0; i-- {
 		stop = start - 1
-		start = stop - partSize
+		start = stop - fragment
 		ps[i] = &Part{
-			FileName: fmt.Sprintf("%s.part%d", s.SuggestedFileName, i),
+			FileName: fmt.Sprintf("%s.%02d", s.SuggestedFileName, i),
 			Start:    start,
 			Stop:     stop,
 		}
 	}
 
-	stop = start - 1
-	if stop < parts*8 {
-		// fragments are too small, so return as single part
-		// no need to set *Part.Stop here, it's handled at *Part.getRange()
+	ps[0].Stop = start - 1
+
+	if parts > 1 && ps[0].Stop < parts*8 {
+		dlogger.Printf("too many parts (%d) for ContentLength=%d", parts, s.ContentLength)
+		for i, p := range ps {
+			dlogger.Printf("  fragment %02d: %d", i, p.Stop - p.Start)
+		}
+		ps[0].Stop = s.ContentLength - 1
 		return ps[:1]
 	}
 
-	ps[0].Stop = stop
 	return ps
 }
 
