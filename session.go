@@ -161,7 +161,10 @@ func (s Session) totalWritten() int64 {
 	return total
 }
 
-func (s Session) writeSummary(w io.Writer) {
+func (s Session) writeSummary(w io.Writer, quiet bool) {
+	if quiet {
+		return
+	}
 	humanSize := decor.SizeB1024(s.ContentLength)
 	format := fmt.Sprintf("Length: %%s [%s]\n", s.ContentType)
 	lengthSummary := "unknown"

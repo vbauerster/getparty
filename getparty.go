@@ -244,9 +244,8 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		}
 	}
 
-	if !cmd.options.Quiet {
-		session.writeSummary(cmd.Out)
-	}
+	session.writeSummary(cmd.Out, cmd.options.Quiet)
+
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
 		mpb.ContainerOptional(mpb.WithOutput(nil), cmd.options.Quiet),
