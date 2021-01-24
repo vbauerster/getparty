@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -76,6 +77,7 @@ type Options struct {
 	AuthPass           string            `long:"password" description:"basic http auth password"`
 	HeaderMap          map[string]string `short:"H" long:"header" value-name:"key:value" description:"arbitrary http header"`
 	InsecureSkipVerify bool              `long:"no-check-cert" description:"don't validate the server's certificate"`
+	CertsFileName      string            `long:"certs-file" value-name:"certs.crt" description:"root certificates to use when verifying server certificates"`
 	Debug              bool              `long:"debug" description:"enable debug to stderr"`
 	Version            bool              `long:"version" description:"show version"`
 }
@@ -252,10 +254,9 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	)
 
 	var eg errgroup.Group
-	transport := cleanhttp.DefaultPooledTransport()
-	transport.TLSHandshakeTimeout = time.Duration(cmd.options.Timeout) * time.Second
-	if cmd.options.InsecureSkipVerify {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	transport, err := cmd.getTransport()
+	if err != nil {
+		return err
 	}
 	single := len(session.Parts) == 1
 	for i, p := range session.Parts {
@@ -332,8 +333,16 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 			jar.SetCookies(u, cookies)
 		}
 	}
-	client := cleanhttp.DefaultClient()
-	client.Jar = jar
+
+	transport, err := cmd.getTransport()
+	if err != nil {
+		return nil, err
+	}
+	client := &http.Client{
+		Transport: transport,
+		Jar:       jar,
+	}
+
 	client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
@@ -422,6 +431,24 @@ func (cmd Cmd) applyHeaders(req *http.Request) {
 		}
 		req.Header.Set(k, v)
 	}
+}
+
+func (cmd Cmd) getTransport() (*http.Transport, error) {
+	transport := cleanhttp.DefaultPooledTransport()
+	transport.TLSHandshakeTimeout = time.Duration(cmd.options.Timeout) * time.Second
+
+	if cmd.options.InsecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	} else if cmd.options.CertsFileName != "" {
+		caCerts, err := ioutil.ReadFile(cmd.options.CertsFileName)
+		if err != nil {
+			return nil, err
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCerts)
+		transport.TLSClientConfig = &tls.Config{RootCAs: caCertPool}
+	}
+	return transport, nil
 }
 
 func (cmd Cmd) bestMirror(input io.Reader) (best string, err error) {
