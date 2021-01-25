@@ -82,7 +82,6 @@ func (p *Part) makeBar(progress *mpb.Progress, gate msgGate, total int64) *mpb.B
 func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.Request, timeout uint) (err error) {
 	defer func() {
 		err = errors.Wrap(err, p.name)
-		p.dlogger.Printf("quit: %v", err)
 	}()
 
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
