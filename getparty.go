@@ -94,34 +94,41 @@ type Cmd struct {
 }
 
 func (cmd Cmd) Exit(err error) int {
-	if err == nil {
-		return 0
-	}
 	if cmd.Ctx.Err() == context.Canceled {
 		// most probably user hit ^C, so mark as expected
 		err = errors.WithMessage(ErrCanceledByUser, err.Error())
 	}
 	switch e := errors.Cause(err).(type) {
+	case nil:
+		return 0
 	case *flags.Error:
 		if e.Type == flags.ErrHelp {
 			return 0
 		}
 		cmd.parser.WriteHelp(cmd.Err)
 		return 2
+	case *url.Error:
+		cmd.debugOrPrintErr(e, true)
+		return cmd.Exit(e.Err)
 	case ExpectedError:
-		if cmd.options.Debug {
-			cmd.dlogger.Printf("exit: %+v", err)
-		} else {
-			fmt.Fprintf(cmd.Err, "exit: %v\n", err)
-		}
+		cmd.debugOrPrintErr(e, true)
 		return 1
 	default:
-		if cmd.options.Debug {
-			cmd.dlogger.Printf("unexpected exit: %+v", err)
-		} else {
-			fmt.Fprintf(cmd.Err, "unexpected exit: %v\n", err)
-		}
+		cmd.debugOrPrintErr(e, false)
 		return 3
+	}
+}
+
+func (cmd Cmd) debugOrPrintErr(err error, expected bool) {
+	var unexpected string
+	if !expected {
+		unexpected = "unexpected "
+	}
+	if cmd.options.Debug {
+		// if there is stack trace available, +v will include it
+		cmd.dlogger.Printf("%sexit: %+v", unexpected, err)
+	} else {
+		fmt.Fprintf(cmd.Err, "%sexit: %v\n", unexpected, err)
 	}
 }
 
