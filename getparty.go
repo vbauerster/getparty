@@ -108,13 +108,13 @@ func (cmd Cmd) Exit(err error) int {
 		cmd.parser.WriteHelp(cmd.Err)
 		return 2
 	case *url.Error:
-		cmd.debugOrPrintErr(e, true)
+		cmd.debugOrPrintErr(err, true)
 		return cmd.Exit(e.Err)
 	case ExpectedError:
-		cmd.debugOrPrintErr(e, true)
+		cmd.debugOrPrintErr(err, true)
 		return 1
 	default:
-		cmd.debugOrPrintErr(e, false)
+		cmd.debugOrPrintErr(err, false)
 		return 3
 	}
 }
