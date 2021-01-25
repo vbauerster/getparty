@@ -41,6 +41,7 @@ Application Options:
       --password=                             basic http auth password
       --header=key:value                      arbitrary http header
       --no-check-cert                         don't validate the server's certificate
+      --certs-file=certs.crt                  root certificates to use when verifying server certificates
       --debug                                 enable debug to stderr
       --version                               show version
 
