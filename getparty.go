@@ -254,7 +254,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	)
 
 	var eg errgroup.Group
-	transport, err := cmd.getTransport()
+	transport, err := cmd.getTransport(true)
 	if err != nil {
 		return err
 	}
@@ -334,18 +334,18 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 		}
 	}
 
-	transport, err := cmd.getTransport()
+	transport, err := cmd.getTransport(false)
 	if err != nil {
 		return nil, err
 	}
 	client := &http.Client{
 		Transport: transport,
 		Jar:       jar,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
-	client.CheckRedirect = func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
 	defer func() {
 		if redirected {
 			client.CloseIdleConnections()
@@ -433,10 +433,13 @@ func (cmd Cmd) applyHeaders(req *http.Request) {
 	}
 }
 
-func (cmd Cmd) getTransport() (*http.Transport, error) {
-	transport := cleanhttp.DefaultPooledTransport()
+func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) {
+	if pooled {
+		transport = cleanhttp.DefaultPooledTransport()
+	} else {
+		transport = cleanhttp.DefaultTransport()
+	}
 	transport.TLSHandshakeTimeout = time.Duration(cmd.options.Timeout) * time.Second
-
 	if cmd.options.InsecureSkipVerify {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	} else if cmd.options.CertsFileName != "" {
