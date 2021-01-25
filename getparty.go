@@ -319,7 +319,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 }
 
 func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err error) {
-	var redirected bool
 	if hc, ok := cmd.options.HeaderMap[hCookie]; ok {
 		var cookies []*http.Cookie
 		for _, cookie := range strings.Split(hc, "; ") {
@@ -341,22 +340,23 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 	client := &http.Client{
 		Transport: transport,
 		Jar:       jar,
-		CheckRedirect: func(*http.Request, []*http.Request) error {
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+			if len(via) > maxRedirects {
+				return errors.WithMessagef(ErrMaxRedirects, "stopped after %d redirects", maxRedirects)
+			}
 			return http.ErrUseLastResponse
 		},
 	}
 
+	var redirected bool
 	defer func() {
 		if redirected {
 			client.CloseIdleConnections()
-			if session == nil && err == nil {
-				err = ErrMaxRedirects
-			}
 		}
 		err = errors.Wrap(err, "follow")
-		cmd.dlogger.Printf("follow: %v", err)
 	}()
-	for i := 0; i < maxRedirects; i++ {
+
+	for {
 		cmd.logger.Printf("GET: %s", userUrl)
 		req, err := http.NewRequest(http.MethodGet, userUrl, nil)
 		if err != nil {
@@ -415,13 +415,12 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 			SuggestedFileName: cmd.options.OutFileName,
 			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
 			ContentType:       resp.Header.Get("Content-Type"),
+			ContentMD5:        resp.Header.Get("Content-MD5"),
 			StatusCode:        resp.StatusCode,
 			ContentLength:     resp.ContentLength,
-			ContentMD5:        resp.Header.Get("Content-MD5"),
 		}
 		return session, resp.Body.Close()
 	}
-	return
 }
 
 func (cmd Cmd) applyHeaders(req *http.Request) {
