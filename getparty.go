@@ -340,11 +340,20 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 		}
 	}
 
+	var redirected bool
+	var client *http.Client
+	defer func() {
+		if redirected && client != nil {
+			client.CloseIdleConnections()
+		}
+		err = errors.Wrap(err, "follow")
+	}()
+
 	transport, err := cmd.getTransport(false)
 	if err != nil {
 		return nil, err
 	}
-	client := &http.Client{
+	client = &http.Client{
 		Transport: transport,
 		Jar:       jar,
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
@@ -354,14 +363,6 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 			return http.ErrUseLastResponse
 		},
 	}
-
-	var redirected bool
-	defer func() {
-		if redirected {
-			client.CloseIdleConnections()
-		}
-		err = errors.Wrap(err, "follow")
-	}()
 
 	for {
 		cmd.logger.Printf("GET: %s", userUrl)
