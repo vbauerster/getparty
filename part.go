@@ -272,5 +272,5 @@ func (p Part) getRange() string {
 }
 
 func (p Part) isDone() bool {
-	return p.Skip || p.Written > p.Stop-p.Start
+	return p.Skip || (p.Written > 0 && p.Written > p.Stop-p.Start)
 }
