@@ -243,7 +243,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		session = lastSession
 	} else if cmd.options.Parts > 0 {
 		session.HeaderMap = cmd.options.HeaderMap
-		session.Parts = session.calcParts(cmd.dlogger, int64(cmd.options.Parts))
+		session.Parts = session.calcParts(cmd.dlogger, cmd.options.Parts)
 		err := session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
 		if err != nil {
 			return err

@@ -34,7 +34,7 @@ func (s Session) isAcceptRanges() bool {
 	return strings.EqualFold(s.AcceptRanges, acceptRangesType)
 }
 
-func (s Session) calcParts(dlogger *log.Logger, parts int64) []*Part {
+func (s Session) calcParts(dlogger *log.Logger, parts uint) []*Part {
 	if !s.isAcceptRanges() || s.ContentLength <= 0 || parts == 0 {
 		parts = 1
 	}
@@ -46,7 +46,7 @@ func (s Session) calcParts(dlogger *log.Logger, parts int64) []*Part {
 
 	stop := s.ContentLength
 	start := s.ContentLength
-	fragment := s.ContentLength / parts
+	fragment := s.ContentLength / int64(parts)
 	for i := parts - 1; i > 0; i-- {
 		stop = start - 1
 		start = stop - fragment
@@ -59,7 +59,7 @@ func (s Session) calcParts(dlogger *log.Logger, parts int64) []*Part {
 
 	ps[0].Stop = start - 1
 
-	if parts > 1 && ps[0].Stop < parts*8 {
+	if parts > 1 && ps[0].Stop < int64(parts*8) {
 		dlogger.Printf("too many parts (%d) for ContentLength=%d", parts, s.ContentLength)
 		for i, p := range ps {
 			dlogger.Printf("  fragment %02d: %d", i, p.Stop - p.Start)
