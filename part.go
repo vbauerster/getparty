@@ -184,7 +184,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					return false, nil
 				}
 				total = resp.ContentLength
-				p.Stop = total - 1
+				p.Stop = resp.ContentLength - 1
 				p.Written = 0
 				p.single = true
 			case http.StatusForbidden, http.StatusTooManyRequests:
@@ -203,6 +203,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					}
 					return false, errors.Errorf("unexpected status: %s", resp.Status)
 				}
+				if p.single && resp.ContentLength > 0 {
+					total = resp.ContentLength
+					p.Stop = resp.ContentLength - 1
+				}
 			}
 
 			if bar == nil {
@@ -210,6 +214,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					panic("double make bar!")
 				}
 				bar = p.makeBar(progress, mg, total)
+				p.dlogger.Printf("bar total: %d", total)
 			}
 
 			body := bar.ProxyReader(resp.Body)
