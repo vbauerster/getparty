@@ -109,22 +109,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		exponential.New(exponential.WithBaseDelay(100*time.Millisecond)),
 		30*time.Second,
 		func(count int, now time.Time) (retry bool, err error) {
-			if count > p.maxTry {
-				flushed := make(chan struct{})
-				mg.flash(&message{
-					msg:   "max retry!",
-					final: true,
-					done:  flushed,
-				})
-				<-flushed
-				bar.Abort(false)
-				return false, ErrMaxRetry
-			}
-			if p.isDone() {
-				p.dlogger.Println("done in try, quitting...")
-				return false, nil
-			}
-
 			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefix, count))
 
 			req.Header.Set(hRange, p.getRange())
@@ -265,6 +249,19 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			if err == io.EOF {
 				return false, nil
 			}
+
+			if count == p.maxTry {
+				flushed := make(chan struct{})
+				mg.flash(&message{
+					msg:   "max retry!",
+					final: true,
+					done:  flushed,
+				})
+				<-flushed
+				bar.Abort(false)
+				return false, ErrMaxRetry
+			}
+
 			return !p.isDone(), err
 		})
 }
