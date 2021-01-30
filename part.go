@@ -109,16 +109,16 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		exponential.New(exponential.WithBaseDelay(100*time.Millisecond)),
 		30*time.Second,
 		func(count int, now time.Time) (retry bool, err error) {
-			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefix, count))
-
-			req.Header.Set(hRange, p.getRange())
-			p.dlogger.Printf("GET %q", req.URL)
-			p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
-			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
-
 			defer func() {
 				p.Elapsed += time.Since(now)
 			}()
+
+			req.Header.Set(hRange, p.getRange())
+
+			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefix, count))
+			p.dlogger.Printf("GET %q", req.URL)
+			p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
+			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
 
 			ctxTimeout := time.Duration(timeout) * time.Second
 			if count > 0 {
