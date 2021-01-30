@@ -147,7 +147,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
-				p.dlogger.Printf("client do: %s", err.Error())
 				return true, err
 			}
 
@@ -194,9 +193,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 
 			if bar == nil {
-				if count != 0 {
-					panic("double make bar!")
-				}
 				bar = p.makeBar(progress, mg, total)
 				p.dlogger.Printf("bar total: %d", total)
 			}
@@ -241,7 +237,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 			n, _ = io.Copy(fpart, buf)
 			p.Written += n
-			p.dlogger.Printf("total written: %d", p.Written-pWrittenSnap)
+			p.dlogger.Printf("written: %d", p.Written-pWrittenSnap)
 			if total <= 0 {
 				p.Stop = p.Written - 1
 			}
