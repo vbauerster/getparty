@@ -258,7 +258,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				return false, ErrMaxRetry
 			}
 
-			return !p.isDone(), err
+			return true, err
 		})
 }
 
