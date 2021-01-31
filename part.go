@@ -109,6 +109,9 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		exponential.New(exponential.WithBaseDelay(100*time.Millisecond)),
 		30*time.Second,
 		func(count int, now time.Time) (retry bool, err error) {
+			if p.isDone() {
+				panic("unexpected: done part is engaged")
+			}
 			defer func() {
 				p.Elapsed += time.Since(now)
 			}()
