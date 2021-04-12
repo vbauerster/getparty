@@ -169,8 +169,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					p.dlogger.Print("no partial content, skipping...")
 					return false, nil
 				}
-				total = resp.ContentLength
-				p.Stop = resp.ContentLength - 1
 				p.Written = 0
 				p.single = true
 			case http.StatusForbidden, http.StatusTooManyRequests:
@@ -189,10 +187,11 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					}
 					return false, errors.Errorf("unexpected status: %s", resp.Status)
 				}
-				if p.single && resp.ContentLength > 0 {
-					total = resp.ContentLength
-					p.Stop = resp.ContentLength - 1
-				}
+			}
+
+			if p.single && resp.ContentLength > 0 {
+				total = resp.ContentLength
+				p.Stop = resp.ContentLength - 1
 			}
 
 			if bar == nil {
