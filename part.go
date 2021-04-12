@@ -231,7 +231,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 				n, _ = io.Copy(fpart, buf)
 				p.Written += n
-				if total <= 0 {
+				if total < 1 {
 					bar.SetTotal(p.Written+max*2, false)
 				}
 				max = bufSize
@@ -240,7 +240,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			n, _ = io.Copy(fpart, buf)
 			p.Written += n
 			p.dlogger.Printf("written: %d", p.Written-pWrittenSnap)
-			if total <= 0 {
+
+			if total < 1 {
 				p.Stop = p.Written - 1
 			}
 
