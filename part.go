@@ -110,7 +110,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 		30*time.Second,
 		func(count int, now time.Time) (retry bool, err error) {
 			if p.isDone() {
-				panic("unexpected: done part is engaged")
+				panic(fmt.Sprintf("%s is engaged while being done", prefix))
 			}
 			defer func() {
 				p.Elapsed += time.Since(now)
