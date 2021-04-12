@@ -246,7 +246,12 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 
 			if err == io.EOF {
-				return false, nil
+				if p.Written == pWrittenSnap {
+					err = errors.Errorf("%s zero written", prefix)
+				} else {
+					err = nil
+				}
+				return false, err
 			}
 
 			if count == p.maxTry {
