@@ -150,7 +150,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
-				return true, err
+				p.dlogger.Printf("Client.Do err: %s", err.Error())
+				return count+1 != p.maxTry, err
 			}
 
 			p.dlogger.Printf("resp.Status: %s", resp.Status)
@@ -254,7 +255,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				return false, err
 			}
 
-			if count == p.maxTry {
+			if count+1 == p.maxTry {
 				flushed := make(chan struct{})
 				mg.flash(&message{
 					msg:   "max retry!",
