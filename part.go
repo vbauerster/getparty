@@ -126,7 +126,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			ctxTimeout := time.Duration(timeout) * time.Second
 			if count > 0 {
 				ctxTimeout = time.Duration((1<<uint(count-1))*timeout) * time.Second
-				if bound := 10 * time.Minute; ctxTimeout > bound {
+				if bound := time.Minute; ctxTimeout > bound {
 					ctxTimeout = bound
 				}
 				atomic.AddUint32(&globTry, 1)
