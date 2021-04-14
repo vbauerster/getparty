@@ -102,18 +102,20 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	var bar *mpb.Bar
 	mg := newMsgGate()
 	total := p.total()
-	initialWritten := p.Written
 	prefix := p.dlogger.Prefix()
+	initialWritten := p.Written
+	initialTimeout := timeout
+	resetDur := 30 * time.Second
+	lStart := time.Time{}
 
-	return backoff.Retry(ctx,
-		exponential.New(exponential.WithBaseDelay(100*time.Millisecond)),
-		30*time.Second,
+	return backoff.Retry(ctx, exponential.New(exponential.WithBaseDelay(100*time.Millisecond)), resetDur,
 		func(count int, now time.Time) (retry bool, err error) {
 			if p.isDone() {
 				panic(fmt.Sprintf("%s is engaged while being done", prefix))
 			}
 			defer func() {
 				p.Elapsed += time.Since(now)
+				lStart = now
 			}()
 
 			req.Header.Set(hRange, p.getRange())
@@ -123,17 +125,18 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
 			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
 
-			ctxTimeout := time.Duration(timeout) * time.Second
 			if count > 0 {
-				ctxTimeout = time.Duration((1<<uint(count-1))*timeout) * time.Second
-				if bound := time.Minute; ctxTimeout > bound {
-					ctxTimeout = bound
+				if now.Sub(lStart) < resetDur {
+					timeout += 5
+				} else {
+					timeout = initialTimeout
 				}
 				atomic.AddUint32(&globTry, 1)
 				atomic.StoreUint32(&p.curTry, uint32(count))
 				mg.flash(&message{msg: "Retrying..."})
 			}
 
+			ctxTimeout := time.Duration(timeout) * time.Second
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			timer := time.AfterFunc(ctxTimeout, func() {
