@@ -100,8 +100,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	}()
 
 	var bar *mpb.Bar
-	mg := newMsgGate(p.name, p.quiet)
-	total := p.Stop - p.Start + 1
+	mg := newMsgGate()
+	total := p.total()
 	initialWritten := p.Written
 	prefix := p.dlogger.Prefix()
 
@@ -137,10 +137,9 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			timer := time.AfterFunc(ctxTimeout, func() {
-				msg := "Timeout..."
-				mg.flash(&message{msg: msg})
-				p.dlogger.Print(msg)
 				cancel()
+				p.dlogger.Printf("CtxTimeout after: %v", ctxTimeout)
+				mg.flash(&message{msg: "Timeout..."})
 			})
 			defer timer.Stop()
 
@@ -154,8 +153,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				return count+1 != p.maxTry, err
 			}
 
-			p.dlogger.Printf("resp.Status: %s", resp.Status)
-			p.dlogger.Printf("resp.ContentLength: %d", resp.ContentLength)
+			p.dlogger.Printf("Status: %s", resp.Status)
+			p.dlogger.Printf("ContentLength: %d", resp.ContentLength)
 			if cookies := p.jar.Cookies(req.URL); len(cookies) != 0 {
 				p.dlogger.Println("CookieJar:")
 				for _, cookie := range cookies {
@@ -196,6 +195,9 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 
 			if bar == nil {
+				if !p.quiet {
+					mg.init(p.name, 14)
+				}
 				bar = p.makeBar(progress, mg, total)
 				p.dlogger.Printf("bar total: %d", total)
 			}
@@ -204,9 +206,9 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			defer body.Close()
 
 			if p.Written > 0 {
-				p.dlogger.Printf("bar refill written: %d", p.Written)
 				bar.SetRefill(p.Written)
-				if p.Written-initialWritten == 0 {
+				p.dlogger.Printf("set bar refill: %d", p.Written)
+				if p.Written == initialWritten {
 					bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 					bar.IncrInt64(p.Written)
 				}
@@ -272,7 +274,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 }
 
 func (p Part) getRange() string {
-	if p.Stop <= 0 {
+	if p.Stop < 1 {
 		return "bytes=0-"
 	}
 	return fmt.Sprintf("bytes=%d-%d", p.Start+p.Written, p.Stop)
@@ -280,4 +282,8 @@ func (p Part) getRange() string {
 
 func (p Part) isDone() bool {
 	return p.Skip || (p.Written > 0 && p.Written > p.Stop-p.Start)
+}
+
+func (p Part) total() int64 {
+	return p.Stop - p.Start + 1
 }

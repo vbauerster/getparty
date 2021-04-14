@@ -18,36 +18,35 @@ type message struct {
 }
 
 type msgGate struct {
-	msgCh   chan *message
-	done    chan struct{}
+	msgCh chan *message
+	done  chan struct{}
 	flash func(*message)
 }
 
-func newMsgGate(prefix string, quiet bool) msgGate {
-	closeFinalMsg := func(msg *message) {
-		if msg.final && msg.done != nil {
-			close(msg.done)
+func (g *msgGate) init(prefix string, times int) {
+	sinkFlash := g.flash
+	g.flash = func(msg *message) {
+		msg.times = times
+		msg.msg = fmt.Sprintf("%s:%s", prefix, msg.msg)
+		select {
+		case g.msgCh <- msg:
+		case <-g.done:
+			sinkFlash(msg)
 		}
 	}
-	msgCh := make(chan *message, 4)
-	done := make(chan struct{})
-	gate := &msgGate{
-		msgCh: msgCh,
-		done:  done,
-		flash: closeFinalMsg,
-	}
-	if !quiet {
-		gate.flash = func(msg *message) {
-			msg.times = 14
-			msg.msg = fmt.Sprintf("%s:%s", prefix, msg.msg)
-			select {
-			case msgCh <- msg:
-			case <-done:
-				closeFinalMsg(msg)
+}
+
+func newMsgGate() msgGate {
+	gate := msgGate{
+		msgCh: make(chan *message, 4),
+		done:  make(chan struct{}),
+		flash: func(msg *message) {
+			if msg.final && msg.done != nil {
+				close(msg.done)
 			}
-		}
+		},
 	}
-	return *gate
+	return gate
 }
 
 type mainDecorator struct {
