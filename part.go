@@ -253,10 +253,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 
 			if err == io.EOF {
-				if p.Written == pWrittenSnap {
-					err = errors.Errorf("%s zero written", prefix)
-				} else {
+				if p.isDone() {
 					err = nil
+				} else {
+					err = errors.Errorf("%s not done after EOF", prefix)
 				}
 				return false, err
 			}
