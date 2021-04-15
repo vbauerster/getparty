@@ -217,9 +217,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 			}
 
-			pWrittenSnap := p.Written
-			buf, max := bytes.NewBuffer(make([]byte, 0, bufSize)), int64(bufSize)
 			var n int64
+			pWrittenSnap := p.Written
+			buf := bytes.NewBuffer(make([]byte, 0, bufSize))
+			max := int64(bufSize)
 			for timer.Reset(ctxTimeout) {
 				n, err = io.CopyN(buf, body, max)
 				if err != nil {
