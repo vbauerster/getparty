@@ -265,6 +265,9 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	if err != nil {
 		return err
 	}
+	if cmd.options.Timeout == 0 {
+		cmd.options.Timeout = 15
+	}
 	single := len(session.Parts) == 1
 	for i, p := range session.Parts {
 		if p.isDone() {
