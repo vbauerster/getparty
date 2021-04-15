@@ -29,7 +29,7 @@ Usage:
 
 Application Options:
   -p, --parts=n                               number of parts (default: 2)
-  -r, --max-retry=n                           max retries per each part (default: 10)
+  -r, --max-retry=n                           max retry per each part, 0 for infinite (default: 10)
   -t, --timeout=sec                           context timeout (default: 15)
   -o, --output=filename                       user defined output
   -c, --continue=state.json                   resume download from the last session
