@@ -133,7 +133,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 				atomic.AddUint32(&globTry, 1)
 				atomic.StoreUint32(&p.curTry, uint32(count))
-				mg.flash(&message{msg: "Retrying..."})
 			}
 
 			ctxTimeout := time.Duration(timeout) * time.Second
