@@ -230,6 +230,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 						})
 						if e.Temporary() {
 							max -= n
+							time.Sleep(50 * time.Millisecond)
 							continue
 						}
 					}
