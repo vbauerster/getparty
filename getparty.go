@@ -23,6 +23,8 @@ import (
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
+	"github.com/vbauerster/backoff"
+	"github.com/vbauerster/backoff/exponential"
 	"github.com/vbauerster/mpb/v6"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/publicsuffix"
@@ -31,8 +33,17 @@ import (
 
 type ExpectedError string
 
-func (s ExpectedError) Error() string {
-	return string(s)
+func (e ExpectedError) Error() string {
+	return string(e)
+}
+
+type HttpError struct {
+	StatusCode int
+	Status     string
+}
+
+func (e HttpError) Error() string {
+	return fmt.Sprintf("HTTP error: %s", e.Status)
 }
 
 const (
@@ -221,7 +232,23 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		return err
 	}
 
-	session, err := cmd.follow(jar, userUrl)
+	var session *Session
+	err = backoff.Retry(cmd.Ctx, exponential.New(), time.Hour,
+		func(count int, _ time.Time) (retry bool, err error) {
+			defer func() {
+				if retry {
+					cmd.logger.Println(err)
+					cmd.logger.Println("Retrying...")
+				}
+			}()
+			session, err = cmd.follow(jar, userUrl)
+			if e, ok := err.(*HttpError); ok {
+				if isServerError(e.StatusCode) {
+					return count+1 != int(cmd.options.MaxRetry), err
+				}
+			}
+			return false, err
+		})
 	if err != nil {
 		return err
 	}
@@ -401,7 +428,7 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, errors.Errorf("unexpected status: %s", resp.Status)
+			return nil, &HttpError{resp.StatusCode, resp.Status}
 		}
 
 		if name := cmd.options.OutFileName; name == "" {
@@ -570,6 +597,10 @@ func parseContentDisposition(input string) string {
 
 func isRedirect(status int) bool {
 	return status > 299 && status < 400
+}
+
+func isServerError(status int) bool {
+	return status > 499 && status < 500
 }
 
 func readLines(r io.Reader) ([]string, error) {
