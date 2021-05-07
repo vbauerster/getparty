@@ -43,7 +43,7 @@ type HttpError struct {
 }
 
 func (e HttpError) Error() string {
-	return fmt.Sprintf("http error: %s", e.Status)
+	return fmt.Sprintf("HTTP error: %s", e.Status)
 }
 
 const (
@@ -233,8 +233,14 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	}
 
 	var session *Session
-	err = backoff.Retry(cmd.Ctx, exponential.New(exponential.WithBaseDelay(100*time.Millisecond)), time.Hour,
+	err = backoff.Retry(cmd.Ctx, exponential.New(), time.Hour,
 		func(count int, _ time.Time) (retry bool, err error) {
+			defer func() {
+				if retry {
+					cmd.logger.Println(err)
+					cmd.logger.Println("Retrying...")
+				}
+			}()
 			session, err = cmd.follow(jar, userUrl)
 			if e, ok := err.(*HttpError); ok {
 				if isServerError(e.StatusCode) {
