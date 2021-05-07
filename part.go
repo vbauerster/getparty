@@ -108,7 +108,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	resetDur := time.Duration(2*timeout) * time.Second
 	lStart := time.Time{}
 
-	return backoff.Retry(ctx, exponential.New(exponential.WithBaseDelay(100*time.Millisecond)), resetDur,
+	return backoff.Retry(ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)), resetDur,
 		func(count int, now time.Time) (retry bool, err error) {
 			if p.isDone() {
 				panic(fmt.Sprintf("%s is engaged while being done", prefix))
