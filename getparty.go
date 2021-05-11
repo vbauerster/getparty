@@ -237,7 +237,6 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 		func(count int, _ time.Time) (retry bool, err error) {
 			defer func() {
 				if retry {
-					cmd.logger.Println(err)
 					cmd.logger.Println("Retrying...")
 				}
 			}()
