@@ -116,6 +116,14 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			defer func() {
 				p.Elapsed += time.Since(now)
 				lStart = now
+				if !retry && err != nil {
+					if err == ErrMaxRetry {
+						mg.finalFlash(err.Error())
+					}
+					if bar != nil {
+						bar.Abort(false)
+					}
+				}
 			}()
 
 			req.Header.Set(hRange, p.getRange())
@@ -141,7 +149,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			timer := time.AfterFunc(ctxTimeout, func() {
 				cancel()
 				p.dlogger.Printf("CtxTimeout after: %v", ctxTimeout)
-				mg.flash(&message{msg: "Timeout..."})
+				mg.flash("Timeout...")
 			})
 			defer timer.Stop()
 
@@ -152,7 +160,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
 				p.dlogger.Printf("Client.Do err: %s", err.Error())
-				return count+1 != p.maxTry, err
+				if count+1 == p.maxTry {
+					return false, ErrMaxRetry
+				}
+				return true, err
 			}
 
 			p.dlogger.Printf("Status: %s", resp.Status)
@@ -174,20 +185,11 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				p.Written = 0
 				p.single = true
 			case http.StatusForbidden, http.StatusTooManyRequests:
-				flushed := make(chan struct{})
-				mg.flash(&message{
-					msg:   resp.Status,
-					final: true,
-					done:  flushed,
-				})
-				<-flushed
+				mg.finalFlash(resp.Status)
 				fallthrough
 			default:
 				if resp.StatusCode != http.StatusPartialContent {
-					if bar != nil {
-						bar.Abort(false)
-					}
-					return false, errors.Errorf("unexpected status: %s", resp.Status)
+					return false, &HttpError{resp.StatusCode, resp.Status}
 				}
 			}
 
@@ -225,9 +227,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				if err != nil {
 					p.dlogger.Printf("CopyN err: %s", err.Error())
 					if e, ok := err.(*url.Error); ok {
-						mg.flash(&message{
-							msg: fmt.Sprintf("%.30s..", e.Err.Error()),
-						})
+						mg.flash(fmt.Sprintf("%.30s..", e.Err.Error()))
 						if e.Temporary() {
 							max -= n
 							time.Sleep(50 * time.Millisecond)
@@ -262,14 +262,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 
 			if count+1 == p.maxTry {
-				flushed := make(chan struct{})
-				mg.flash(&message{
-					msg:   "max retry!",
-					final: true,
-					done:  flushed,
-				})
-				<-flushed
-				bar.Abort(false)
 				return false, ErrMaxRetry
 			}
 

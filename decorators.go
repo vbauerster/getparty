@@ -18,14 +18,14 @@ type message struct {
 }
 
 type msgGate struct {
-	msgCh chan *message
-	done  chan struct{}
-	flash func(*message)
+	msgCh    chan *message
+	done     chan struct{}
+	msgFlash func(*message)
 }
 
 func (g *msgGate) init(prefix string, times int) {
-	sinkFlash := g.flash
-	g.flash = func(msg *message) {
+	sinkFlash := g.msgFlash
+	g.msgFlash = func(msg *message) {
 		msg.times = times
 		msg.msg = fmt.Sprintf("%s:%s", prefix, msg.msg)
 		select {
@@ -36,11 +36,25 @@ func (g *msgGate) init(prefix string, times int) {
 	}
 }
 
+func (g *msgGate) flash(msg string) {
+	g.msgFlash(&message{msg: msg})
+}
+
+func (g *msgGate) finalFlash(msg string) {
+	flushed := make(chan struct{})
+	g.msgFlash(&message{
+		msg:   msg,
+		final: true,
+		done:  flushed,
+	})
+	<-flushed
+}
+
 func newMsgGate() msgGate {
 	gate := msgGate{
 		msgCh: make(chan *message, 4),
 		done:  make(chan struct{}),
-		flash: func(msg *message) {
+		msgFlash: func(msg *message) {
 			if msg.final && msg.done != nil {
 				close(msg.done)
 			}
