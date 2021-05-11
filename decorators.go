@@ -102,18 +102,19 @@ func (d *mainDecorator) depleteMessages() {
 func (d *mainDecorator) Decor(stat decor.Statistics) string {
 	if !stat.Completed && d.flashMsg != nil {
 		m := d.flashMsg.msg
-		if d.flashMsg.times > 0 {
+		switch {
+		case d.flashMsg.times > 0:
 			d.flashMsg.times--
 			if d.flashMsg.times%2 == 0 {
 				d.depleteMessages()
 			}
-		} else if !d.flashMsg.final {
-			d.flashMsg = nil
-		} else {
+		case d.flashMsg.final:
 			if d.flashMsg.done != nil {
 				close(d.flashMsg.done)
 				d.flashMsg.done = nil
 			}
+		default:
+			d.flashMsg = nil
 		}
 		return d.FormatMsg(m)
 	}
