@@ -15,8 +15,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
-	"github.com/vbauerster/mpb/v6"
-	"github.com/vbauerster/mpb/v6/decor"
+	"github.com/vbauerster/mpb/v7"
+	"github.com/vbauerster/mpb/v7/decor"
 )
 
 const (
@@ -53,7 +53,7 @@ func (p *Part) makeBar(progress *mpb.Progress, gate msgGate, total int64) *mpb.B
 	}
 
 	bar := progress.Add(total,
-		mpb.NewBarFiller(" =>- "),
+		mpb.NewBarFiller(mpb.BarStyle().Lbound(" ").Rbound(" ")),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
 		mpb.BarOptional(mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)), p.single),

@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/vbauerster/mpb/v6/decor"
+	"github.com/vbauerster/mpb/v7/decor"
 )
 
 type message struct {

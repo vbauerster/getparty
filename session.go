@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/vbauerster/mpb/v6"
-	"github.com/vbauerster/mpb/v6/decor"
+	"github.com/vbauerster/mpb/v7"
+	"github.com/vbauerster/mpb/v7/decor"
 )
 
 const (
@@ -88,7 +88,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 	}
 
 	bar := progress.Add(int64(len(s.Parts)-1),
-		mpb.NewBarFiller(" =>- "),
+		mpb.NewBarFiller(mpb.BarStyle().Lbound(" ").Rbound(" ")),
 		mpb.BarFillerTrim(),
 		mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)),
 		mpb.PrependDecorators(

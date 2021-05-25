@@ -25,7 +25,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
-	"github.com/vbauerster/mpb/v6"
+	"github.com/vbauerster/mpb/v7"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/sync/errgroup"
