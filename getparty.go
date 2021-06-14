@@ -47,6 +47,10 @@ func (e HttpError) Error() string {
 }
 
 const (
+	Version = "dev"
+)
+
+const (
 	ErrCanceledByUser = ExpectedError("Canceled by user")
 	ErrMaxRedirects   = ExpectedError("Max redirects reached")
 	ErrMaxRetry       = ExpectedError("Max retry reached")
@@ -68,9 +72,11 @@ const (
 var reContentDisposition = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`)
 
 var userAgents = map[string]string{
-	"chrome":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36",
-	"firefox": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:59.0) Gecko/20100101 Firefox/59.0",
-	"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.1 Safari/605.1.15",
+	"chrome":   "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36",
+	"firefox":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11.4; rv:89.0) Gecko/20100101 Firefox/89.0",
+	"safari":   "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
+	"edge":     "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
+	"getparty": fmt.Sprintf("%s/%s", cmdName, Version),
 }
 
 // Options struct, represents cmd line options
@@ -80,7 +86,7 @@ type Options struct {
 	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName       string            `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
-	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" default:"chrome" description:"User-Agent header"`
+	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
 	BestMirror         bool              `short:"b" long:"best-mirror" description:"pickup the fastest mirror"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	ForceOverwrite     bool              `short:"f" long:"force" description:"overwrite existing file silently"`

@@ -17,8 +17,7 @@ import (
 )
 
 var (
-	version = "dev"
-	commit  = "xxxxxxx"
+	commit = "xxxxxxx"
 )
 
 func main() {
@@ -31,7 +30,7 @@ func main() {
 	}
 	os.Exit(cmd.Exit(cmd.Run(
 		os.Args[1:],
-		fmt.Sprintf("%s (%.7s) (%s)", version, commit, runtime.Version()),
+		fmt.Sprintf("%s (%.7s) (%s)", getparty.Version, commit, runtime.Version()),
 	)))
 }
 
