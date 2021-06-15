@@ -7,17 +7,16 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 
 	"github.com/vbauerster/getparty"
 )
 
 var (
-	commit = "xxxxxxx"
+	version = "dev"
+	commit  = "xxxxxxx"
 )
 
 func main() {
@@ -28,10 +27,7 @@ func main() {
 		Out: os.Stdout,
 		Err: os.Stderr,
 	}
-	os.Exit(cmd.Exit(cmd.Run(
-		os.Args[1:],
-		fmt.Sprintf("%s (%.7s) (%s)", getparty.Version, commit, runtime.Version()),
-	)))
+	os.Exit(cmd.Exit(cmd.Run(os.Args[1:], version, commit)))
 }
 
 func backgroundContext() (context.Context, func()) {

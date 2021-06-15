@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -47,10 +48,6 @@ func (e HttpError) Error() string {
 }
 
 const (
-	Version = "dev"
-)
-
-const (
 	ErrCanceledByUser = ExpectedError("Canceled by user")
 	ErrMaxRedirects   = ExpectedError("Max redirects reached")
 	ErrMaxRetry       = ExpectedError("Max retry reached")
@@ -72,11 +69,10 @@ const (
 var reContentDisposition = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`)
 
 var userAgents = map[string]string{
-	"chrome":   "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36",
-	"firefox":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11.4; rv:89.0) Gecko/20100101 Firefox/89.0",
-	"safari":   "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
-	"edge":     "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
-	"getparty": fmt.Sprintf("%s/%s", cmdName, Version),
+	"chrome":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36",
+	"firefox": "Mozilla/5.0 (Macintosh; Intel Mac OS X 11.4; rv:89.0) Gecko/20100101 Firefox/89.0",
+	"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
+	"edge":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
 }
 
 // Options struct, represents cmd line options
@@ -149,11 +145,12 @@ func (cmd Cmd) debugOrPrintErr(err error, expected bool) {
 	}
 }
 
-func (cmd *Cmd) Run(args []string, version string) (err error) {
+func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	defer func() {
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "run")
 	}()
+	userAgents[cmdName] = fmt.Sprintf("%s/%s", cmdName, version)
 	cmd.options = new(Options)
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
 	cmd.parser.Name = cmdName
@@ -165,7 +162,7 @@ func (cmd *Cmd) Run(args []string, version string) (err error) {
 	}
 
 	if cmd.options.Version {
-		fmt.Fprintf(cmd.Out, "%s: %s\n", cmdName, version)
+		fmt.Fprintf(cmd.Out, "%s (%.7s) (%s)\n", userAgents[cmdName], commit, runtime.Version())
 		fmt.Fprintf(cmd.Out, "Project home: %s\n", projectHome)
 		return nil
 	}
