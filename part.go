@@ -45,13 +45,13 @@ type Part struct {
 	dlogger   *log.Logger
 }
 
-func (p *Part) makeBar(progress *mpb.Progress, gate msgGate, total int64) *mpb.Bar {
+func (p *Part) makeBar(progress *mpb.Progress, gate *msgGate, total int64) *mpb.Bar {
+	p.dlogger.Printf("making bar with total: %d", total)
 	nlOnComplete := func(w io.Writer, _ int, s decor.Statistics) {
 		if s.Completed {
 			fmt.Fprintln(w)
 		}
 	}
-
 	bar := progress.Add(total,
 		mpb.NewBarFiller(mpb.BarStyle().Lbound(" ").Rbound(" ")),
 		mpb.BarFillerTrim(),
@@ -100,7 +100,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	}()
 
 	var bar *mpb.Bar
-	mg := newMsgGate()
+	barInitDone := make(chan struct{})
+	mg := newMsgGate(p.quiet, p.name, 15)
 	total := p.total()
 	prefix := p.dlogger.Prefix()
 	initialWritten := p.Written
@@ -116,13 +117,11 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			defer func() {
 				p.Elapsed += time.Since(now)
 				lStart = now
-				if !retry && err != nil {
+				if !retry && err != nil && bar != nil {
 					if err == ErrMaxRetry {
 						mg.finalFlash(err.Error())
 					}
-					if bar != nil {
-						bar.Abort(false)
-					}
+					bar.Abort(false)
 				}
 			}()
 
@@ -148,8 +147,14 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			defer cancel()
 			timer := time.AfterFunc(ctxTimeout, func() {
 				cancel()
-				p.dlogger.Printf("CtxTimeout after: %v", ctxTimeout)
-				mg.flash("Timeout...")
+				// checking for bar != nil here is a data race
+				// select to rescue
+				select {
+				case <-barInitDone:
+					mg.flash("Timeout...")
+				default:
+				}
+				p.dlogger.Printf("Timeout after: %v", ctxTimeout)
 			})
 			defer timer.Stop()
 
@@ -199,11 +204,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 
 			if bar == nil {
-				if !p.quiet {
-					mg.init(p.name, 14)
-				}
 				bar = p.makeBar(progress, mg, total)
-				p.dlogger.Printf("bar total: %d", total)
+				close(barInitDone)
 			}
 
 			body := bar.ProxyReader(resp.Body)

@@ -11,9 +11,8 @@ import (
 )
 
 type message struct {
-	msg   string
 	times int
-	final bool
+	msg   string
 	done  chan struct{}
 }
 
@@ -23,17 +22,30 @@ type msgGate struct {
 	msgFlash func(*message)
 }
 
-func (g *msgGate) init(prefix string, times int) {
-	sinkFlash := g.msgFlash
-	g.msgFlash = func(msg *message) {
-		msg.times = times
-		msg.msg = fmt.Sprintf("%s:%s", prefix, msg.msg)
-		select {
-		case g.msgCh <- msg:
-		case <-g.done:
-			sinkFlash(msg)
+func newMsgGate(quiet bool, prefix string, times int) *msgGate {
+	gate := &msgGate{
+		msgCh: make(chan *message, 1),
+		done:  make(chan struct{}),
+		msgFlash: func(msg *message) {
+			if msg.done != nil {
+				close(msg.done)
+				msg.done = nil
+			}
+		},
+	}
+	if !quiet {
+		sinkFlash := gate.msgFlash
+		gate.msgFlash = func(msg *message) {
+			msg.times = times
+			msg.msg = fmt.Sprintf("%s:%s", prefix, msg.msg)
+			select {
+			case gate.msgCh <- msg:
+			case <-gate.done:
+				sinkFlash(msg)
+			}
 		}
 	}
+	return gate
 }
 
 func (g *msgGate) flash(msg string) {
@@ -43,24 +55,10 @@ func (g *msgGate) flash(msg string) {
 func (g *msgGate) finalFlash(msg string) {
 	flushed := make(chan struct{})
 	g.msgFlash(&message{
-		msg:   msg,
-		final: true,
-		done:  flushed,
+		msg:  msg,
+		done: flushed,
 	})
 	<-flushed
-}
-
-func newMsgGate() msgGate {
-	gate := msgGate{
-		msgCh: make(chan *message, 4),
-		done:  make(chan struct{}),
-		msgFlash: func(msg *message) {
-			if msg.final && msg.done != nil {
-				close(msg.done)
-			}
-		},
-	}
-	return gate
 }
 
 type mainDecorator struct {
@@ -68,12 +66,12 @@ type mainDecorator struct {
 	curTry   *uint32
 	name     string
 	format   string
-	gate     msgGate
-	flashMsg *message
+	finalMsg bool
+	gate     *msgGate
 	messages []*message
 }
 
-func newMainDecorator(curTry *uint32, format, name string, gate msgGate, wc decor.WC) decor.Decorator {
+func newMainDecorator(curTry *uint32, format, name string, gate *msgGate, wc decor.WC) decor.Decorator {
 	d := &mainDecorator{
 		WC:     wc.Init(),
 		curTry: curTry,
@@ -88,45 +86,34 @@ func (d *mainDecorator) Shutdown() {
 	close(d.gate.done)
 }
 
-func (d *mainDecorator) depleteMessages() {
-	for {
-		select {
-		case m := <-d.gate.msgCh:
-			d.messages = append(d.messages, m)
-		default:
-			return
-		}
-	}
-}
-
 func (d *mainDecorator) Decor(stat decor.Statistics) string {
-	if !stat.Completed && d.flashMsg != nil {
-		m := d.flashMsg.msg
-		switch {
-		case d.flashMsg.times > 0:
-			d.flashMsg.times--
-			if d.flashMsg.times%2 == 0 {
-				d.depleteMessages()
-			}
-		case d.flashMsg.final:
-			if d.flashMsg.done != nil {
-				close(d.flashMsg.done)
-				d.flashMsg.done = nil
-			}
-		default:
-			d.flashMsg = nil
-		}
-		return d.FormatMsg(m)
+	select {
+	case m := <-d.gate.msgCh:
+		d.messages = append(d.messages, m)
+	default:
 	}
-
-	d.depleteMessages()
-
 	if len(d.messages) > 0 {
-		d.flashMsg = d.messages[0]
-		copy(d.messages, d.messages[1:])
-		d.messages = d.messages[:len(d.messages)-1]
-		d.flashMsg.times--
-		return d.FormatMsg(d.flashMsg.msg)
+		m := d.messages[0]
+		defer func() {
+			if stat.Completed && m.done != nil {
+				close(m.done)
+				m.done = nil
+				d.finalMsg = true
+			}
+		}()
+		switch {
+		case d.finalMsg:
+		case m.times > 0:
+			m.times--
+		case m.done != nil:
+			close(m.done)
+			m.done = nil
+			d.finalMsg = true
+		default:
+			copy(d.messages, d.messages[1:])
+			d.messages = d.messages[:len(d.messages)-1]
+		}
+		return d.FormatMsg(m.msg)
 	}
 
 	name := d.name
