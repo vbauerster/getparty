@@ -89,21 +89,21 @@ func (d *mainDecorator) Shutdown() {
 func (d *mainDecorator) Decor(stat decor.Statistics) string {
 	select {
 	case m := <-d.gate.msgCh:
-		d.messages = append(d.messages, m)
+		if m.times > 0 {
+			d.messages = append(d.messages, m)
+		}
 	default:
 	}
 	if len(d.messages) > 0 {
 		m := d.messages[0]
-		defer func() {
-			if stat.Completed && m.done != nil {
-				close(m.done)
-				m.done = nil
-				d.finalMsg = true
-			}
-		}()
+	finalCheck:
 		switch {
 		case d.finalMsg:
-		case m.times > 0:
+		case m.times > 1:
+			if stat.Completed {
+				m.times = 0
+				goto finalCheck
+			}
 			m.times--
 		case m.done != nil:
 			close(m.done)
