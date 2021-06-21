@@ -229,7 +229,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				if err != nil {
 					p.dlogger.Printf("CopyN err: %s", err.Error())
 					if e, ok := err.(*url.Error); ok {
-						mg.flash(fmt.Sprintf("%.30s..", e.Err.Error()))
+						go mg.flash(fmt.Sprintf("%.30s..", e.Err.Error()))
 						if e.Temporary() {
 							max -= n
 							time.Sleep(50 * time.Millisecond)
