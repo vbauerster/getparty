@@ -62,7 +62,7 @@ func (s Session) calcParts(dlogger *log.Logger, parts uint) []*Part {
 	if parts > 1 && ps[0].Stop < int64(parts*8) {
 		dlogger.Printf("too many parts (%d) for ContentLength=%d", parts, s.ContentLength)
 		for i, p := range ps {
-			dlogger.Printf("  fragment %02d: %d", i, p.Stop - p.Start)
+			dlogger.Printf("  fragment %02d: %d", i, p.Stop-p.Start)
 		}
 		ps[0].Stop = s.ContentLength - 1
 		return ps[:1]
