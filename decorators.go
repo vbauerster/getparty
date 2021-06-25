@@ -158,16 +158,13 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 }
 
 func (s *peak) onComplete() {
-	if s.byteAcc != 0 && s.minDurPerByte == 0 {
-		durPerByte := s.durAcc / s.byteAcc
-		if durPerByte != 0 && durPerByte < s.minDurPerByte {
-			s.minDurPerByte = durPerByte
-		}
+	if s.minDurPerByte == 0 && s.byteAcc != 0 {
+		s.minDurPerByte = s.durAcc / s.byteAcc
 	}
-	if s.minDurPerByte == 0 {
-		s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(0)))
-	} else {
+	if s.minDurPerByte != 0 {
 		s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(1e9/s.minDurPerByte)))
+	} else {
+		s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(0)))
 	}
 }
 
