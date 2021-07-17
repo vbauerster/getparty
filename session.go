@@ -121,7 +121,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 		}
 		for _, err := range [...]error{fparti.Close(), os.Remove(fparti.Name())} {
 			if err != nil {
-				dlogger.Printf("concatenateParts: %q %v", fparti.Name(), err)
+				dlogger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
 			}
 		}
 		bar.Increment()

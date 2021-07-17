@@ -313,7 +313,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, session.Location, nil)
 		if err != nil {
-			cmd.logger.Fatalf("%s: %v", p.name, err)
+			cmd.logger.Fatalf("%s: %s", p.name, err.Error())
 		}
 		req.URL.User = cmd.userInfo
 		cmd.applyHeaders(req)
@@ -528,7 +528,7 @@ func (cmd Cmd) bestMirror(input io.Reader) (best string, err error) {
 	for _, u := range urls {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
-			cmd.dlogger.Printf("skipping %q: %v", u, err)
+			cmd.dlogger.Printf("skipping %q: %s", u, err.Error())
 			continue
 		}
 		readyWg.Add(1)
@@ -538,7 +538,7 @@ func (cmd Cmd) bestMirror(input io.Reader) (best string, err error) {
 			cmd.dlogger.Printf("fetching: %q", u)
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
-				cmd.dlogger.Printf("fetch error: %v", err)
+				cmd.dlogger.Printf("fetch error: %s", err.Error())
 			}
 			if resp == nil || resp.Body == nil {
 				return
@@ -580,7 +580,7 @@ func (cmd Cmd) closeReaders(rr []io.Reader) {
 	for _, r := range rr {
 		if closer, ok := r.(io.Closer); ok {
 			if err := closer.Close(); err != nil {
-				cmd.dlogger.Printf("close failed: %v", err)
+				cmd.dlogger.Printf("close failed: %s", err.Error())
 			}
 		}
 	}
