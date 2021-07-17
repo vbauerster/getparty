@@ -135,13 +135,13 @@ func (cmd Cmd) Exit(err error) int {
 func (cmd Cmd) debugOrPrintErr(err error, expected bool) {
 	var unexpected string
 	if !expected {
-		unexpected = "unexpected "
+		unexpected = "unexpected: "
 	}
 	if cmd.options.Debug {
 		// if there is stack trace available, +v will include it
-		cmd.dlogger.Printf("%sexit: %+v", unexpected, err)
+		cmd.dlogger.Printf("%s%+v", unexpected, err)
 	} else {
-		fmt.Fprintf(cmd.Err, "%sexit: %v\n", unexpected, err)
+		fmt.Fprintf(cmd.Err, "%s%s\n", unexpected, err.Error())
 	}
 }
 
@@ -331,11 +331,25 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		// preserve user provided url
 		session.Location = userUrl
 		stateName := session.SuggestedFileName + ".json"
-		progress.Wait()
-		if e := session.saveState(stateName); e == nil {
-			fmt.Fprintf(cmd.Err, "session state saved to %q\n", stateName)
+		var stateMedia io.Writer
+		f, fcErr := os.Create(stateName)
+		if fcErr != nil {
+			defer cmd.debugOrPrintErr(fcErr, false)
+			stateMedia = cmd.Err
 		} else {
-			fmt.Fprintf(cmd.Err, "session state save failure: %v\n", e)
+			defer func() {
+				if e := f.Close(); e != nil {
+					cmd.debugOrPrintErr(e, false)
+				}
+			}()
+			stateMedia = f
+		}
+		progress.Wait()
+		e := session.dumpState(stateMedia)
+		if e != nil {
+			cmd.debugOrPrintErr(e, false)
+		} else if fcErr == nil {
+			fmt.Fprintf(cmd.Err, "session state saved to %q\n", stateName)
 		}
 		return err
 	}
