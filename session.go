@@ -1,6 +1,7 @@
 package getparty
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -139,7 +140,7 @@ func (s *Session) loadState(fileName string) error {
 		return err
 	}
 
-	err = json.NewDecoder(src).Decode(s)
+	err = json.NewDecoder(bufio.NewReader(src)).Decode(s)
 	if e := src.Close(); err == nil {
 		err = e
 	}
