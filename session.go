@@ -180,8 +180,11 @@ func (s Session) writeSummary(w io.Writer, quiet bool) {
 
 func (s Session) removeFiles() (err error) {
 	for _, part := range s.Parts {
-		if e := os.Remove(part.FileName); err == nil && !os.IsNotExist(e) {
-			err = e
+		err = os.Remove(part.FileName)
+		if errors.Is(err, os.ErrNotExist) {
+			err = nil
+		} else {
+			break
 		}
 	}
 	return err
@@ -190,13 +193,13 @@ func (s Session) removeFiles() (err error) {
 func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
 	stat, err := os.Stat(s.SuggestedFileName)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		return err
 	}
 	if stat.IsDir() {
-		return errors.Errorf("%q is a directory", stat.Name())
+		return fmt.Errorf("%v: %q is a directory", os.ErrInvalid, stat.Name())
 	}
 	if forceOverwrite {
 		return s.removeFiles()
