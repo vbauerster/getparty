@@ -198,7 +198,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	switch {
 	case cmd.options.JSONFileName != "":
 		lastSession = new(Session)
-		if err := lastSession.loadState(cmd.options.JSONFileName); err != nil {
+		err := lastSession.loadState(cmd.options.JSONFileName)
+		if err != nil {
 			return err
 		}
 		userUrl = lastSession.Location
