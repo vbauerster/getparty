@@ -360,7 +360,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if cmd.options.Parts > 0 {
 		written := session.totalWritten()
 		if session.ContentLength > 0 && written != session.ContentLength {
-			return errors.Errorf("Corrupted download: ContentLength=%d Saved=%d", session.ContentLength, written)
+			return fmt.Errorf("Corrupted download: ContentLength=%d Saved=%d", session.ContentLength, written)
 		}
 		err := session.concatenateParts(cmd.dlogger, progress)
 		if err != nil {

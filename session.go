@@ -221,13 +221,13 @@ func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
 
 func (s Session) checkSums(other *Session) error {
 	if s.ContentMD5 != other.ContentMD5 {
-		return errors.Errorf(
+		return fmt.Errorf(
 			"ContentMD5 mismatch: expected %q got %q",
 			s.ContentMD5, other.ContentMD5,
 		)
 	}
 	if s.ContentLength != other.ContentLength {
-		return errors.Errorf(
+		return fmt.Errorf(
 			"ContentLength mismatch: expected %d got %d",
 			s.ContentLength, other.ContentLength,
 		)
@@ -245,7 +245,7 @@ func (s Session) checkPartsSize() error {
 			return err
 		}
 		if fileSize := stat.Size(); part.Written != fileSize {
-			return errors.Errorf(
+			return fmt.Errorf(
 				"%q size mismatch: expected %d got %d",
 				part.FileName, part.Written, fileSize,
 			)
