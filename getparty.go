@@ -168,10 +168,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return nil
 	}
 
-	if len(args) == 0 && cmd.options.JSONFileName == "" && !cmd.options.BestMirror {
-		return new(flags.Error)
-	}
-
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
 			cmd.options.AuthPass, err = cmd.readPassword()
@@ -223,6 +219,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		if err != nil {
 			return err
 		}
+	case len(args) == 0:
+		return new(flags.Error)
 	default:
 		userUrl = args[0]
 	}
