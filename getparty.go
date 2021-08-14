@@ -255,18 +255,22 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	if lastSession != nil {
-		if lastSession.ContentMD5 != session.ContentMD5 {
-			return errors.Errorf(
-				"ContentMD5 mismatch: remote %q expected %q",
-				session.ContentMD5, lastSession.ContentMD5,
-			)
+	if lastSession == nil {
+		lastSession = new(Session)
+		err := lastSession.loadState(session.SuggestedFileName + ".json")
+		if err != nil {
+			lastSession = nil
 		}
-		if lastSession.ContentLength != session.ContentLength {
-			return errors.Errorf(
-				"ContentLength mismatch: remote %d expected %d",
-				session.ContentLength, lastSession.ContentLength,
-			)
+	}
+
+	if lastSession != nil {
+		err := lastSession.checkSums(session)
+		if err != nil {
+			return err
+		}
+		err = lastSession.checkPartsSize()
+		if err != nil {
+			return err
 		}
 		lastSession.Location = session.Location
 		session = lastSession

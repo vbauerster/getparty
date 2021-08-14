@@ -218,3 +218,38 @@ func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
 		}
 	}
 }
+
+func (s Session) checkSums(other *Session) error {
+	if s.ContentMD5 != other.ContentMD5 {
+		return errors.Errorf(
+			"ContentMD5 mismatch: expected %q got %q",
+			s.ContentMD5, other.ContentMD5,
+		)
+	}
+	if s.ContentLength != other.ContentLength {
+		return errors.Errorf(
+			"ContentLength mismatch: expected %d got %d",
+			s.ContentLength, other.ContentLength,
+		)
+	}
+	return nil
+}
+
+func (s Session) checkPartsSize() error {
+	for _, part := range s.Parts {
+		if part.Skip {
+			continue
+		}
+		stat, err := os.Stat(part.FileName)
+		if err != nil {
+			return err
+		}
+		if fileSize := stat.Size(); part.Written != fileSize {
+			return errors.Errorf(
+				"%q size mismatch: expected %d got %d",
+				part.FileName, part.Written, fileSize,
+			)
+		}
+	}
+	return nil
+}
