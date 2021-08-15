@@ -187,6 +187,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	cmd.logger = setupLogger(cmd.Out, "", cmd.options.Quiet)
 	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
+	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 
 	var userUrl string
 	var lastSession *Session
@@ -223,10 +224,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return new(flags.Error)
 	default:
 		userUrl = args[0]
-	}
-
-	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
-		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	}
 
 	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
