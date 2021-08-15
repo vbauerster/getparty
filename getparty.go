@@ -254,10 +254,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if lastSession == nil {
 		lastSession = new(Session)
-		err := lastSession.loadState(session.SuggestedFileName + ".json")
+		stateName := session.SuggestedFileName + ".json"
+		err := lastSession.loadState(stateName)
 		if err != nil {
 			lastSession = nil
 		} else {
+			cmd.options.JSONFileName = stateName
 			cmd.options.HeaderMap = lastSession.HeaderMap
 		}
 	}
