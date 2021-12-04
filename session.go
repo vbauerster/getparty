@@ -204,18 +204,17 @@ func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
 	}
 	if forceOverwrite {
 		return s.removeFiles()
-	} else {
-		var answer string
-		fmt.Fprintf(w, "File %q already exists, overwrite? [y/n] ", stat.Name())
-		if _, err := fmt.Scanf("%s", &answer); err != nil {
-			return err
-		}
-		switch strings.ToLower(answer) {
-		case "y", "yes":
-			return s.removeFiles()
-		default:
-			return ErrCanceledByUser
-		}
+	}
+	var answer string
+	fmt.Fprintf(w, "File %q already exists, overwrite? [y/n] ", stat.Name())
+	if _, err := fmt.Scanf("%s", &answer); err != nil {
+		return err
+	}
+	switch strings.ToLower(answer) {
+	case "y", "yes":
+		return s.removeFiles()
+	default:
+		return ErrCanceledByUser
 	}
 }
 
