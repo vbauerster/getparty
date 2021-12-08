@@ -28,7 +28,7 @@ Usage:
   getparty [OPTIONS] url
 
 Application Options:
-  -p, --parts=n                                             number of parts (default: 2)
+  -p, --parts=n                                             number of parts (default: 1)
   -r, --max-retry=n                                         max retry per each part, 0 for infinite (default: 10)
   -t, --timeout=sec                                         context timeout (default: 15)
   -o, --output=filename                                     user defined output

@@ -77,7 +77,7 @@ var userAgents = map[string]string{
 
 // Options struct, represents cmd line options
 type Options struct {
-	Parts              uint              `short:"p" long:"parts" value-name:"n" default:"2" description:"number of parts"`
+	Parts              uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
 	MaxRetry           uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retry per each part, 0 for infinite"`
 	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
