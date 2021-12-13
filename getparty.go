@@ -529,6 +529,14 @@ func (cmd Cmd) bestMirror(input io.Reader) (best string, err error) {
 	ctx, cancel := context.WithTimeout(cmd.Ctx, 15*time.Second)
 	defer cancel()
 
+	subscribe := func(wg *sync.WaitGroup, start <-chan struct{}, fn func()) {
+		go func() {
+			wg.Done()
+			<-start
+			fn()
+		}()
+	}
+
 	for _, u := range urls {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -590,12 +598,6 @@ func (cmd Cmd) closeReaders(rr []io.Reader) {
 	}
 }
 
-func subscribe(wg *sync.WaitGroup, start <-chan struct{}, fn func()) {
-	go func() {
-		wg.Done()
-		<-start
-		fn()
-	}()
 }
 
 func parseContentDisposition(input string) string {
