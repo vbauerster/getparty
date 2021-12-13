@@ -93,7 +93,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			p.dlogger.Printf("%q close error: %s", fpart.Name(), err.Error())
 		}
 		if p.Skip {
-			if err := os.Remove(fpart.Name()); err != nil {
+			if err := os.Remove(p.FileName); err != nil {
 				p.dlogger.Printf("%q remove error: %s", fpart.Name(), err.Error())
 			}
 		}
@@ -102,7 +102,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	var bar *mpb.Bar
 	barInitDone := make(chan struct{})
 	mg := newMsgGate(p.quiet, p.name, 15)
-	total := p.total()
 	prefix := p.dlogger.Prefix()
 	initialWritten := p.Written
 	initialTimeout := timeout
@@ -180,6 +179,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 			}
 
+			var noPartial bool
 			switch resp.StatusCode {
 			case http.StatusOK: // no partial content, so download with single part
 				if p.order != 0 {
@@ -187,8 +187,12 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					p.dlogger.Print("no partial content, skipping...")
 					return false, nil
 				}
-				p.Written = 0
 				p.single = true
+				noPartial = true
+				p.Written = 0
+				if resp.ContentLength > 0 {
+					p.Stop = resp.ContentLength - 1
+				}
 			case http.StatusForbidden, http.StatusTooManyRequests:
 				mg.finalFlash(resp.Status)
 				fallthrough
@@ -196,11 +200,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				if resp.StatusCode != http.StatusPartialContent {
 					return false, &HttpError{resp.StatusCode, resp.Status}
 				}
-			}
-
-			if p.single && resp.ContentLength > 0 {
-				total = resp.ContentLength
-				p.Stop = resp.ContentLength - 1
 			}
 
 			if bar == nil {
@@ -240,8 +239,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 				n, _ = io.Copy(fpart, buf)
 				p.Written += n
-				if total < 1 {
-					bar.SetTotal(p.Written+max*2, false)
+				if p.total() <= 0 {
+					bar.SetTotal(p.Written+max, false)
 				}
 				max = bufSize
 			}
@@ -250,17 +249,22 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			p.Written += n
 			p.dlogger.Printf("written: %d", p.Written-pWrittenSnap)
 
-			if total < 1 {
-				p.Stop = p.Written - 1
+			if err == io.EOF {
+				if p.total() <= 0 {
+					bar.SetTotal(p.Written, true)
+				}
+				return false, nil
 			}
 
-			if err == io.EOF {
-				if p.isDone() {
-					err = nil
-				} else {
-					err = errors.Errorf("%s not done after EOF", prefix)
+			if noPartial {
+				bar.SetCurrent(0)
+				bar.SetTotal(0, false)
+				if e := fpart.Close(); e == nil {
+					fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
+					if e != nil {
+						panic(e)
+					}
 				}
-				return false, err
 			}
 
 			if count+1 == p.maxTry {
