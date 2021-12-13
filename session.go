@@ -14,10 +14,6 @@ import (
 	"github.com/vbauerster/mpb/v7/decor"
 )
 
-const (
-	acceptRangesType = "bytes"
-)
-
 // Session represents download session state
 type Session struct {
 	Location          string
@@ -32,7 +28,7 @@ type Session struct {
 }
 
 func (s Session) isAcceptRanges() bool {
-	return strings.EqualFold(s.AcceptRanges, acceptRangesType)
+	return strings.EqualFold(s.AcceptRanges, "bytes")
 }
 
 func (s Session) calcParts(dlogger *log.Logger, parts uint) []*Part {
