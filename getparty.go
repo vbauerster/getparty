@@ -334,26 +334,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		// preserve user provided url
 		session.Location = userUrl
-		stateName := session.SuggestedFileName + ".json"
-		var stateMedia io.Writer
-		f, fcErr := os.Create(stateName)
-		if fcErr != nil {
-			defer cmd.debugOrPrintErr(fcErr, false)
-			stateMedia = cmd.Err
-		} else {
-			defer func() {
-				if e := f.Close(); e != nil {
-					cmd.debugOrPrintErr(e, false)
-				}
-			}()
-			stateMedia = f
-		}
 		progress.Wait()
-		e := session.dumpState(stateMedia)
+		media, e := cmd.dumpState(session)
 		if e != nil {
 			cmd.debugOrPrintErr(e, false)
-		} else if fcErr == nil {
-			fmt.Fprintf(cmd.Err, "session state saved to %q\n", stateName)
+		} else {
+			fmt.Fprintf(cmd.Err, "session state saved to %q\n", media)
 		}
 		return err
 	}
@@ -598,6 +584,23 @@ func (cmd Cmd) closeReaders(rr []io.Reader) {
 	}
 }
 
+func (cmd Cmd) dumpState(session *Session) (mediaName string, err error) {
+	var media io.Writer
+	mediaName = session.SuggestedFileName + ".json"
+	f, err := os.Create(mediaName)
+	if err != nil {
+		media = cmd.Err
+		mediaName = "stderr"
+	} else {
+		defer func() {
+			if e := f.Close(); err == nil {
+				err = e
+			}
+		}()
+		media = f
+	}
+	err = session.dumpState(media)
+	return
 }
 
 func parseContentDisposition(input string) string {
