@@ -45,31 +45,47 @@ type Part struct {
 	dlogger   *log.Logger
 }
 
-func (p *Part) makeBar(progress *mpb.Progress, gate *msgGate, total int64) *mpb.Bar {
+func (p *Part) makeBar(progress *mpb.Progress, gate *msgGate, total int64, noPartial bool) *mpb.Bar {
+	if total < 0 {
+		total = 0
+	}
 	p.dlogger.Printf("making bar with total: %d", total)
+	builder := func() mpb.BarFiller {
+		builder := mpb.BarStyle().Lbound(" ").Rbound(" ")
+		if noPartial {
+			builder = builder.Tip(`-`, `\`, `|`, `/`)
+		}
+		return builder.Build()
+	}
 	nlOnComplete := func(w io.Writer, _ int, s decor.Statistics) {
 		if s.Completed {
 			fmt.Fprintln(w)
 		}
 	}
-	bar := progress.Add(total,
-		mpb.NewBarFiller(mpb.BarStyle().Lbound(" ").Rbound(" ")),
+	bar := progress.New(total,
+		mpb.BarFillerBuilderFunc(builder),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
 		mpb.BarOptional(mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)), p.single),
 		mpb.PrependDecorators(
 			newMainDecorator(&p.curTry, "%s %.1f", p.name, gate, decor.WCSyncWidthR),
-			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
+			decor.OnCondition(
+				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
+				!noPartial,
+			),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(
-				decor.NewAverageETA(
-					decor.ET_STYLE_MMSS,
-					time.Now(),
-					decor.FixedIntervalTimeNormalizer(60),
-					decor.WCSyncWidthR,
+			decor.OnCondition(
+				decor.OnComplete(
+					decor.NewAverageETA(
+						decor.ET_STYLE_MMSS,
+						time.Now(),
+						decor.FixedIntervalTimeNormalizer(60),
+						decor.WCSyncWidthR,
+					),
+					"Avg:",
 				),
-				"Avg:",
+				!noPartial,
 			),
 			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
@@ -203,7 +219,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 
 			if bar == nil {
-				bar = p.makeBar(progress, mg, total)
+				bar = p.makeBar(progress, mg, p.total(), noPartial)
 				close(barInitDone)
 			}
 
