@@ -94,10 +94,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 			decor.NewPercentage("%d", decor.WCSyncSpace),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(
-				decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidthR),
-				"Done",
-			),
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "Done"),
 		),
 	)
 	defer func() {
