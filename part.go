@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	bufSize = 1 << 12
+	bufSize = 4096
 )
 
 var globTry uint32
