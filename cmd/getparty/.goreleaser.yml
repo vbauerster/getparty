@@ -32,8 +32,12 @@ snapshot:
 changelog:
   filters:
     exclude:
-    - '^docs:'
-    - '^test:'
+      - "^doc"
+      - "^test"
+      - "^todo"
+      - "^minor"
+      - "^WIP"
+      - "typo"
 brews:
 -
   commit_author:
