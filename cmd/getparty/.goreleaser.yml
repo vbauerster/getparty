@@ -12,12 +12,8 @@ builds:
     - arm64
     - arm
   ignore:
-    - goos: freebsd
-      goarch: arm
-      goarm: 6
-    - goos: openbsd
-      goarch: arm
-      goarm: 6
+    - goos: windows
+      goarch: 386
 archives:
 -
   replacements:
