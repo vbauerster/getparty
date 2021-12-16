@@ -302,13 +302,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if cmd.options.Timeout == 0 {
 		cmd.options.Timeout = 15
 	}
-	single := len(session.Parts) == 1
 	for i, p := range session.Parts {
 		if p.isDone() {
 			continue
 		}
 		p.order = i
-		p.single = single
 		p.quiet = cmd.options.Quiet
 		p.maxTry = int(cmd.options.MaxRetry)
 		p.jar = jar

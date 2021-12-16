@@ -38,7 +38,6 @@ type Part struct {
 	order     int
 	maxTry    int
 	curTry    uint32
-	single    bool
 	quiet     bool
 	jar       http.CookieJar
 	transport *http.Transport
@@ -57,16 +56,10 @@ func (p *Part) makeBar(progress *mpb.Progress, gate *msgGate, total int64, noPar
 		}
 		return builder.Build()
 	}
-	nlOnComplete := func(w io.Writer, _ int, s decor.Statistics) {
-		if s.Completed {
-			fmt.Fprintln(w)
-		}
-	}
 	bar := progress.New(total,
 		mpb.BarFillerBuilderFunc(builder),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
-		mpb.BarOptional(mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)), p.single),
 		mpb.PrependDecorators(
 			newMainDecorator(&p.curTry, "%s %.1f", p.name, gate, decor.WCSyncWidthR),
 			decor.OnCondition(
@@ -207,7 +200,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					p.dlogger.Print("no partial content, skipping...")
 					return false, nil
 				}
-				p.single = true
 				noPartial = true
 				p.Written = 0
 				if resp.ContentLength > 0 {
