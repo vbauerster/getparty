@@ -68,59 +68,53 @@ func (s Session) calcParts(dlogger *log.Logger, parts uint) []*Part {
 	return ps
 }
 
-func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (err error) {
-	if len(s.Parts) <= 1 {
-		return nil
-	}
-
+func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (size int64, err error) {
 	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	nlOnComplete := func(w io.Writer, _ int, s decor.Statistics) {
-		if s.Completed {
-			fmt.Fprintln(w)
-		}
-	}
-
-	bar := progress.New(int64(len(s.Parts)-1),
-		mpb.BarStyle().Lbound(" ").Rbound(" "),
-		mpb.BarFillerTrim(),
-		mpb.BarPriority(len(s.Parts)),
-		mpb.BarExtender(mpb.BarFillerFunc(nlOnComplete)),
-		mpb.PrependDecorators(
-			decor.Name("Concatenating:", decor.WCSyncWidthR),
-			decor.NewPercentage("%d", decor.WCSyncSpace),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "Done"),
-		),
-	)
-	defer func() {
-		if err != nil {
-			bar.Abort(false)
-		}
-	}()
-
-	dlogger.Printf("concatenating: %s", fpart0.Name())
-	for i := 1; i < len(s.Parts); i++ {
-		fparti, err := os.Open(s.Parts[i].FileName)
-		if err != nil {
-			return err
-		}
-		dlogger.Printf("concatenating: %s", fparti.Name())
-		if _, err := io.Copy(fpart0, fparti); err != nil {
-			return err
-		}
-		for _, err := range [...]error{fparti.Close(), os.Remove(fparti.Name())} {
+	if len(s.Parts) > 1 {
+		bar := progress.New(int64(len(s.Parts)-1),
+			mpb.BarStyle().Lbound(" ").Rbound(" "),
+			mpb.BarFillerTrim(),
+			mpb.BarPriority(len(s.Parts)),
+			mpb.PrependDecorators(
+				decor.Name("Concatenating:", decor.WCSyncWidthR),
+				decor.NewPercentage("%d", decor.WCSyncSpace),
+			),
+			mpb.AppendDecorators(
+				decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "Done"),
+			),
+		)
+		defer func() {
 			if err != nil {
-				dlogger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
+				bar.Abort(false)
 			}
+		}()
+		for i := 1; i < len(s.Parts); i++ {
+			fparti, err := os.Open(s.Parts[i].FileName)
+			if err != nil {
+				return 0, err
+			}
+			dlogger.Printf("concatenating: %s", fparti.Name())
+			if _, err := io.Copy(fpart0, fparti); err != nil {
+				return 0, err
+			}
+			for _, err := range [...]error{fparti.Close(), os.Remove(fparti.Name())} {
+				if err != nil {
+					dlogger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
+				}
+			}
+			bar.Increment()
 		}
-		bar.Increment()
 	}
-	return fpart0.Close()
+
+	stat, err := fpart0.Stat()
+	if err != nil {
+		return 0, err
+	}
+	return stat.Size(), fpart0.Close()
 }
 
 func (s *Session) dumpState(w io.Writer) error {
