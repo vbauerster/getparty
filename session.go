@@ -146,11 +146,10 @@ func (s Session) writeSummary(w io.Writer, quiet bool) {
 	if quiet {
 		return
 	}
-	humanSize := decor.SizeB1024(s.ContentLength)
 	format := fmt.Sprintf("Length: %%s [%s]\n", s.ContentType)
 	lengthSummary := "unknown"
 	if s.ContentLength >= 0 {
-		lengthSummary = fmt.Sprintf("%d (%.1f)", s.ContentLength, humanSize)
+		lengthSummary = fmt.Sprintf("%d (%.1f)", s.ContentLength, decor.SizeB1024(s.ContentLength))
 		if totalWritten := s.totalWritten(); totalWritten > 0 {
 			remaining := s.ContentLength - totalWritten
 			lengthSummary += fmt.Sprintf(", %d (%.1f) remaining", remaining, decor.SizeB1024(remaining))

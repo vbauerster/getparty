@@ -275,7 +275,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		lastSession.Location = session.Location
 		session = lastSession
-	} else if cmd.options.Parts > 0 {
+	} else if cmd.options.Parts != 0 {
 		session.HeaderMap = cmd.options.HeaderMap
 		session.Parts = session.calcParts(cmd.dlogger, cmd.options.Parts)
 		err := session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
