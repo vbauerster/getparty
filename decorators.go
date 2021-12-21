@@ -63,12 +63,11 @@ func (g *msgGate) finalFlash(msg string) {
 
 type mainDecorator struct {
 	decor.WC
-	curTry   *uint32
-	name     string
-	format   string
-	finalMsg bool
-	gate     *msgGate
-	msg      *message
+	curTry *uint32
+	name   string
+	format string
+	gate   *msgGate
+	msg    *message
 }
 
 func newMainDecorator(curTry *uint32, format, name string, gate *msgGate, wc decor.WC) decor.Decorator {
@@ -96,7 +95,6 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 	if d.msg != nil {
 		switch {
 		case d.msg.done != nil:
-			d.finalMsg = true
 			close(d.msg.done)
 			d.msg.done = nil
 		case d.msg.times > 0:
@@ -106,7 +104,7 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 				d.msg.times--
 			}
 		}
-		if !d.finalMsg && d.msg.times == 0 {
+		if d.msg.times == 0 {
 			defer func() {
 				d.msg = nil
 			}()
