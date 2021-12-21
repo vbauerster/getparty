@@ -95,8 +95,10 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 	if d.msg != nil {
 		switch {
 		case d.msg.done != nil:
-			close(d.msg.done)
-			d.msg.done = nil
+			defer func() {
+				close(d.msg.done)
+				d.msg.done = nil
+			}()
 		case d.msg.times > 0:
 			if stat.Completed {
 				d.msg.times = 0
