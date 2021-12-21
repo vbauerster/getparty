@@ -49,8 +49,8 @@ func (e HttpError) Error() string {
 
 const (
 	ErrCanceledByUser = ExpectedError("Canceled by user")
-	ErrMaxRedirects   = ExpectedError("Max redirects reached")
-	ErrMaxRetry       = ExpectedError("Max retry reached")
+	ErrMaxRedirect    = ExpectedError("Max redirects reached")
+	ErrMaxRetry       = ExpectedError("Max retries reached")
 )
 
 const (
@@ -406,7 +406,7 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 		Jar:       jar,
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
 			if len(via) > maxRedirects {
-				return errors.WithMessagef(ErrMaxRedirects, "stopped after %d redirects", maxRedirects)
+				return errors.WithMessagef(ErrMaxRedirect, "stopped after %d redirects", maxRedirects)
 			}
 			return http.ErrUseLastResponse
 		},
