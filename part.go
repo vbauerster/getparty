@@ -178,7 +178,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 						mg.finalFlash(ErrMaxRetry.Error())
 						bar.Abort(false)
 					}
-					return false, ErrMaxRetry
+					return false, errors.WithMessage(ErrMaxRetry, err.Error())
 				}
 				return true, err
 			}
