@@ -11,7 +11,7 @@ import (
 )
 
 type message struct {
-	times int
+	times uint
 	msg   string
 	done  chan struct{}
 }
@@ -22,7 +22,7 @@ type msgGate struct {
 	msgFlash func(*message)
 }
 
-func newMsgGate(quiet bool, prefix string, times int) *msgGate {
+func newMsgGate(quiet bool, prefix string, times uint) *msgGate {
 	gate := &msgGate{
 		msgCh: make(chan *message, 1),
 		done:  make(chan struct{}),
