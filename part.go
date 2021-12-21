@@ -44,7 +44,7 @@ type Part struct {
 	dlogger   *log.Logger
 }
 
-func (p *Part) makeBar(total int64, progress *mpb.Progress, gate *msgGate) *mpb.Bar {
+func (p *Part) makeBar(total int64, progress *mpb.Progress) (*mpb.Bar, *msgGate) {
 	if total < 0 {
 		total = 0
 	}
@@ -56,12 +56,13 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate *msgGate) *mpb.
 		}
 		return builder.Build()
 	}
+	mg := newMsgGate(p.quiet, p.name, 15)
 	bar := progress.New(total,
 		mpb.BarFillerBuilderFunc(builder),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
-			newMainDecorator(&p.curTry, "%s %.1f", p.name, gate, decor.WCSyncWidthR),
+			newMainDecorator(&p.curTry, "%s %.1f", p.name, mg, decor.WCSyncWidthR),
 			decor.OnCondition(
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 				total != 0,
@@ -89,7 +90,7 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress, gate *msgGate) *mpb.
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
 		),
 	)
-	return bar
+	return bar, mg
 }
 
 func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.Request, timeout uint) (err error) {
@@ -113,8 +114,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	}()
 
 	var bar *mpb.Bar
+	var mg *msgGate
 	barInitDone := make(chan struct{})
-	mg := newMsgGate(p.quiet, p.name, 15)
 	prefix := p.dlogger.Prefix()
 	initialWritten := p.Written
 	initialTimeout := timeout
@@ -153,8 +154,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			defer cancel()
 			timer := time.AfterFunc(ctxTimeout, func() {
 				cancel()
-				// checking for bar != nil here is a data race
-				// select to rescue
+				// checking for mg != nil here is a data race
 				select {
 				case <-barInitDone:
 					mg.flash("Timeout...")
@@ -202,7 +202,9 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 				p.Written = 0
 			case http.StatusForbidden, http.StatusTooManyRequests:
-				mg.finalFlash(resp.Status)
+				if mg != nil {
+					mg.finalFlash(resp.Status)
+				}
 				fallthrough
 			default:
 				if resp.StatusCode != http.StatusPartialContent {
@@ -211,7 +213,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 
 			if bar == nil {
-				bar = p.makeBar(p.total(), progress, mg)
+				bar, mg = p.makeBar(p.total(), progress)
 				close(barInitDone)
 			}
 
