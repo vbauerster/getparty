@@ -44,14 +44,14 @@ type Part struct {
 	dlogger   *log.Logger
 }
 
-func (p *Part) makeBar(progress *mpb.Progress, gate *msgGate, total int64, noPartial bool) *mpb.Bar {
+func (p *Part) makeBar(total int64, progress *mpb.Progress, gate *msgGate) *mpb.Bar {
 	if total < 0 {
 		total = 0
 	}
 	p.dlogger.Printf("making bar with total: %d", total)
 	builder := func() mpb.BarFiller {
 		builder := mpb.BarStyle().Lbound(" ").Rbound(" ")
-		if noPartial {
+		if total == 0 {
 			builder = builder.Tip(`-`, `\`, `|`, `/`)
 		}
 		return builder.Build()
@@ -64,7 +64,7 @@ func (p *Part) makeBar(progress *mpb.Progress, gate *msgGate, total int64, noPar
 			newMainDecorator(&p.curTry, "%s %.1f", p.name, gate, decor.WCSyncWidthR),
 			decor.OnCondition(
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
-				!noPartial,
+				total != 0,
 			),
 		),
 		mpb.AppendDecorators(
@@ -78,11 +78,11 @@ func (p *Part) makeBar(progress *mpb.Progress, gate *msgGate, total int64, noPar
 					),
 					"Avg:",
 				),
-				!noPartial,
+				total != 0,
 			),
 			decor.OnCondition(
 				decor.OnComplete(decor.Name(""), "Avg:"),
-				noPartial,
+				total == 0,
 			),
 			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
@@ -192,7 +192,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 			}
 
-			var noPartial bool
 			switch resp.StatusCode {
 			case http.StatusOK: // no partial content, so download with single part
 				if p.order != 0 {
@@ -200,11 +199,10 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					p.dlogger.Print("no partial content, skipping...")
 					return false, nil
 				}
-				noPartial = true
-				p.Written = 0
 				if resp.ContentLength > 0 {
 					p.Stop = resp.ContentLength - 1
 				}
+				p.Written = 0
 			case http.StatusForbidden, http.StatusTooManyRequests:
 				mg.finalFlash(resp.Status)
 				fallthrough
@@ -215,7 +213,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 
 			if bar == nil {
-				bar = p.makeBar(progress, mg, p.total(), noPartial)
+				bar = p.makeBar(p.total(), progress, mg)
 				close(barInitDone)
 			}
 
@@ -268,7 +266,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				return false, nil
 			}
 
-			if noPartial {
+			if resp.StatusCode != http.StatusPartialContent {
 				bar.SetCurrent(0)
 				bar.SetTotal(0, false)
 				if e := fpart.Close(); e == nil {
