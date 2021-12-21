@@ -130,6 +130,9 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			defer func() {
 				p.Elapsed += time.Since(now)
 				lStart = now
+				if err != nil {
+					p.dlogger.Printf("ERR: %s", err.Error())
+				}
 			}()
 
 			req.Header.Set(hRange, p.getRange())
@@ -170,7 +173,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
-				p.dlogger.Printf("Client.Do err: %s", err.Error())
 				if count+1 == p.maxTry {
 					if bar != nil {
 						mg.finalFlash(ErrMaxRetry.Error())
@@ -236,7 +238,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			for timer.Reset(ctxTimeout) {
 				n, err = io.CopyN(buf, body, max)
 				if err != nil {
-					p.dlogger.Printf("CopyN err: %s", err.Error())
 					if e, ok := err.(*url.Error); ok {
 						go mg.flash(fmt.Sprintf("%.30s..", e.Err.Error()))
 						if e.Temporary() {
