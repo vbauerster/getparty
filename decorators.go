@@ -24,7 +24,7 @@ type msgGate struct {
 
 func newMsgGate(quiet bool, prefix string, times uint) *msgGate {
 	gate := &msgGate{
-		msgCh: make(chan *message, 1),
+		msgCh: make(chan *message, 8),
 		done:  make(chan struct{}),
 		msgFlash: func(msg *message) {
 			if msg.done != nil {
@@ -68,7 +68,7 @@ type mainDecorator struct {
 	format   string
 	finalMsg bool
 	gate     *msgGate
-	messages []*message
+	msg      *message
 }
 
 func newMainDecorator(curTry *uint32, format, name string, gate *msgGate, wc decor.WC) decor.Decorator {
@@ -87,33 +87,31 @@ func (d *mainDecorator) Shutdown() {
 }
 
 func (d *mainDecorator) Decor(stat decor.Statistics) string {
-	select {
-	case m := <-d.gate.msgCh:
-		if m.times > 0 {
-			d.messages = append(d.messages, m)
-		}
-	default:
-	}
-	if len(d.messages) > 0 {
-		m := d.messages[0]
-	finalCheck:
-		switch {
-		case d.finalMsg:
-		case m.times > 1:
-			if stat.Completed {
-				m.times = 0
-				goto finalCheck
-			}
-			m.times--
-		case m.done != nil:
-			close(m.done)
-			m.done = nil
-			d.finalMsg = true
+	if d.msg == nil {
+		select {
+		case d.msg = <-d.gate.msgCh:
 		default:
-			copy(d.messages, d.messages[1:])
-			d.messages = d.messages[:len(d.messages)-1]
 		}
-		return d.FormatMsg(m.msg)
+	}
+	if d.msg != nil {
+		switch {
+		case d.msg.done != nil:
+			d.finalMsg = true
+			close(d.msg.done)
+			d.msg.done = nil
+		case d.msg.times > 0:
+			if stat.Completed {
+				d.msg.times = 0
+			} else {
+				d.msg.times--
+			}
+		}
+		if !d.finalMsg && d.msg.times == 0 {
+			defer func() {
+				d.msg = nil
+			}()
+		}
+		return d.FormatMsg(d.msg.msg)
 	}
 
 	name := d.name
