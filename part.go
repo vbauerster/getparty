@@ -161,7 +161,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				// checking for mg != nil here is a data race
 				select {
 				case <-barInitDone:
-					mg.flash("Timeout...")
+					mg.flash("Timeout!")
 				default:
 				}
 				p.dlogger.Printf("Timeout after: %v", ctxTimeout)
