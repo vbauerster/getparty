@@ -96,20 +96,19 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 	if d.msg != nil {
 		switch {
 		case d.finalMsg:
-			return d.FormatMsg(d.msg.msg)
 		case d.msg.done != nil:
 			defer func() {
 				close(d.msg.done)
 				d.msg.done = nil
 			}()
 			d.finalMsg = true
-		case d.msg.times > 0:
+		default:
 			d.msg.times--
-		}
-		if stat.Completed || d.msg.times == 0 {
-			defer func() {
-				d.msg = nil
-			}()
+			if stat.Completed || d.msg.times == 0 {
+				defer func() {
+					d.msg = nil
+				}()
+			}
 		}
 		return d.FormatMsg(d.msg.msg)
 	}
