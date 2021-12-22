@@ -37,14 +37,14 @@ type Part struct {
 	name      string
 	order     int
 	maxTry    int
-	curTry    uint32
 	quiet     bool
 	jar       http.CookieJar
 	transport *http.Transport
 	dlogger   *log.Logger
 }
 
-func (p *Part) makeBar(total int64, progress *mpb.Progress) (*mpb.Bar, *msgGate) {
+func (p Part) makeBar(curTry *uint32, progress *mpb.Progress) (*mpb.Bar, *msgGate) {
+	total := p.total()
 	if total < 0 {
 		total = 0
 	}
@@ -62,7 +62,7 @@ func (p *Part) makeBar(total int64, progress *mpb.Progress) (*mpb.Bar, *msgGate)
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
-			newMainDecorator(&p.curTry, "%s %.1f", p.name, mg, decor.WCSyncWidthR),
+			newMainDecorator(curTry, "%s %.1f", p.name, mg, decor.WCSyncWidthR),
 			decor.OnCondition(
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 				total != 0,
@@ -115,6 +115,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 	var bar *mpb.Bar
 	var mg *msgGate
+	var curTry uint32
 	barInitDone := make(chan struct{})
 	prefix := p.dlogger.Prefix()
 	initialWritten := p.Written
@@ -149,7 +150,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					timeout = initialTimeout
 				}
 				atomic.AddUint32(&globTry, 1)
-				atomic.StoreUint32(&p.curTry, uint32(count))
+				atomic.StoreUint32(&curTry, uint32(count))
 			}
 
 			ctxTimeout := time.Duration(timeout) * time.Second
@@ -215,7 +216,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			}
 
 			if bar == nil {
-				bar, mg = p.makeBar(p.total(), progress)
+				bar, mg = p.makeBar(&curTry, progress)
 				close(barInitDone)
 			}
 
