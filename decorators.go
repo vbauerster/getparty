@@ -87,37 +87,34 @@ func (d *mainDecorator) Shutdown() {
 }
 
 func (d *mainDecorator) Decor(stat decor.Statistics) string {
-	if d.msg == nil {
+	for d.msg == nil {
 		select {
 		case d.msg = <-d.gate.msgCh:
 		default:
-		}
-	}
-	if d.msg != nil {
-		switch {
-		case d.finalMsg:
-		case d.msg.done != nil:
-			defer func() {
-				close(d.msg.done)
-				d.msg.done = nil
-			}()
-			d.finalMsg = true
-		default:
-			d.msg.times--
-			if stat.Completed || d.msg.times == 0 {
-				defer func() {
-					d.msg = nil
-				}()
+			name := d.name
+			if atomic.LoadUint32(&globTry) > 0 {
+				name = fmt.Sprintf("%s:R%02d", name, atomic.LoadUint32(d.curTry))
 			}
+			return d.FormatMsg(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
 		}
-		return d.FormatMsg(d.msg.msg)
 	}
-
-	name := d.name
-	if atomic.LoadUint32(&globTry) > 0 {
-		name = fmt.Sprintf("%s:R%02d", name, atomic.LoadUint32(d.curTry))
+	switch {
+	case d.finalMsg:
+	case d.msg.done != nil:
+		defer func() {
+			close(d.msg.done)
+			d.msg.done = nil
+		}()
+		d.finalMsg = true
+	default:
+		d.msg.times--
+		if stat.Completed || d.msg.times == 0 {
+			defer func() {
+				d.msg = nil
+			}()
+		}
 	}
-	return d.FormatMsg(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
+	return d.FormatMsg(d.msg.msg)
 }
 
 type peak struct {
