@@ -37,7 +37,7 @@ func newMsgGate(quiet bool, prefix string, times uint) *msgGate {
 		sinkFlash := gate.msgFlash
 		gate.msgFlash = func(msg *message) {
 			msg.times = times
-			msg.msg = fmt.Sprintf("%s:%s", prefix, msg.msg)
+			msg.msg = fmt.Sprintf("%s %s", prefix, msg.msg)
 			select {
 			case gate.msgCh <- msg:
 			case <-gate.done:
