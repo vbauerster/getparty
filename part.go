@@ -118,7 +118,6 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 	var curTry uint32
 	barInitDone := make(chan struct{})
 	prefix := p.dlogger.Prefix()
-	initialWritten := p.Written
 	initialTimeout := timeout
 	resetDur := time.Duration(2*timeout) * time.Second
 	lStart := time.Time{}
@@ -226,7 +225,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 			if p.Written > 0 {
 				bar.SetRefill(p.Written)
 				p.dlogger.Printf("set bar refill: %d", p.Written)
-				if p.Written == initialWritten {
+				if count == 0 {
 					bar.SetCurrent(p.Written)
 					bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 				}
