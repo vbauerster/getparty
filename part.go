@@ -48,7 +48,7 @@ func (p Part) makeBar(curTry *uint32, progress *mpb.Progress) (*mpb.Bar, *msgGat
 	if total < 0 {
 		total = 0
 	}
-	p.dlogger.Printf("making bar with total: %d", total)
+	p.dlogger.Printf("Bar total: %d", total)
 	builder := func() mpb.BarFiller {
 		builder := mpb.BarStyle().Lbound(" ").Rbound(" ")
 		if total == 0 {
@@ -224,7 +224,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 			if p.Written > 0 {
 				bar.SetRefill(p.Written)
-				p.dlogger.Printf("set bar refill: %d", p.Written)
+				p.dlogger.Printf("Bar refill: %d", p.Written)
 				if count == 0 {
 					bar.SetCurrent(p.Written)
 					bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
