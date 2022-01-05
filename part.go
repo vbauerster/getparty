@@ -258,7 +258,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 			n, _ = io.Copy(fpart, buf)
 			p.Written += n
-			p.dlogger.Printf("written: %d", p.Written-pWrittenSnap)
+			p.dlogger.Printf("Written: %d", p.Written-pWrittenSnap)
 
 			if err == io.EOF {
 				if p.total() <= 0 {
