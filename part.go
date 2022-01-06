@@ -231,39 +231,41 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 			}
 
-			var n int64
 			pWrittenSnap := p.Written
 			buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-			max := int64(bufSize)
 			for timer.Reset(ctxTimeout) {
-				n, err = io.CopyN(buf, body, max)
+				_, err = io.CopyN(buf, body, bufSize-int64(buf.Len()))
 				if err != nil {
 					if e, ok := err.(*url.Error); ok {
-						go mg.flash(fmt.Sprintf("%.30s..", e.Err.Error()))
+						go func() {
+							p.dlogger.Print(e.Error())
+							mg.flash(fmt.Sprintf("%.30s..", e.Err.Error()))
+						}()
 						if e.Temporary() {
-							max -= n
-							time.Sleep(50 * time.Millisecond)
+							time.Sleep(100 * time.Millisecond)
 							continue
 						}
 					}
-					break
+					timer.Stop()
 				}
-				n, _ = io.Copy(fpart, buf)
+				n, e := io.Copy(fpart, buf)
+				if e != nil {
+					p.dlogger.Printf("Err writing to %q: %s", fpart.Name(), e.Error())
+					panic(e)
+				}
 				p.Written += n
 				if p.total() <= 0 {
-					bar.SetTotal(p.Written+max, false)
+					if err == io.EOF {
+						bar.SetTotal(p.Written, true)
+					} else {
+						bar.SetTotal(p.Written+bufSize, false)
+					}
 				}
-				max = bufSize
 			}
 
-			n, _ = io.Copy(fpart, buf)
-			p.Written += n
 			p.dlogger.Printf("Written: %d", p.Written-pWrittenSnap)
 
 			if err == io.EOF {
-				if p.total() <= 0 {
-					bar.SetTotal(p.Written, true)
-				}
 				return false, nil
 			}
 
