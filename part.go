@@ -49,26 +49,32 @@ func (p Part) makeBar(curTry *uint32, progress *mpb.Progress) (*mpb.Bar, *msgGat
 		total = 0
 	}
 	p.dlogger.Printf("Bar total: %d", total)
-	builder := func() mpb.BarFiller {
-		builder := mpb.BarStyle().Lbound(" ").Rbound(" ")
-		if total == 0 {
-			builder = builder.Tip(`-`, `\`, `|`, `/`)
-		}
-		return builder.Build()
-	}
 	mg := newMsgGate(p.quiet, p.name, 15)
 	bar := progress.New(total,
-		mpb.BarFillerBuilderFunc(builder),
+		mpb.BarFillerBuilderFunc(func() mpb.BarFiller {
+			if total == 0 {
+				return mpb.NopStyle().Build()
+			}
+			return mpb.BarStyle().Lbound(" ").Rbound(" ").Build()
+		}),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
 			newMainDecorator(curTry, "%s %.1f", p.name, mg, decor.WCSyncWidthR),
+			decor.OnCondition(
+				decor.OnComplete(decor.Spinner(nil, decor.WCSyncSpace), "100% "),
+				total == 0,
+			),
 			decor.OnCondition(
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 				total != 0,
 			),
 		),
 		mpb.AppendDecorators(
+			decor.OnCondition(
+				decor.OnComplete(decor.Name(""), "Avg:"),
+				total == 0,
+			),
 			decor.OnCondition(
 				decor.OnComplete(
 					decor.NewAverageETA(
@@ -80,10 +86,6 @@ func (p Part) makeBar(curTry *uint32, progress *mpb.Progress) (*mpb.Bar, *msgGat
 					"Avg:",
 				),
 				total != 0,
-			),
-			decor.OnCondition(
-				decor.OnComplete(decor.Name(""), "Avg:"),
-				total == 0,
 			),
 			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
@@ -255,11 +257,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				}
 				p.Written += n
 				if p.total() <= 0 {
-					if err == io.EOF {
-						bar.SetTotal(p.Written, true)
-					} else {
-						bar.SetTotal(p.Written+bufSize, false)
-					}
+					bar.SetTotal(p.Written, err == io.EOF)
 				}
 			}
 
