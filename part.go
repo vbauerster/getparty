@@ -132,13 +132,13 @@ func (p *Part) download(
 	lStart := time.Time{}
 
 	return backoff.Retry(ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)), resetDur,
-		func(count int, now time.Time) (retry bool, err error) {
+		func(count int, start time.Time) (retry bool, err error) {
 			if p.isDone() {
 				panic(fmt.Sprintf("%s is engaged while being done", prefix))
 			}
 			defer func() {
-				p.Elapsed += time.Since(now)
-				lStart = now
+				p.Elapsed += time.Since(start)
+				lStart = start
 				if err != nil {
 					p.dlogger.Printf("ERR: %s", err.Error())
 				}
@@ -152,7 +152,7 @@ func (p *Part) download(
 			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
 
 			if count > 0 {
-				if now.Sub(lStart) < resetDur {
+				if start.Sub(lStart) < resetDur {
 					timeout += 5
 				} else {
 					timeout = initialTimeout
