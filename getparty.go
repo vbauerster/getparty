@@ -203,6 +203,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		userUrl = lastSession.Location
 		cmd.options.HeaderMap = lastSession.HeaderMap
 		cmd.options.OutFileName = lastSession.SuggestedFileName
+		cmd.options.Parts = uint(len(lastSession.Parts))
 	case cmd.options.BestMirror:
 		var input io.Reader
 		var rr []io.Reader
@@ -262,6 +263,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		} else {
 			cmd.options.JSONFileName = stateName
 			cmd.options.HeaderMap = lastSession.HeaderMap
+			cmd.options.Parts = uint(len(lastSession.Parts))
 		}
 	}
 
