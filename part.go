@@ -38,6 +38,7 @@ type Part struct {
 	order     int
 	maxTry    int
 	quiet     bool
+	pw        io.Writer
 	jar       http.CookieJar
 	transport *http.Transport
 	dlogger   *log.Logger
@@ -95,7 +96,13 @@ func (p Part) makeBar(curTry *uint32, progress *mpb.Progress) (*mpb.Bar, *msgGat
 	return bar, mg
 }
 
-func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.Request, timeout uint) (err error) {
+func (p *Part) download(
+	ctx context.Context,
+	progress *mpb.Progress,
+	req *http.Request,
+	timeout uint,
+	signalNoPartial chan struct{},
+) (err error) {
 	defer func() {
 		err = errors.Wrap(err, p.name)
 	}()
@@ -196,7 +203,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 
 			switch resp.StatusCode {
 			case http.StatusOK: // no partial content, so download with single part
-				if p.order != 0 {
+				if p.order != 1 {
 					p.Skip = true
 					p.dlogger.Print("no partial content, skipping...")
 					return false, nil
@@ -205,6 +212,7 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 					p.Stop = resp.ContentLength - 1
 				}
 				p.Written = 0
+				close(signalNoPartial)
 			case http.StatusForbidden, http.StatusTooManyRequests:
 				if mg != nil {
 					mg.finalFlash(resp.Status)
@@ -221,8 +229,8 @@ func (p *Part) download(ctx context.Context, progress *mpb.Progress, req *http.R
 				close(barInitDone)
 			}
 
-			body := bar.ProxyReader(resp.Body)
-			defer body.Close()
+			defer resp.Body.Close()
+			body := io.TeeReader(bar.ProxyReader(resp.Body), p.pw)
 
 			if p.Written > 0 {
 				bar.SetRefill(p.Written)

@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v7"
@@ -23,6 +24,7 @@ type Session struct {
 	StatusCode        int
 	ContentLength     int64
 	ContentType       string
+	Elapsed           time.Duration
 	HeaderMap         map[string]string
 	Parts             []*Part
 }
@@ -78,7 +80,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 		bar := progress.New(int64(len(s.Parts)-1),
 			mpb.BarStyle().Lbound(" ").Rbound(" "),
 			mpb.BarFillerTrim(),
-			mpb.BarPriority(len(s.Parts)),
+			mpb.BarPriority(len(s.Parts)+1),
 			mpb.PrependDecorators(
 				decor.Name("Concatenating:", decor.WCSyncWidthR),
 				decor.NewPercentage("%d", decor.WCSyncSpace),
