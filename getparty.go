@@ -286,14 +286,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithWidth(64),
 	)
 
-	var partsDone uint32
-	pw := session.makeProxyWriter(progress, &partsDone, progressDone, signalNoPartial)
-
-	var eg errgroup.Group
 	transport, err := cmd.getTransport(true)
 	if err != nil {
 		return err
 	}
+	var eg errgroup.Group
+	var partsDone uint32
+	pw := session.makeProxyWriter(progress, &partsDone, progressDone, signalNoPartial)
 	start := time.Now()
 	for i, p := range session.Parts {
 		if p.isDone() {
