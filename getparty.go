@@ -349,10 +349,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	err = eg.Wait()
 
+	session.Elapsed = time.Since(start)
 	session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
 
 	if err != nil {
-		session.Elapsed = time.Since(start)
 		progress.Wait()
 		media, e := cmd.dumpState(session)
 		if e != nil {
