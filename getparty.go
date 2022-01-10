@@ -363,22 +363,18 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	if cmd.options.Parts != 0 {
-		size, err := session.concatenateParts(cmd.dlogger, progress)
-		progress.Wait()
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(cmd.Out)
-		cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, size)
-		if session.ContentLength > 0 && size != session.ContentLength {
-			return fmt.Errorf("Corrupted download: ExpectedSize=%d SavedSize=%d", session.ContentLength, size)
-		}
-		if cmd.options.JSONFileName != "" {
-			return os.Remove(cmd.options.JSONFileName)
-		}
-	} else {
-		progress.Wait()
+	size, err := session.concatenateParts(cmd.dlogger, progress)
+	progress.Wait()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(cmd.Out)
+	cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, size)
+	if session.ContentLength > 0 && size != session.ContentLength {
+		return fmt.Errorf("Corrupted download: ExpectedSize=%d SavedSize=%d", session.ContentLength, size)
+	}
+	if cmd.options.JSONFileName != "" {
+		return os.Remove(cmd.options.JSONFileName)
 	}
 	return nil
 }
