@@ -27,7 +27,6 @@ import (
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
 	"github.com/vbauerster/mpb/v7"
-	"github.com/vbauerster/mpb/v7/decor"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/sync/errgroup"
@@ -275,33 +274,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithWidth(64),
 	)
 
-	pw := ioutil.Discard
-	if cmd.options.Parts > 1 {
-		ob := progress.New(session.ContentLength,
-			mpb.BarStyle().Lbound(" \x1b[36m").Rbound("\x1b[0m "),
-			mpb.BarFillerTrim(),
-			mpb.PrependDecorators(
-				decor.Name("Overall", decor.WCSyncWidthR),
-				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
-			),
-			mpb.AppendDecorators(
-				decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidthR), "Avg:"),
-				decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
-			),
-		)
-		if tw := session.totalWritten(); tw > 0 {
-			ob.SetCurrent(tw)
-			ob.DecoratorAverageAdjust(time.Now().Add(-session.Elapsed))
-		}
-		pw = proxyWriter{ob}
-		go func() {
-			select {
-			case <-signalNoPartial:
-				ob.Abort(true)
-			case <-progressDone:
-			}
-		}()
-	}
+	pw := session.makeProxyWriter(progress, progressDone, signalNoPartial)
 
 	var eg errgroup.Group
 	transport, err := cmd.getTransport(true)

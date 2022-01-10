@@ -243,3 +243,35 @@ func (s Session) checkPartsSize() error {
 	}
 	return nil
 }
+
+func (s Session) makeProxyWriter(progress *mpb.Progress, progressDone, signalNoPartial chan struct{}) io.Writer {
+	pw := ioutil.Discard
+	if len(s.Parts) > 1 {
+		bar := progress.New(s.ContentLength,
+			// mpb.BarStyle().Lbound(" ").Rbound(" ").Tip("<").Reverse(),
+			mpb.BarStyle().Lbound(" \x1b[36m").Rbound(" ").Tip(">\x1b[0m").TipOnComplete("=\x1b[0m"),
+			mpb.BarFillerTrim(),
+			mpb.PrependDecorators(
+				decor.Name("Total", decor.WCSyncWidthR),
+				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
+			),
+			mpb.AppendDecorators(
+				decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidthR), "Avg:"),
+				decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
+			),
+		)
+		if tw := s.totalWritten(); tw > 0 {
+			bar.SetCurrent(tw)
+			bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
+		}
+		pw = proxyWriter{bar}
+		go func() {
+			select {
+			case <-signalNoPartial:
+				bar.Abort(true)
+			case <-progressDone:
+			}
+		}()
+	}
+	return pw
+}
