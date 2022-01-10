@@ -113,11 +113,12 @@ func (p *Part) download(
 	}
 	defer func() {
 		if err := fpart.Close(); err != nil {
-			p.dlogger.Printf("%q close error: %s", fpart.Name(), err.Error())
+			p.dlogger.Printf("ERR: close %q: %s", fpart.Name(), err.Error())
 		}
 		if p.Skip {
+			p.dlogger.Printf("Removing: %q", fpart.Name())
 			if err := os.Remove(p.FileName); err != nil {
-				p.dlogger.Printf("%q remove error: %s", fpart.Name(), err.Error())
+				p.dlogger.Printf("ERR: remove %q: %s", fpart.Name(), err.Error())
 			}
 		}
 	}()
@@ -260,7 +261,7 @@ func (p *Part) download(
 				}
 				n, e := io.Copy(fpart, buf)
 				if e != nil {
-					p.dlogger.Printf("Err writing to %q: %s", fpart.Name(), e.Error())
+					p.dlogger.Printf("ERR: write to %q: %s", fpart.Name(), e.Error())
 					panic(e)
 				}
 				p.Written += n
