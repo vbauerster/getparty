@@ -179,6 +179,14 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.userInfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
+	if cmd.options.BestMirror {
+		url, err := cmd.bestMirror(args)
+		if err != nil {
+			return err
+		}
+		args = append(args[:0], url)
+	}
+
 	setupLogger := func(out io.Writer, prefix string, discard bool) *log.Logger {
 		if discard {
 			out = ioutil.Discard
@@ -550,14 +558,23 @@ func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) 
 	return transport, nil
 }
 
-func (cmd Cmd) bestMirror(input io.Reader) (best string, err error) {
+func (cmd Cmd) bestMirror(args []string) (best string, err error) {
 	defer func() {
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "bestMirror")
 	}()
+	input := os.Stdin
+	if len(args) != 0 {
+		fd, err := os.Open(args[0])
+		if err != nil {
+			return "", err
+		}
+		defer fd.Close()
+		input = fd
+	}
 	urls, err := readLines(input)
 	if err != nil {
-		return
+		return "", err
 	}
 
 	var readyWg sync.WaitGroup
@@ -624,16 +641,6 @@ func (cmd Cmd) readPassword() (string, error) {
 	}
 	fmt.Fprintln(cmd.Out)
 	return string(bytePassword), nil
-}
-
-func (cmd Cmd) closeReaders(rr []io.Reader) {
-	for _, r := range rr {
-		if closer, ok := r.(io.Closer); ok {
-			if err := closer.Close(); err != nil {
-				cmd.dlogger.Printf("close failed: %s", err.Error())
-			}
-		}
-	}
 }
 
 func (cmd Cmd) dumpState(session *Session) (mediaName string, err error) {
