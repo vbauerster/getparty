@@ -666,12 +666,11 @@ func readLines(r io.Reader) ([]string, error) {
 	return lines, scanner.Err()
 }
 
-func filter(parts []*Part, predicate func(*Part) bool) []*Part {
-	filtered := parts[:0]
+func filter(parts []*Part, predicate func(*Part) bool) (filtered []*Part) {
 	for _, p := range parts {
 		if predicate(p) {
 			filtered = append(filtered, p)
 		}
 	}
-	return filtered
+	return
 }
