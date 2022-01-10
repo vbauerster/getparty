@@ -317,7 +317,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {
-				if p := recover(); p != nil && session != nil {
+				if p := recover(); p != nil {
 					media, e := cmd.dumpState(session)
 					if e != nil {
 						cmd.debugOrPrintErr(e, false)
