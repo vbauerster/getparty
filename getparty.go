@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -589,6 +590,9 @@ func (cmd Cmd) readPassword() (string, error) {
 }
 
 func (cmd Cmd) dumpState(session *Session) (mediaName string, err error) {
+	if !session.isResumable() {
+		return "", errors.New("Cannot save non resumable session")
+	}
 	var media io.Writer
 	mediaName = session.SuggestedFileName + ".json"
 	f, err := os.Create(mediaName)
@@ -603,7 +607,7 @@ func (cmd Cmd) dumpState(session *Session) (mediaName string, err error) {
 		}()
 		media = f
 	}
-	err = session.dumpState(media)
+	err = json.NewEncoder(media).Encode(session)
 	return
 }
 

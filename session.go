@@ -31,15 +31,15 @@ type Session struct {
 	Parts             []*Part
 }
 
-func (s Session) isAcceptRanges() bool {
-	return strings.EqualFold(s.AcceptRanges, "bytes")
+func (s Session) isResumable() bool {
+	return strings.EqualFold(s.AcceptRanges, "bytes") || s.ContentLength <= 0
 }
 
 func (s Session) calcParts(dlogger *log.Logger, parts uint) []*Part {
 	if parts == 0 {
 		return nil
 	}
-	if !s.isAcceptRanges() || s.ContentLength <= 0 {
+	if !s.isResumable() {
 		parts = 1
 	}
 
@@ -124,10 +124,6 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (
 	return stat.Size(), fpart0.Close()
 }
 
-func (s *Session) dumpState(w io.Writer) error {
-	return json.NewEncoder(w).Encode(s)
-}
-
 func (s *Session) loadState(fileName string) error {
 	src, err := os.Open(fileName)
 	if err != nil {
@@ -166,7 +162,7 @@ func (s Session) writeSummary(w io.Writer, quiet bool) {
 	if s.ContentMD5 != "" {
 		fmt.Fprintf(w, "MD5: %s\n", s.ContentMD5)
 	}
-	if !s.isAcceptRanges() {
+	if !s.isResumable() {
 		fmt.Fprintln(w, "HTTP server doesn't seem to support byte ranges. Cannot resume.")
 	}
 	if len(s.Parts) != 0 {
