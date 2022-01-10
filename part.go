@@ -44,7 +44,7 @@ type Part struct {
 	dlogger     *log.Logger
 }
 
-func (p Part) makeBar(curTry *uint32, progress *mpb.Progress) (*mpb.Bar, *msgGate) {
+func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGate) {
 	total := p.total()
 	if total < 0 {
 		total = 0
@@ -225,7 +225,7 @@ func (p *Part) download(
 			}
 
 			if bar == nil {
-				bar, mg = p.makeBar(&curTry, progress)
+				bar, mg = p.makeBar(progress, &curTry)
 				close(barInitDone)
 			}
 
