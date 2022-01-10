@@ -198,44 +198,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 
-	var userUrl string
-	var lastSession *Session
-
-	switch {
-	case cmd.options.JSONFileName != "":
-		lastSession = new(Session)
-		err := lastSession.loadState(cmd.options.JSONFileName)
-		if err != nil {
-			return err
-		}
-		userUrl = lastSession.Location
-		cmd.options.HeaderMap = lastSession.HeaderMap
-		cmd.options.OutFileName = lastSession.SuggestedFileName
-		cmd.options.Parts = uint(len(lastSession.Parts))
-	case cmd.options.BestMirror:
-		var input io.Reader
-		var rr []io.Reader
-		for _, fn := range args {
-			if fd, err := os.Open(fn); err == nil {
-				rr = append(rr, fd)
-			}
-		}
-		if len(rr) > 0 {
-			input = io.MultiReader(rr...)
-		} else {
-			input = os.Stdin
-		}
-		userUrl, err = cmd.bestMirror(input)
-		cmd.closeReaders(rr)
-		if err != nil {
-			return err
-		}
-	case len(args) == 0:
-		return new(flags.Error)
-	default:
-		userUrl = args[0]
-	}
-
 	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
@@ -243,59 +205,64 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	var session *Session
-	err = backoff.Retry(cmd.Ctx, exponential.New(), time.Hour,
-		func(count int, _ time.Time) (retry bool, err error) {
-			defer func() {
-				if retry {
-					cmd.logger.Println("Retrying...")
-				}
-			}()
-			session, err = cmd.follow(jar, userUrl)
-			if e, ok := err.(*HttpError); ok {
-				if isServerError(e.StatusCode) {
-					return count+1 != int(cmd.options.MaxRetry), err
-				}
+	var locUrl string
+
+	for locUrl == "" {
+		switch {
+		case cmd.options.JSONFileName != "":
+			session = new(Session)
+			err := session.loadState(cmd.options.JSONFileName)
+			if err != nil {
+				return err
 			}
-			return false, err
-		})
-	if err != nil {
-		return err
-	}
-
-	if lastSession == nil {
-		lastSession = new(Session)
-		stateName := session.SuggestedFileName + ".json"
-		err := lastSession.loadState(stateName)
-		if err != nil {
-			lastSession = nil
-		} else {
-			cmd.options.JSONFileName = stateName
-			cmd.options.HeaderMap = lastSession.HeaderMap
-			cmd.options.Parts = uint(len(lastSession.Parts))
-		}
-	}
-
-	if lastSession != nil {
-		err := lastSession.checkSums(session)
-		if err != nil {
-			return err
-		}
-		err = lastSession.checkPartsSize()
-		if err != nil {
-			return err
-		}
-		lastSession.Location = session.Location
-		session = lastSession
-	} else if cmd.options.Parts != 0 {
-		session.HeaderMap = cmd.options.HeaderMap
-		session.Parts = session.calcParts(cmd.dlogger, cmd.options.Parts)
-		err := session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
-		if err != nil {
-			return err
+			err = session.checkPartsSize()
+			if err != nil {
+				return err
+			}
+			locUrl = session.Location
+			cmd.options.HeaderMap = session.HeaderMap
+			cmd.options.Parts = uint(len(session.Parts))
+		case len(args) != 0:
+			err = backoff.Retry(cmd.Ctx, exponential.New(), time.Hour,
+				func(count int, _ time.Time) (retry bool, err error) {
+					defer func() {
+						if retry {
+							cmd.logger.Println("Retrying...")
+						}
+					}()
+					session, err = cmd.follow(jar, args[0])
+					if e, ok := err.(*HttpError); ok {
+						if isServerError(e.StatusCode) {
+							return count+1 != int(cmd.options.MaxRetry), err
+						}
+					}
+					return false, err
+				})
+			if err != nil {
+				return err
+			}
+			state := session.SuggestedFileName + ".json"
+			if _, err := os.Stat(state); err != nil {
+				err = session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
+				if err != nil {
+					return err
+				}
+				locUrl = session.Location
+				session.HeaderMap = cmd.options.HeaderMap
+				session.Parts = session.calcParts(cmd.dlogger, cmd.options.Parts)
+			} else {
+				cmd.options.JSONFileName = state
+			}
+		default:
+			return new(flags.Error)
 		}
 	}
 
 	session.writeSummary(cmd.Out, cmd.options.Quiet)
+
+	if cmd.options.Parts == 0 {
+		return
+	}
 
 	progressDone := make(chan struct{})
 	signalNoPartial := make(chan struct{})
@@ -357,7 +324,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.jar = jar
 		p.transport = transport
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
-		req, err := http.NewRequest(http.MethodGet, session.Location, nil)
+		req, err := http.NewRequest(http.MethodGet, locUrl, nil)
 		if err != nil {
 			cmd.logger.Fatalf("%s: %s", p.name, err.Error())
 		}
@@ -385,8 +352,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
 
 	if err != nil {
-		// preserve user provided url
-		session.Location = userUrl
 		session.Elapsed = time.Since(start)
 		progress.Wait()
 		media, e := cmd.dumpState(session)
