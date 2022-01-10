@@ -103,6 +103,11 @@ func (p *Part) download(
 	timeout uint,
 	signalNoPartial chan struct{},
 ) (err error) {
+	prefix := p.dlogger.Prefix()
+	if p.isDone() {
+		panic(fmt.Sprintf("%s is engaged while being done", prefix))
+	}
+
 	defer func() {
 		err = errors.Wrap(err, p.name)
 	}()
@@ -127,16 +132,12 @@ func (p *Part) download(
 	var mg *msgGate
 	var curTry uint32
 	barInitDone := make(chan struct{})
-	prefix := p.dlogger.Prefix()
 	initialTimeout := timeout
 	resetDur := time.Duration(2*timeout) * time.Second
 	lStart := time.Time{}
 
 	return backoff.Retry(ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)), resetDur,
 		func(count int, start time.Time) (retry bool, err error) {
-			if p.isDone() {
-				panic(fmt.Sprintf("%s is engaged while being done", prefix))
-			}
 			defer func() {
 				p.Elapsed += time.Since(start)
 				lStart = start
