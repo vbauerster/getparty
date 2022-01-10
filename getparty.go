@@ -210,10 +210,17 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	for locUrl == "" {
 		switch {
 		case cmd.options.JSONFileName != "":
+			freshSession := session
 			session = new(Session)
 			err := session.loadState(cmd.options.JSONFileName)
 			if err != nil {
 				return err
+			}
+			if freshSession != nil {
+				err := session.checkSums(freshSession)
+				if err != nil {
+					return err
+				}
 			}
 			err = session.checkPartsSize()
 			if err != nil {
