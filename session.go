@@ -34,7 +34,10 @@ func (s Session) isAcceptRanges() bool {
 }
 
 func (s Session) calcParts(dlogger *log.Logger, parts uint) []*Part {
-	if !s.isAcceptRanges() || s.ContentLength <= 0 || parts == 0 {
+	if parts == 0 {
+		return nil
+	}
+	if !s.isAcceptRanges() || s.ContentLength <= 0 {
 		parts = 1
 	}
 
