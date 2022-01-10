@@ -204,6 +204,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
+	if cmd.options.Timeout == 0 {
+		cmd.options.Timeout = 15
+	}
+
 	var session *Session
 	var locUrl string
 
@@ -289,9 +293,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	transport, err := cmd.getTransport(true)
 	if err != nil {
 		return err
-	}
-	if cmd.options.Timeout == 0 {
-		cmd.options.Timeout = 15
 	}
 	start := time.Now()
 	for i, p := range session.Parts {
