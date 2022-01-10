@@ -320,8 +320,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.quiet = cmd.options.Quiet
 		p.maxTry = int(cmd.options.MaxRetry)
-		p.pw = pw
 		p.jar = jar
+		p.totalWriter = pw
 		p.transport = transport
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, locUrl, nil)

@@ -34,14 +34,14 @@ type Part struct {
 	Skip     bool
 	Elapsed  time.Duration
 
-	name      string
-	order     int
-	maxTry    int
-	quiet     bool
-	pw        io.Writer
-	jar       http.CookieJar
-	transport *http.Transport
-	dlogger   *log.Logger
+	name        string
+	order       int
+	maxTry      int
+	quiet       bool
+	jar         http.CookieJar
+	totalWriter io.Writer
+	transport   *http.Transport
+	dlogger     *log.Logger
 }
 
 func (p Part) makeBar(curTry *uint32, progress *mpb.Progress) (*mpb.Bar, *msgGate) {
@@ -230,7 +230,7 @@ func (p *Part) download(
 			}
 
 			defer resp.Body.Close()
-			body := io.TeeReader(bar.ProxyReader(resp.Body), p.pw)
+			body := io.TeeReader(bar.ProxyReader(resp.Body), p.totalWriter)
 
 			if p.Written > 0 {
 				bar.SetRefill(p.Written)
