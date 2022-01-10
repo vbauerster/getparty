@@ -260,8 +260,7 @@ func (s Session) makeProxyWriter(
 			return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
 		}
 		bar := progress.New(s.ContentLength,
-			// mpb.BarStyle().Lbound(" ").Rbound(" ").Tip("<").Reverse(),
-			mpb.BarStyle().Lbound(" \x1b[36m").Rbound(" ").Tip(">\x1b[0m").TipOnComplete("=\x1b[0m"),
+			totalBarStyle(),
 			mpb.BarFillerTrim(),
 			mpb.PrependDecorators(
 				decor.Any(totalDecorator, decor.WCSyncWidthR),
