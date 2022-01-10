@@ -253,7 +253,7 @@ func (s Session) makeProxyWriter(
 	pw := ioutil.Discard
 	if len(s.Parts) > 1 {
 		totalDecorator := func(_ decor.Statistics) string {
-			return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
+			return fmt.Sprintf("TOTAL(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
 		}
 		bar := progress.New(s.ContentLength,
 			totalBarStyle(),
