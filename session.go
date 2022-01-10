@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -244,15 +246,23 @@ func (s Session) checkPartsSize() error {
 	return nil
 }
 
-func (s Session) makeProxyWriter(progress *mpb.Progress, progressDone, signalNoPartial chan struct{}) io.Writer {
+func (s Session) makeProxyWriter(
+	progress *mpb.Progress,
+	partsDone *uint32,
+	progressDone chan struct{},
+	signalNoPartial chan struct{},
+) io.Writer {
 	pw := ioutil.Discard
 	if len(s.Parts) > 1 {
+		totalDecorator := func(_ decor.Statistics) string {
+			return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
+		}
 		bar := progress.New(s.ContentLength,
 			// mpb.BarStyle().Lbound(" ").Rbound(" ").Tip("<").Reverse(),
 			mpb.BarStyle().Lbound(" \x1b[36m").Rbound(" ").Tip(">\x1b[0m").TipOnComplete("=\x1b[0m"),
 			mpb.BarFillerTrim(),
 			mpb.PrependDecorators(
-				decor.Name("Total", decor.WCSyncWidthR),
+				decor.Any(totalDecorator, decor.WCSyncWidthR),
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 			),
 			mpb.AppendDecorators(

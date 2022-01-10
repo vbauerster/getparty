@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -274,7 +275,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithWidth(64),
 	)
 
-	pw := session.makeProxyWriter(progress, progressDone, signalNoPartial)
+	var partsDone uint32
+	pw := session.makeProxyWriter(progress, &partsDone, progressDone, signalNoPartial)
 
 	var eg errgroup.Group
 	transport, err := cmd.getTransport(true)
@@ -287,6 +289,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	start := time.Now()
 	for i, p := range session.Parts {
 		if p.isDone() {
+			atomic.AddUint32(&partsDone, 1)
 			continue
 		}
 		p.order = i + 1
@@ -315,6 +318,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					}
 					panic(p)
 				}
+				atomic.AddUint32(&partsDone, 1)
 			}()
 			return p.download(cmd.Ctx, progress, req, cmd.options.Timeout, signalNoPartial)
 		})
