@@ -180,14 +180,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.userInfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	if cmd.options.BestMirror {
-		url, err := cmd.bestMirror(args)
-		if err != nil {
-			return err
-		}
-		args = append(args[:0], url)
-	}
-
 	setupLogger := func(out io.Writer, prefix string, discard bool) *log.Logger {
 		if discard {
 			out = ioutil.Discard
@@ -199,14 +191,22 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 
+	if cmd.options.Timeout == 0 {
+		cmd.options.Timeout = 15
+	}
+
+	if cmd.options.BestMirror {
+		url, err := cmd.bestMirror(args)
+		if err != nil {
+			return err
+		}
+		args = append(args[:0], url)
+	}
+
 	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		return err
-	}
-
-	if cmd.options.Timeout == 0 {
-		cmd.options.Timeout = 15
 	}
 
 	var session *Session
