@@ -169,7 +169,9 @@ func (s Session) writeSummary(w io.Writer, quiet bool) {
 	if !s.isAcceptRanges() {
 		fmt.Fprintln(w, "HTTP server doesn't seem to support byte ranges. Cannot resume.")
 	}
-	fmt.Fprintf(w, "Saving to: %q\n\n", s.SuggestedFileName)
+	if len(s.Parts) != 0 {
+		fmt.Fprintf(w, "Saving to: %q\n\n", s.SuggestedFileName)
+	}
 }
 
 func (s Session) removeFiles() (err error) {
