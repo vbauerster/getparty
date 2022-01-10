@@ -486,26 +486,30 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 			return nil, &HttpError{resp.StatusCode, resp.Status}
 		}
 
-		if name := cmd.options.OutFileName; name == "" {
-			name = parseContentDisposition(resp.Header.Get(hContentDisposition))
-			if name == "" {
-				if nURL, err := url.Parse(userUrl); err == nil {
+		name := cmd.options.OutFileName
+		for i := 0; name == ""; i++ {
+			switch i {
+			case 0:
+				name = parseContentDisposition(resp.Header.Get(hContentDisposition))
+			case 1:
+				if nURL, err := url.Parse(userUrl); err != nil {
+					name = userUrl
+				} else {
 					nURL.RawQuery = ""
 					name, err = url.QueryUnescape(nURL.String())
 					if err != nil {
 						name = nURL.String()
 					}
-				} else {
-					name = userUrl
 				}
 				name = filepath.Base(name)
+			default:
+				name = "unknown"
 			}
-			cmd.options.OutFileName = name
 		}
 
 		session = &Session{
 			Location:          userUrl,
-			SuggestedFileName: cmd.options.OutFileName,
+			SuggestedFileName: name,
 			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
 			ContentType:       resp.Header.Get("Content-Type"),
 			ContentMD5:        resp.Header.Get("Content-MD5"),
