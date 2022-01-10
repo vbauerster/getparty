@@ -63,7 +63,7 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGat
 		mpb.PrependDecorators(
 			newMainDecorator(curTry, "%s %.1f", p.name, mg, decor.WCSyncWidthR),
 			decor.OnCondition(
-				decor.OnComplete(decor.Spinner(nil, decor.WCSyncSpace), "100% "),
+				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WCSyncSpace), "100% "),
 				total == 0,
 			),
 			decor.OnCondition(
