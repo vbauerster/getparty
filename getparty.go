@@ -277,7 +277,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	progressDone := make(chan struct{})
-	signalNoPartial := make(chan struct{})
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
 		mpb.ContainerOptional(mpb.WithOutput(nil), cmd.options.Quiet),
@@ -293,6 +292,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	var eg errgroup.Group
 	var partsDone uint32
+	signalNoPartial := make(chan struct{})
 	pw := session.makeProxyWriter(
 		progress,
 		&partsDone,
