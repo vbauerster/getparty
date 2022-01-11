@@ -293,7 +293,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	var eg errgroup.Group
 	var partsDone uint32
-	pw := session.makeProxyWriter(progress, &partsDone, progressDone, signalNoPartial)
+	pw := session.makeProxyWriter(
+		progress,
+		&partsDone,
+		progressDone,
+		signalNoPartial,
+		cmd.options.Quiet,
+	)
 	start := time.Now()
 	for i, p := range session.Parts {
 		if p.isDone() {

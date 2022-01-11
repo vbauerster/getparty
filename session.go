@@ -249,9 +249,10 @@ func (s Session) makeProxyWriter(
 	partsDone *uint32,
 	progressDone chan struct{},
 	signalNoPartial chan struct{},
+	quiet bool,
 ) io.Writer {
 	pw := ioutil.Discard
-	if len(s.Parts) > 1 {
+	if !quiet && len(s.Parts) > 1 {
 		totalDecorator := func(_ decor.Statistics) string {
 			return fmt.Sprintf("TOTAL(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
 		}
