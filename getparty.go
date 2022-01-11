@@ -232,7 +232,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				return err
 			}
 			locUrl = session.Location
-			cmd.options.HeaderMap = session.HeaderMap
 			cmd.options.Parts = uint(len(session.Parts))
 		case len(args) != 0:
 			err = backoff.Retry(cmd.Ctx, exponential.New(), time.Hour,
