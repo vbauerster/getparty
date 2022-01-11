@@ -210,11 +210,13 @@ func (p *Part) download(
 					p.dlogger.Print("no partial content, skipping...")
 					return false, nil
 				}
+				if count == 0 {
+					close(signalNoPartial)
+				}
 				if resp.ContentLength > 0 {
 					p.Stop = resp.ContentLength - 1
 				}
 				p.Written = 0
-				close(signalNoPartial)
 			case http.StatusForbidden, http.StatusTooManyRequests:
 				if mg != nil {
 					mg.finalFlash(resp.Status)
