@@ -232,8 +232,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				return err
 			}
 			locUrl = session.Location
+			setCookies(session.HeaderMap, jar, locUrl)
 			cmd.options.Parts = uint(len(session.Parts))
 		case len(args) != 0:
+			setCookies(cmd.options.HeaderMap, jar, locUrl)
 			err = backoff.Retry(cmd.Ctx, exponential.New(), time.Hour,
 				func(count int, _ time.Time) (retry bool, err error) {
 					defer func() {
@@ -259,7 +261,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					return err
 				}
 				locUrl = session.Location
-				session.HeaderMap = cmd.options.HeaderMap
 				session.Parts = session.calcParts(cmd.dlogger, cmd.options.Parts)
 			} else {
 				cmd.options.JSONFileName = state
@@ -370,20 +371,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 }
 
 func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err error) {
-	if hc, ok := cmd.options.HeaderMap[hCookie]; ok {
-		var cookies []*http.Cookie
-		for _, cookie := range strings.Split(hc, "; ") {
-			pair := strings.SplitN(cookie, "=", 2)
-			if len(pair) != 2 {
-				continue
-			}
-			cookies = append(cookies, &http.Cookie{Name: pair[0], Value: pair[1]})
-		}
-		if u, err := url.Parse(userUrl); err == nil {
-			jar.SetCookies(u, cookies)
-		}
-	}
-
 	var redirected bool
 	var client *http.Client
 	defer func() {
@@ -474,6 +461,7 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 			ContentMD5:        resp.Header.Get("Content-MD5"),
 			StatusCode:        resp.StatusCode,
 			ContentLength:     resp.ContentLength,
+			HeaderMap:         cmd.options.HeaderMap,
 		}
 		return session, resp.Body.Close()
 	}
@@ -614,6 +602,22 @@ func (cmd Cmd) dumpState(session *Session) (mediaName string, err error) {
 	}
 	err = json.NewEncoder(media).Encode(session)
 	return
+}
+
+func setCookies(headers map[string]string, jar http.CookieJar, rawURL string) {
+	if hc, ok := headers[hCookie]; ok {
+		var cookies []*http.Cookie
+		for _, cookie := range strings.Split(hc, "; ") {
+			pair := strings.SplitN(cookie, "=", 2)
+			if len(pair) != 2 {
+				continue
+			}
+			cookies = append(cookies, &http.Cookie{Name: pair[0], Value: pair[1]})
+		}
+		if u, err := url.Parse(rawURL); err == nil {
+			jar.SetCookies(u, cookies)
+		}
+	}
 }
 
 func parseContentDisposition(input string) string {
