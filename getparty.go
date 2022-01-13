@@ -210,9 +210,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	var session *Session
-	var locUrl string
+	var rawURL string
 
-	for locUrl == "" {
+	for rawURL == "" {
 		switch {
 		case cmd.options.JSONFileName != "":
 			freshSession := session
@@ -231,11 +231,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			if err != nil {
 				return err
 			}
-			locUrl = session.Location
-			setCookies(session.HeaderMap, jar, locUrl)
+			rawURL = session.Location
+			setCookies(session.HeaderMap, jar, rawURL)
 			cmd.options.Parts = uint(len(session.Parts))
 		case len(args) != 0:
-			setCookies(cmd.options.HeaderMap, jar, locUrl)
+			setCookies(cmd.options.HeaderMap, jar, rawURL)
 			err = backoff.Retry(cmd.Ctx, exponential.New(), time.Hour,
 				func(count int, _ time.Time) (retry bool, err error) {
 					defer func() {
@@ -260,7 +260,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				if err != nil {
 					return err
 				}
-				locUrl = session.Location
+				rawURL = session.Location
 				session.Parts = session.calcParts(cmd.dlogger, cmd.options.Parts)
 			} else {
 				cmd.options.JSONFileName = state
@@ -314,7 +314,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.totalWriter = pw
 		p.transport = transport
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
-		req, err := http.NewRequest(http.MethodGet, locUrl, nil)
+		req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 		if err != nil {
 			cmd.logger.Fatalf("%s: %s", p.name, err.Error())
 		}
@@ -370,7 +370,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err error) {
+func (cmd Cmd) follow(jar http.CookieJar, rawURL string) (session *Session, err error) {
 	var redirected bool
 	var client *http.Client
 	defer func() {
@@ -396,8 +396,8 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 	}
 
 	for {
-		cmd.logger.Printf("GET: %s", userUrl)
-		req, err := http.NewRequest(http.MethodGet, userUrl, nil)
+		cmd.logger.Printf("GET: %s", rawURL)
+		req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -422,7 +422,7 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 			if err != nil {
 				return nil, err
 			}
-			userUrl = loc.String()
+			rawURL = loc.String()
 			// don't bother closing resp.Body here,
 			// it will be closed by underlying RoundTripper
 			continue
@@ -438,8 +438,8 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 			case 0:
 				name = parseContentDisposition(resp.Header.Get(hContentDisposition))
 			case 1:
-				if nURL, err := url.Parse(userUrl); err != nil {
-					name = userUrl
+				if nURL, err := url.Parse(rawURL); err != nil {
+					name = rawURL
 				} else {
 					nURL.RawQuery = ""
 					name, err = url.QueryUnescape(nURL.String())
@@ -454,7 +454,7 @@ func (cmd Cmd) follow(jar http.CookieJar, userUrl string) (session *Session, err
 		}
 
 		session = &Session{
-			Location:          userUrl,
+			Location:          rawURL,
 			SuggestedFileName: name,
 			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
 			ContentType:       resp.Header.Get("Content-Type"),
