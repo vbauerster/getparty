@@ -221,19 +221,26 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			if err != nil {
 				return err
 			}
+			err = session.checkPartsSize()
+			if err != nil {
+				return err
+			}
 			if freshSession != nil {
 				err := session.checkSums(freshSession)
 				if err != nil {
 					return err
 				}
+				session.Location = freshSession.Location
+			} else if session.Redirected {
+				cmd.options.JSONFileName = ""
+				cmd.options.HeaderMap = session.HeaderMap
+				args = append(args[:0], session.URL)
+				continue
+			} else {
+				setCookies(session.HeaderMap, jar, session.Location)
 			}
-			err = session.checkPartsSize()
-			if err != nil {
-				return err
-			}
-			rawURL = session.Location
-			setCookies(session.HeaderMap, jar, rawURL)
 			cmd.options.Parts = uint(len(session.Parts))
+			rawURL = session.Location
 		case len(args) != 0:
 			setCookies(cmd.options.HeaderMap, jar, args[0])
 			session, err = cmd.follow(jar, args[0])
@@ -246,8 +253,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				if err != nil {
 					return err
 				}
-				rawURL = session.Location
+				session.HeaderMap = cmd.options.HeaderMap
 				session.Parts = session.calcParts(cmd.dlogger, cmd.options.Parts)
+				rawURL = session.Location
 			} else {
 				cmd.options.JSONFileName = state
 			}
