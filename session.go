@@ -18,13 +18,15 @@ import (
 
 // Session represents download session state
 type Session struct {
+	URL               string
 	Location          string
 	SuggestedFileName string
 	ContentMD5        string
 	AcceptRanges      string
+	ContentType       string
 	StatusCode        int
 	ContentLength     int64
-	ContentType       string
+	Redirected        bool
 	Elapsed           time.Duration
 	HeaderMap         map[string]string
 	Parts             []*Part

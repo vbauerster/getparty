@@ -235,22 +235,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			setCookies(session.HeaderMap, jar, rawURL)
 			cmd.options.Parts = uint(len(session.Parts))
 		case len(args) != 0:
-			setCookies(cmd.options.HeaderMap, jar, rawURL)
-			err = backoff.Retry(cmd.Ctx, exponential.New(), time.Hour,
-				func(count int, _ time.Time) (retry bool, err error) {
-					defer func() {
-						if retry {
-							cmd.logger.Println("Retrying...")
-						}
-					}()
-					session, err = cmd.follow(jar, args[0])
-					if e, ok := err.(*HttpError); ok {
-						if isServerError(e.StatusCode) {
-							return count+1 != int(cmd.options.MaxRetry), err
-						}
-					}
-					return false, err
-				})
+			setCookies(cmd.options.HeaderMap, jar, args[0])
+			session, err = cmd.follow(jar, args[0])
 			if err != nil {
 				return err
 			}
@@ -364,7 +350,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) follow(jar http.CookieJar, rawURL string) (session *Session, err error) {
+func (cmd Cmd) follow(jar http.CookieJar, usrURL string) (session *Session, err error) {
 	var redirected bool
 	var client *http.Client
 	defer func() {
@@ -389,78 +375,91 @@ func (cmd Cmd) follow(jar http.CookieJar, rawURL string) (session *Session, err 
 		},
 	}
 
-	for {
-		cmd.logger.Printf("GET: %s", rawURL)
-		req, err := http.NewRequest(http.MethodGet, rawURL, nil)
-		if err != nil {
-			return nil, err
-		}
-		req.URL.User = cmd.userInfo
-		cmd.applyHeaders(req)
+	rawURL := usrURL
 
-		resp, err := client.Do(req.WithContext(cmd.Ctx))
-		if err != nil {
-			return nil, err
-		}
-		cmd.logger.Printf("HTTP response: %s", resp.Status)
-		if cookies := jar.Cookies(req.URL); len(cookies) != 0 {
-			cmd.dlogger.Println("CookieJar:")
-			for _, cookie := range cookies {
-				cmd.dlogger.Printf("  %q", cookie)
-			}
-		}
+	err = backoff.Retry(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
+		func(attempt int) (retry bool, err error) {
+			for {
+				cmd.logger.Printf("GET: %s", rawURL)
+				req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+				if err != nil {
+					return false, err
+				}
+				req.URL.User = cmd.userInfo
+				applyHeaders(cmd.options.HeaderMap, req)
 
-		if isRedirect(resp.StatusCode) {
-			redirected = true
-			loc, err := resp.Location()
-			if err != nil {
-				return nil, err
-			}
-			rawURL = loc.String()
-			// don't bother closing resp.Body here,
-			// it will be closed by underlying RoundTripper
-			continue
-		}
+				resp, err := client.Do(req.WithContext(cmd.Ctx))
+				if err != nil {
+					cmd.dlogger.Printf("ERR: %s", err.Error())
+					if attempt+1 == int(cmd.options.MaxRetry) {
+						return false, errors.WithMessage(ErrMaxRetry, err.Error())
+					}
+					cmd.logger.Printf("Retrying follow: %d", attempt+1)
+					return true, err
+				}
 
-		if resp.StatusCode != http.StatusOK {
-			return nil, &HttpError{resp.StatusCode, resp.Status}
-		}
-
-		name := cmd.options.OutFileName
-		for i := 0; name == ""; i++ {
-			switch i {
-			case 0:
-				name = parseContentDisposition(resp.Header.Get(hContentDisposition))
-			case 1:
-				if nURL, err := url.Parse(rawURL); err != nil {
-					name = rawURL
-				} else {
-					nURL.RawQuery = ""
-					name, err = url.QueryUnescape(nURL.String())
-					if err != nil {
-						name = nURL.String()
+				cmd.logger.Printf("HTTP response: %s", resp.Status)
+				if cookies := jar.Cookies(req.URL); len(cookies) != 0 {
+					cmd.dlogger.Println("CookieJar:")
+					for _, cookie := range cookies {
+						cmd.dlogger.Printf("  %q", cookie)
 					}
 				}
-				name = filepath.Base(name)
-			default:
-				name = "unknown"
+
+				if isRedirect(resp.StatusCode) {
+					redirected = true
+					loc, err := resp.Location()
+					if err != nil {
+						return false, err
+					}
+					rawURL = loc.String()
+					// don't bother closing resp.Body here,
+					// it will be closed by underlying RoundTripper
+					continue
+				}
+
+				if resp.StatusCode != http.StatusOK {
+					return false, &HttpError{resp.StatusCode, resp.Status}
+				}
+
+				name := cmd.options.OutFileName
+				for i := 0; name == ""; i++ {
+					switch i {
+					case 0:
+						name = parseContentDisposition(resp.Header.Get(hContentDisposition))
+					case 1:
+						if nURL, err := url.Parse(rawURL); err != nil {
+							name = rawURL
+						} else {
+							nURL.RawQuery = ""
+							name, err = url.QueryUnescape(nURL.String())
+							if err != nil {
+								name = nURL.String()
+							}
+						}
+						name = filepath.Base(name)
+					default:
+						name = "unknown"
+					}
+				}
+
+				session = &Session{
+					URL:               usrURL,
+					Location:          rawURL,
+					SuggestedFileName: name,
+					ContentMD5:        resp.Header.Get("Content-MD5"),
+					AcceptRanges:      resp.Header.Get("Accept-Ranges"),
+					ContentType:       resp.Header.Get("Content-Type"),
+					StatusCode:        resp.StatusCode,
+					ContentLength:     resp.ContentLength,
+					Redirected:        redirected,
+				}
+
+				resp.Body.Close()
+				return false, nil
 			}
-		}
-
-		session = &Session{
-			Location:          rawURL,
-			SuggestedFileName: name,
-			AcceptRanges:      resp.Header.Get("Accept-Ranges"),
-			ContentType:       resp.Header.Get("Content-Type"),
-			ContentMD5:        resp.Header.Get("Content-MD5"),
-			StatusCode:        resp.StatusCode,
-			ContentLength:     resp.ContentLength,
-			HeaderMap:         cmd.options.HeaderMap,
-		}
-		return session, resp.Body.Close()
-	}
-}
-
+		})
+	return session, err
 }
 
 func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) {
