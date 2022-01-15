@@ -33,7 +33,7 @@ type Session struct {
 }
 
 func (s Session) isResumable() bool {
-	return strings.EqualFold(s.AcceptRanges, "bytes") || s.ContentLength <= 0
+	return strings.EqualFold(s.AcceptRanges, "bytes") && s.ContentLength > 0
 }
 
 func (s Session) calcParts(dlogger *log.Logger, parts uint) []*Part {
