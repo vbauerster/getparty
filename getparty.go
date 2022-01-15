@@ -310,7 +310,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			cmd.logger.Fatalf("%s: %s", p.name, err.Error())
 		}
 		req.URL.User = cmd.userInfo
-		cmd.applyHeaders(req)
+		applyHeaders(session.HeaderMap, req)
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {
@@ -461,13 +461,6 @@ func (cmd Cmd) follow(jar http.CookieJar, rawURL string) (session *Session, err 
 	}
 }
 
-func (cmd Cmd) applyHeaders(req *http.Request) {
-	for k, v := range cmd.options.HeaderMap {
-		if k == hCookie {
-			continue
-		}
-		req.Header.Set(k, v)
-	}
 }
 
 func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) {
@@ -611,6 +604,15 @@ func setCookies(headers map[string]string, jar http.CookieJar, rawURL string) {
 		if u, err := url.Parse(rawURL); err == nil {
 			jar.SetCookies(u, cookies)
 		}
+	}
+}
+
+func applyHeaders(headers map[string]string, req *http.Request) {
+	for k, v := range headers {
+		if k == hCookie {
+			continue
+		}
+		req.Header.Set(k, v)
 	}
 }
 
