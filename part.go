@@ -130,19 +130,26 @@ func (p *Part) download(
 	var bar *mpb.Bar
 	var mg *msgGate
 	var curTry uint32
-	barInitDone := make(chan struct{})
+	var ranDur time.Duration
+	resetDur := time.Duration(timeout*2) * time.Second
 	initialTimeout := timeout
-	resetDur := time.Duration(2*timeout) * time.Second
-	lStart := time.Time{}
+	barInitDone := make(chan struct{})
+	start := time.Now()
 
-	return backoff.Retry(ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)), resetDur,
-		func(count int, start time.Time) (retry bool, err error) {
+	return backoff.Retry(ctx,
+		exponential.New(
+			exponential.WithReset(resetDur),
+			exponential.WithBaseDelay(500*time.Millisecond),
+		),
+		func(count int) (retry bool, err error) {
 			defer func() {
-				p.Elapsed += time.Since(start)
-				lStart = start
 				if err != nil {
 					p.dlogger.Printf("ERR: %s", err.Error())
 				}
+				ranDur = time.Since(start)
+				p.Elapsed += ranDur
+				p.dlogger.Printf("Ran dur: %v", ranDur)
+				start = time.Now()
 			}()
 
 			req.Header.Set(hRange, p.getRange())
@@ -153,7 +160,7 @@ func (p *Part) download(
 			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
 
 			if count > 0 {
-				if start.Sub(lStart) < resetDur {
+				if ranDur < resetDur {
 					timeout += 5
 				} else {
 					timeout = initialTimeout
