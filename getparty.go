@@ -598,7 +598,7 @@ func (cmd Cmd) dumpState(session *Session) (mediaName string, err error) {
 	return
 }
 
-func setCookies(headers map[string]string, jar http.CookieJar, rawURL string) {
+func setCookies(headers map[string]string, jar http.CookieJar, usrURL string) {
 	if hc, ok := headers[hCookie]; ok {
 		var cookies []*http.Cookie
 		for _, cookie := range strings.Split(hc, "; ") {
@@ -608,7 +608,7 @@ func setCookies(headers map[string]string, jar http.CookieJar, rawURL string) {
 			}
 			cookies = append(cookies, &http.Cookie{Name: pair[0], Value: pair[1]})
 		}
-		if u, err := url.Parse(rawURL); err == nil {
+		if u, err := url.Parse(usrURL); err == nil {
 			jar.SetCookies(u, cookies)
 		}
 	}
