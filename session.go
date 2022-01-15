@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -244,42 +243,28 @@ func (s Session) checkPartsSize() error {
 	return nil
 }
 
-func (s Session) makeProxyWriter(
-	progress *mpb.Progress,
-	partsDone *uint32,
-	progressDone chan struct{},
-	signalNoPartial chan struct{},
-	quiet bool,
-) io.Writer {
-	pw := ioutil.Discard
-	if !quiet && len(s.Parts) > 1 {
-		totalDecorator := func(_ decor.Statistics) string {
-			return fmt.Sprintf("TOTAL(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
-		}
-		bar := progress.New(s.ContentLength,
-			totalBarStyle(),
-			mpb.BarFillerTrim(),
-			mpb.PrependDecorators(
-				decor.Any(totalDecorator, decor.WCSyncWidthR),
-				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
-			),
-			mpb.AppendDecorators(
-				decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidthR), "Avg:"),
-				decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
-			),
-		)
-		if tw := s.totalWritten(); tw > 0 {
-			bar.SetCurrent(tw)
-			bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
-		}
-		pw = proxyWriter{bar}
-		go func() {
-			select {
-			case <-signalNoPartial:
-				bar.Abort(true)
-			case <-progressDone:
-			}
-		}()
+func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32) (bar *mpb.Bar) {
+	if len(s.Parts) <= 1 {
+		return
 	}
-	return pw
+	totalDecorator := func(_ decor.Statistics) string {
+		return fmt.Sprintf("TOTAL(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
+	}
+	bar = progress.New(s.ContentLength,
+		totalBarStyle(),
+		mpb.BarFillerTrim(),
+		mpb.PrependDecorators(
+			decor.Any(totalDecorator, decor.WCSyncWidthR),
+			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidthR), "Avg:"),
+			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
+		),
+	)
+	if tw := s.totalWritten(); tw > 0 {
+		bar.SetCurrent(tw)
+		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
+	}
+	return bar
 }

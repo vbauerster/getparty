@@ -276,13 +276,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return
 	}
 
-	progressDone := make(chan struct{})
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
 		mpb.ContainerOptional(mpb.WithOutput(nil), cmd.options.Quiet),
 		mpb.ContainerOptional(mpb.WithDebugOutput(cmd.Err), cmd.options.Debug),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
-		mpb.WithShutdownNotifier(progressDone),
 		mpb.WithWidth(64),
 	)
 
@@ -292,14 +290,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	var eg errgroup.Group
 	var partsDone uint32
-	signalNoPartial := make(chan struct{})
-	pw := session.makeProxyWriter(
-		progress,
-		&partsDone,
-		progressDone,
-		signalNoPartial,
-		cmd.options.Quiet,
-	)
+	tb := session.makeTotalBar(progress, &partsDone)
 	start := time.Now()
 	for i, p := range session.Parts {
 		if p.isDone() {
@@ -311,7 +302,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.quiet = cmd.options.Quiet
 		p.maxTry = int(cmd.options.MaxRetry)
 		p.jar = jar
-		p.totalWriter = pw
+		p.totalBar = tb
 		p.transport = transport
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, rawURL, nil)
@@ -334,7 +325,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 				atomic.AddUint32(&partsDone, 1)
 			}()
-			return p.download(cmd.Ctx, progress, req, cmd.options.Timeout, signalNoPartial)
+			return p.download(cmd.Ctx, progress, req, cmd.options.Timeout)
 		})
 	}
 
@@ -344,6 +335,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
 
 	if err != nil {
+		if tb != nil {
+			tb.Abort(false)
+		}
 		progress.Wait()
 		media, e := cmd.dumpState(session)
 		if e != nil {

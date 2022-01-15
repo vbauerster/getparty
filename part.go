@@ -34,14 +34,14 @@ type Part struct {
 	Skip     bool
 	Elapsed  time.Duration
 
-	name        string
-	order       int
-	maxTry      int
-	quiet       bool
-	jar         http.CookieJar
-	totalWriter io.Writer
-	transport   *http.Transport
-	dlogger     *log.Logger
+	name      string
+	order     int
+	maxTry    int
+	quiet     bool
+	jar       http.CookieJar
+	totalBar  *mpb.Bar
+	transport *http.Transport
+	dlogger   *log.Logger
 }
 
 func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGate) {
@@ -101,7 +101,6 @@ func (p *Part) download(
 	progress *mpb.Progress,
 	req *http.Request,
 	timeout uint,
-	signalNoPartial chan struct{},
 ) (err error) {
 	prefix := p.dlogger.Prefix()
 	if p.isDone() {
@@ -210,8 +209,8 @@ func (p *Part) download(
 					p.dlogger.Print("no partial content, skipping...")
 					return false, nil
 				}
-				if count == 0 {
-					close(signalNoPartial)
+				if count == 0 && p.totalBar != nil {
+					p.totalBar.Abort(true)
 				}
 				if resp.ContentLength > 0 {
 					p.Stop = resp.ContentLength - 1
@@ -233,8 +232,8 @@ func (p *Part) download(
 				close(barInitDone)
 			}
 
-			defer resp.Body.Close()
-			body := io.TeeReader(bar.ProxyReader(resp.Body), p.totalWriter)
+			body := bar.ProxyReader(resp.Body)
+			defer body.Close()
 
 			if p.Written > 0 {
 				bar.SetRefill(p.Written)
@@ -263,6 +262,9 @@ func (p *Part) download(
 					timer.Stop()
 				}
 				n, e := io.Copy(fpart, buf)
+				if p.totalBar != nil {
+					p.totalBar.IncrInt64(n)
+				}
 				if e != nil {
 					p.dlogger.Printf("ERR: write to %q: %s", fpart.Name(), e.Error())
 					panic(e)
