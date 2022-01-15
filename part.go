@@ -141,7 +141,7 @@ func (p *Part) download(
 			exponential.WithReset(resetDur),
 			exponential.WithBaseDelay(500*time.Millisecond),
 		),
-		func(count int) (retry bool, err error) {
+		func(attempt int) (retry bool, err error) {
 			defer func() {
 				if err != nil {
 					p.dlogger.Printf("ERR: %s", err.Error())
@@ -154,19 +154,19 @@ func (p *Part) download(
 
 			req.Header.Set(hRange, p.getRange())
 
-			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefix, count))
+			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefix, attempt))
 			p.dlogger.Printf("GET %q", req.URL)
 			p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
 			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
 
-			if count > 0 {
+			if attempt > 0 {
 				if ranDur < resetDur {
 					timeout += 5
 				} else {
 					timeout = initialTimeout
 				}
 				atomic.AddUint32(&globTry, 1)
-				atomic.StoreUint32(&curTry, uint32(count))
+				atomic.StoreUint32(&curTry, uint32(attempt))
 			}
 
 			ctxTimeout := time.Duration(timeout) * time.Second
@@ -190,7 +190,7 @@ func (p *Part) download(
 			}
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
-				if count+1 == p.maxTry {
+				if attempt+1 == p.maxTry {
 					if bar != nil {
 						mg.finalFlash(ErrMaxRetry.Error())
 						bar.Abort(false)
@@ -216,7 +216,7 @@ func (p *Part) download(
 					p.dlogger.Print("no partial content, skipping...")
 					return false, nil
 				}
-				if count == 0 && p.totalBar != nil {
+				if attempt == 0 && p.totalBar != nil {
 					p.totalBar.Abort(true)
 				}
 				if resp.ContentLength > 0 {
@@ -245,7 +245,7 @@ func (p *Part) download(
 			if p.Written > 0 {
 				bar.SetRefill(p.Written)
 				p.dlogger.Printf("Bar refill: %d", p.Written)
-				if count == 0 {
+				if attempt == 0 {
 					bar.SetCurrent(p.Written)
 					bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 				}
@@ -291,7 +291,7 @@ func (p *Part) download(
 				return false, nil
 			}
 
-			if count+1 == p.maxTry {
+			if attempt+1 == p.maxTry {
 				mg.finalFlash(ErrMaxRetry.Error())
 				bar.Abort(false)
 				return false, ErrMaxRetry
