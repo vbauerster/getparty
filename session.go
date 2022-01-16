@@ -171,18 +171,6 @@ func (s Session) writeSummary(w io.Writer, quiet bool) {
 	}
 }
 
-func (s Session) removeFiles() (err error) {
-	for _, part := range s.Parts {
-		err = os.Remove(part.FileName)
-		if errors.Is(err, os.ErrNotExist) {
-			err = nil
-		} else {
-			break
-		}
-	}
-	return err
-}
-
 func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
 	stat, err := os.Stat(s.SuggestedFileName)
 	if err != nil {
@@ -195,7 +183,7 @@ func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
 		return fmt.Errorf("%v: %q is a directory", os.ErrInvalid, stat.Name())
 	}
 	if forceOverwrite {
-		return s.removeFiles()
+		return os.Remove(s.SuggestedFileName)
 	}
 	var answer string
 	fmt.Fprintf(w, "File %q already exists, overwrite? [y/n] ", stat.Name())
@@ -204,7 +192,7 @@ func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
 	}
 	switch strings.ToLower(answer) {
 	case "y", "yes":
-		return s.removeFiles()
+		return os.Remove(s.SuggestedFileName)
 	default:
 		return ErrCanceledByUser
 	}
