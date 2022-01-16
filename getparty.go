@@ -243,7 +243,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			} else {
 				setCookies(session.HeaderMap, session.Location, jar)
 			}
-			cmd.options.Parts = uint(len(session.Parts))
 			rawURL = session.Location
 		case len(args) != 0:
 			setCookies(cmd.options.HeaderMap, args[0], jar)
@@ -254,6 +253,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 			state := session.SuggestedFileName + ".json"
 			if _, err := os.Stat(state); err != nil {
+				if cmd.options.Parts == 0 {
+					session.writeSummary(cmd.Out, cmd.options.Quiet)
+					return nil
+				}
 				err = session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
 				if err != nil {
 					return err
@@ -270,10 +273,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	session.writeSummary(cmd.Out, cmd.options.Quiet)
-
-	if cmd.options.Parts == 0 {
-		return
-	}
 
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
