@@ -102,11 +102,6 @@ func (p *Part) download(
 	req *http.Request,
 	timeout uint,
 ) (err error) {
-	prefix := p.dlogger.Prefix()
-	if p.isDone() {
-		panic(fmt.Sprintf("%s is engaged while being done", prefix))
-	}
-
 	defer func() {
 		err = errors.Wrap(err, p.name)
 	}()
@@ -132,8 +127,9 @@ func (p *Part) download(
 	var curTry uint32
 	var ranDur time.Duration
 	resetDur := time.Duration(timeout*2) * time.Second
-	initialTimeout := timeout
 	barInitDone := make(chan struct{})
+	prefix := p.dlogger.Prefix()
+	initialTimeout := timeout
 	start := time.Now()
 
 	return backoff.Retry(ctx,
