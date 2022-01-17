@@ -42,7 +42,7 @@ func (s *Session) calcParts(parts uint) error {
 	}
 
 	fragment := s.ContentLength / int64(parts)
-	if fragment < 64 {
+	if parts != 1 && fragment < 64 {
 		return errors.New("Too fragmented")
 	}
 
