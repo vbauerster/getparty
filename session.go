@@ -37,9 +37,6 @@ func (s Session) isResumable() bool {
 }
 
 func (s Session) calcParts(dlogger *log.Logger, parts uint) []*Part {
-	if parts == 0 {
-		return nil
-	}
 	if !s.isResumable() {
 		parts = 1
 	}
