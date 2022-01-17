@@ -435,7 +435,11 @@ func (cmd Cmd) follow(
 				}
 
 				if resp.StatusCode != http.StatusOK {
-					return false, &HttpError{resp.StatusCode, resp.Status}
+					err = &HttpError{resp.StatusCode, resp.Status}
+					if isServerError(resp.StatusCode) {
+						return attempt+1 != int(cmd.options.MaxRetry), err
+					}
+					return false, err
 				}
 
 				name := cmd.options.OutFileName
