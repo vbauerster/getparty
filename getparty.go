@@ -261,8 +261,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				if err != nil {
 					return err
 				}
+				err = session.calcParts(cmd.options.Parts)
+				if err != nil {
+					return err
+				}
 				session.HeaderMap = cmd.options.HeaderMap
-				session.Parts = session.calcParts(cmd.dlogger, cmd.options.Parts)
 				rawURL = session.Location
 			} else {
 				cmd.options.JSONFileName = state

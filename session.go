@@ -36,41 +36,36 @@ func (s Session) isResumable() bool {
 	return strings.EqualFold(s.AcceptRanges, "bytes") && s.ContentLength > 0
 }
 
-func (s Session) calcParts(dlogger *log.Logger, parts uint) []*Part {
+func (s *Session) calcParts(parts uint) error {
 	if !s.isResumable() {
 		parts = 1
 	}
 
-	ps := make([]*Part, parts)
-	ps[0] = &Part{
+	fragment := s.ContentLength / int64(parts)
+	if fragment < 64 {
+		return errors.New("Too fragmented")
+	}
+
+	s.Parts = make([]*Part, parts)
+	s.Parts[0] = &Part{
 		FileName: s.SuggestedFileName,
 	}
 
-	stop := s.ContentLength
+	var stop int64
 	start := s.ContentLength
-	fragment := s.ContentLength / int64(parts)
 	for i := parts - 1; i > 0; i-- {
 		stop = start - 1
 		start = stop - fragment
-		ps[i] = &Part{
+		s.Parts[i] = &Part{
 			FileName: fmt.Sprintf("%s.%02d", s.SuggestedFileName, i),
 			Start:    start,
 			Stop:     stop,
 		}
 	}
 
-	ps[0].Stop = start - 1
+	s.Parts[0].Stop = start - 1
 
-	if parts > 1 && ps[0].Stop < int64(parts*8) {
-		dlogger.Printf("too many parts (%d) for ContentLength=%d", parts, s.ContentLength)
-		for i, p := range ps {
-			dlogger.Printf("  fragment %02d: %d", i, p.Stop-p.Start)
-		}
-		ps[0].Stop = s.ContentLength - 1
-		return ps[:1]
-	}
-
-	return ps
+	return nil
 }
 
 func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) (size int64, err error) {
