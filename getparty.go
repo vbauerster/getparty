@@ -29,9 +29,9 @@ import (
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
 	"github.com/vbauerster/mpb/v7"
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/term"
 )
 
 type ExpectedError string
@@ -579,7 +579,7 @@ func (cmd Cmd) bestMirror(args []string, reqPatcher func(*http.Request)) (best s
 
 func (cmd Cmd) readPassword() (string, error) {
 	fmt.Fprint(cmd.Out, "Enter Password: ")
-	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		return "", err
 	}
