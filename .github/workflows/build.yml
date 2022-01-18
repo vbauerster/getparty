@@ -8,12 +8,11 @@ on:
       - v*
   pull_request:
 
-defaults:
-  run:
-    working-directory: cmd/getparty
-
 jobs:
   build:
+    defaults:
+      run:
+        working-directory: cmd/getparty
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
