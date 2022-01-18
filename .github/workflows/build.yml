@@ -51,5 +51,5 @@ jobs:
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
-    - name: Build
-      run: go build
+    - name: Go get
+      run: go get -v
