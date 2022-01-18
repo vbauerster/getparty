@@ -252,16 +252,6 @@ func (p *Part) download(
 			for timer.Reset(ctxTimeout) {
 				_, err = io.CopyN(buf, body, bufSize-int64(buf.Len()))
 				if err != nil {
-					if e, ok := err.(*url.Error); ok {
-						go func() {
-							p.dlogger.Print(e.Error())
-							mg.flash(fmt.Sprintf("%.30s..", e.Err.Error()))
-						}()
-						if e.Temporary() {
-							time.Sleep(100 * time.Millisecond)
-							continue
-						}
-					}
 					timer.Stop()
 				}
 				n, e := io.Copy(fpart, buf)
