@@ -248,7 +248,7 @@ func (p *Part) download(
 
 			pWrittenSnap := p.Written
 			buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-			for timer.Reset(ctxTimeout) {
+			for err == nil && timer.Reset(ctxTimeout) {
 				_, err = io.CopyN(buf, body, bufSize)
 				if err != nil {
 					timer.Stop()
