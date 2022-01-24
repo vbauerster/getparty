@@ -18,8 +18,8 @@ import (
 
 // Session represents download session state
 type Session struct {
+	location          string
 	URL               string
-	Location          string
 	SuggestedFileName string
 	ContentMD5        string
 	AcceptRanges      string

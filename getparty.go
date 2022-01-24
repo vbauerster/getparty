@@ -211,9 +211,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	var session *Session
-	var rawURL string
+	var location string
 
-	for rawURL == "" {
+	for location == "" {
 		switch {
 		case cmd.options.JSONFileName != "":
 			freshSession := session
@@ -231,19 +231,21 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				if err != nil {
 					return err
 				}
-				session.Location = freshSession.Location
-			} else if session.Redirected {
-				setCookies(session.HeaderMap, session.URL, jar)
-				patcher := makeReqPatcher(session.HeaderMap, userInfo, true)
-				freshSession, err = cmd.follow(session.URL, jar, patcher)
-				if err != nil {
-					return err
-				}
-				session.Location = freshSession.Location
+				session.location = freshSession.location
 			} else {
-				setCookies(session.HeaderMap, session.Location, jar)
+				setCookies(session.HeaderMap, session.URL, jar)
+				if session.Redirected {
+					patcher := makeReqPatcher(session.HeaderMap, userInfo, true)
+					freshSession, err = cmd.follow(session.URL, jar, patcher)
+					if err != nil {
+						return err
+					}
+					session.location = freshSession.location
+				} else {
+					session.location = session.URL
+				}
 			}
-			rawURL = session.Location
+			location = session.location
 		case len(args) != 0:
 			setCookies(cmd.options.HeaderMap, args[0], jar)
 			patcher := makeReqPatcher(cmd.options.HeaderMap, userInfo, true)
@@ -266,7 +268,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					return err
 				}
 				session.HeaderMap = cmd.options.HeaderMap
-				rawURL = session.Location
+				location = session.location
 			} else {
 				cmd.options.JSONFileName = state
 			}
@@ -307,7 +309,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.transport = transport
 		p.totalBar = tb
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
-		req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+		req, err := http.NewRequest(http.MethodGet, location, nil)
 		if err != nil {
 			cmd.logger.Fatalf("%s: %s", p.name, err.Error())
 		}
@@ -394,13 +396,13 @@ func (cmd Cmd) follow(
 		},
 	}
 
-	rawURL := usrURL
+	location := usrURL
 
 	err = backoff.Retry(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt int) (retry bool, err error) {
 			for {
-				cmd.logger.Printf("GET: %s", rawURL)
-				req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+				cmd.logger.Printf("GET: %s", location)
+				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
 					return false, err
 				}
@@ -431,7 +433,7 @@ func (cmd Cmd) follow(
 					if err != nil {
 						return false, err
 					}
-					rawURL = loc.String()
+					location = loc.String()
 					// don't bother closing resp.Body here,
 					// it will be closed by underlying RoundTripper
 					continue
@@ -451,8 +453,8 @@ func (cmd Cmd) follow(
 					case 0:
 						name = parseContentDisposition(resp.Header.Get(hContentDisposition))
 					case 1:
-						if nURL, err := url.Parse(rawURL); err != nil {
-							name = rawURL
+						if nURL, err := url.Parse(location); err != nil {
+							name = location
 						} else {
 							nURL.RawQuery = ""
 							name, err = url.QueryUnescape(nURL.String())
@@ -467,8 +469,8 @@ func (cmd Cmd) follow(
 				}
 
 				session = &Session{
+					location:          location,
 					URL:               usrURL,
-					Location:          rawURL,
 					SuggestedFileName: name,
 					ContentMD5:        resp.Header.Get("Content-MD5"),
 					AcceptRanges:      resp.Header.Get("Accept-Ranges"),
