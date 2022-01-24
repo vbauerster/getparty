@@ -186,10 +186,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		return log.New(out, prefix, log.LstdFlags)
 	}
-
 	cmd.logger = setupLogger(cmd.Out, "", cmd.options.Quiet)
 	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
-	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
+
+	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
+		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
+	}
 
 	if cmd.options.Timeout == 0 {
 		cmd.options.Timeout = 15
