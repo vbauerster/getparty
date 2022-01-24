@@ -83,7 +83,7 @@ type Options struct {
 	MaxRetry           uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retry per each part, 0 for infinite"`
 	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
-	JSONFileName       string            `short:"c" long:"continue" value-name:"state.json" description:"resume download from the last session"`
+	JSONFileName       string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
 	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
 	BestMirror         bool              `short:"b" long:"best-mirror" description:"pickup the fastest mirror"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
@@ -92,9 +92,9 @@ type Options struct {
 	AuthPass           string            `long:"password" description:"basic http auth password"`
 	HeaderMap          map[string]string `short:"H" long:"header" value-name:"key:value" description:"arbitrary http header"`
 	InsecureSkipVerify bool              `long:"no-check-cert" description:"don't validate the server's certificate"`
-	CertsFileName      string            `long:"certs-file" value-name:"certs.crt" description:"root certificates to use when verifying server certificates"`
+	CertsFileName      string            `short:"c" long:"certs-file" value-name:"certs.crt" description:"root certificates to use when verifying server certificates"`
 	Debug              bool              `long:"debug" description:"enable debug to stderr"`
-	Version            bool              `long:"version" description:"show version"`
+	Version            bool              `short:"v" long:"version" description:"show version"`
 }
 
 type Cmd struct {

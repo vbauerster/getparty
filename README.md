@@ -34,7 +34,7 @@ Application Options:
   -r, --max-retry=n                                         max retry per each part, 0 for infinite (default: 10)
   -t, --timeout=sec                                         context timeout (default: 15)
   -o, --output=filename                                     user defined output
-  -c, --continue=state.json                                 resume download from the last session
+  -s, --session=session.json                                path to saved session file (optional)
   -a, --user-agent=[chrome|firefox|safari|edge|getparty]    User-Agent header (default: chrome)
   -b, --best-mirror                                         pickup the fastest mirror
   -q, --quiet                                               quiet mode, no progress bars
@@ -43,9 +43,9 @@ Application Options:
       --password=                                           basic http auth password
   -H, --header=key:value                                    arbitrary http header
       --no-check-cert                                       don't validate the server's certificate
-      --certs-file=certs.crt                                root certificates to use when verifying server certificates
+  -c  --certs-file=certs.crt                                root certificates to use when verifying server certificates
       --debug                                               enable debug to stderr
-      --version                                             show version
+  -v  --version                                             show version
 
 Help Options:
   -h, --help                                                show this help message
