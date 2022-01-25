@@ -147,7 +147,6 @@ func (cmd Cmd) debugOrPrintErr(err error, expected bool) {
 }
 
 func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
-	runtime.MemProfileRate = 0
 	defer func() {
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "run")

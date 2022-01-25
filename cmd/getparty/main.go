@@ -9,6 +9,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
 	"github.com/vbauerster/getparty"
@@ -20,6 +21,7 @@ var (
 )
 
 func main() {
+	runtime.MemProfileRate = 0
 	ctx, cancel := backgroundContext()
 	defer cancel()
 	cmd := &getparty.Cmd{
