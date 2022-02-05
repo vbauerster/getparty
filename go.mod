@@ -1,6 +1,7 @@
 module github.com/vbauerster/getparty
 
 require (
+	github.com/VividCortex/ewma v1.2.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/pkg/errors v0.9.1

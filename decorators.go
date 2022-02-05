@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/VividCortex/ewma"
 	"github.com/vbauerster/mpb/v7/decor"
 )
 
@@ -119,46 +120,38 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 
 type peak struct {
 	decor.WC
-	format  string
-	msg     string
-	counter bytesPerDuration
-	min     bytesPerDuration
-	once    sync.Once
-}
-
-type bytesPerDuration struct {
-	bytes    int64
-	duration int64
+	format string
+	msg    string
+	min    float64
+	set    bool
+	mean   ewma.MovingAverage
+	once   sync.Once
 }
 
 func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	d := &peak{
 		WC:     wc.Init(),
 		format: format,
-		min:    bytesPerDuration{0, math.MaxInt64},
+		mean:   ewma.NewMovingAverage(20),
 	}
 	return d
 }
 
 func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
-	s.counter.bytes += n
-	s.counter.duration += int64(dur)
-	if s.counter.bytes >= 1024*128 {
-		if s.counter.duration < s.min.duration {
-			s.min = s.counter
+	s.mean.Add(float64(dur) / float64(n))
+	if durPerByte := s.mean.Value(); !s.set || durPerByte < s.min {
+		if durPerByte != 0 {
+			s.min = durPerByte
+			s.set = true
 		}
-		s.counter = bytesPerDuration{0, 0}
 	}
 }
 
 func (s *peak) onComplete() {
-	if s.min.bytes == 0 {
-		s.min = s.counter
-	}
-	if durPerByte := s.min.duration / s.min.bytes; durPerByte == 0 {
-		s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(0)))
+	if s.min == 0 {
+		s.msg = "N/A"
 	} else {
-		s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(1e9/durPerByte)))
+		s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/s.min))))
 	}
 }
 
