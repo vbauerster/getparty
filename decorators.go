@@ -139,11 +139,13 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 
 func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 	s.mean.Add(float64(dur) / float64(n))
-	if durPerByte := s.mean.Value(); !s.set || durPerByte < s.min {
-		if durPerByte != 0 {
-			s.min = durPerByte
-			s.set = true
-		}
+	durPerByte := s.mean.Value()
+	if durPerByte == 0 {
+		return
+	}
+	if !s.set || durPerByte < s.min {
+		s.min = durPerByte
+		s.set = true
 	}
 }
 
