@@ -270,8 +270,10 @@ func (p *Part) download(
 			p.dlogger.Printf("Written: %d", p.Written-pWrittenSnap)
 
 			if err == io.EOF {
-				if p.total() <= 0 {
+				if total := p.total(); total <= 0 {
 					p.Stop = p.Written - 1
+				} else if total != p.Written {
+					return false, errors.New("unexpected EOF")
 				}
 				return false, nil
 			}
