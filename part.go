@@ -137,12 +137,15 @@ func (p *Part) download(
 			exponential.WithBaseDelay(500*time.Millisecond),
 		),
 		func(attempt int) (retry bool, err error) {
+			pw := p.Written
 			defer func() {
 				if err != nil {
 					p.dlogger.Printf("ERR: %s", err.Error())
 				}
 				ranDur = time.Since(start)
-				p.Elapsed += ranDur
+				if pw != p.Written {
+					p.Elapsed += ranDur
+				}
 				p.dlogger.Printf("Ran dur: %v", ranDur)
 				start = time.Now()
 			}()
@@ -246,7 +249,6 @@ func (p *Part) download(
 				}
 			}
 
-			pWrittenSnap := p.Written
 			buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 			for err == nil && timer.Reset(ctxTimeout) {
 				_, err = io.CopyN(buf, body, bufSize)
@@ -267,7 +269,7 @@ func (p *Part) download(
 				}
 			}
 
-			p.dlogger.Printf("Written: %d", p.Written-pWrittenSnap)
+			p.dlogger.Printf("Written: %d", p.Written-pw)
 
 			if err == io.EOF {
 				if total := p.total(); total <= 0 {

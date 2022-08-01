@@ -295,7 +295,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var eg errgroup.Group
 	var partsDone uint32
 	patcher := makeReqPatcher(session.HeaderMap, userInfo, true)
-	tb := session.makeTotalBar(progress, &partsDone)
+	tw := session.totalWritten()
+	tb := session.makeTotalBar(progress, &partsDone, tw)
 	start := time.Now()
 	for i, p := range session.Parts {
 		if p.isDone() {
@@ -335,7 +336,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	err = eg.Wait()
 
-	session.Elapsed = time.Since(start)
+	if tw != session.totalWritten() {
+		session.Elapsed = time.Since(start)
+	}
+
 	session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
 
 	if err != nil {
