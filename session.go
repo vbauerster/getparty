@@ -225,7 +225,7 @@ func (s Session) checkPartsSize() error {
 	return nil
 }
 
-func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32, tw int64) (bar *mpb.Bar) {
+func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32, written int64) (bar *mpb.Bar) {
 	if len(s.Parts) <= 1 {
 		return
 	}
@@ -244,8 +244,8 @@ func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32, tw int6
 			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
 		),
 	)
-	if tw > 0 {
-		bar.SetCurrent(tw)
+	if written > 0 {
+		bar.SetCurrent(written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
 	}
 	return bar
