@@ -248,12 +248,12 @@ func (p *Part) download(
 					timer.Stop()
 				}
 				n, e := io.Copy(fpart, buf)
-				if p.totalBar != nil {
-					p.totalBar.IncrInt64(n)
-				}
 				if e != nil {
 					p.dlogger.Printf("ERR: write to %q: %s", fpart.Name(), e.Error())
 					panic(e)
+				}
+				if p.totalBar != nil {
+					p.totalBar.IncrInt64(n)
 				}
 				p.Written += n
 				if p.total() <= 0 {
