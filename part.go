@@ -249,8 +249,8 @@ func (p *Part) download(
 					}
 					timer.Stop()
 				}
-				n, err = fpart.Write(buf[:n])
-				if err != nil {
+				n, e := fpart.Write(buf[:n])
+				if e != nil {
 					p.dlogger.Printf("ERR: write to %q: %s", fpart.Name(), err.Error())
 					panic(err)
 				}

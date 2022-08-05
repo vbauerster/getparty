@@ -12,4 +12,6 @@ require (
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171
 )
 
+replace github.com/vbauerster/mpb/v7 => /home/vbauer/gohack/github.com/vbauerster/mpb/v7
+
 go 1.14
