@@ -71,12 +71,13 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGat
 				decor.Conditional(
 					total == 0,
 					decor.Name(""),
-					decor.NewAverageETA(
-						decor.ET_STYLE_MMSS,
-						time.Now(),
-						decor.FixedIntervalTimeNormalizer(30),
-						decor.WCSyncWidth,
-					),
+					decor.OnAbort(
+						decor.NewAverageETA(
+							decor.ET_STYLE_MMSS,
+							time.Now(),
+							decor.FixedIntervalTimeNormalizer(30),
+							decor.WCSyncWidth,
+						), "--:--"),
 				), "Avg:"),
 			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
