@@ -1,7 +1,6 @@
 package getparty
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -19,7 +18,7 @@ import (
 )
 
 const (
-	bufSize = 8192
+	bufSize = 4096
 )
 
 var globTry uint32
@@ -241,21 +240,24 @@ func (p *Part) download(
 				}
 			}
 
-			buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-			for err == nil && timer.Reset(ctxTimeout) {
-				_, err = io.CopyN(buf, body, bufSize)
+			buf := make([]byte, bufSize)
+			for n := 0; err == nil && timer.Reset(ctxTimeout); {
+				n, err = io.ReadFull(body, buf)
 				if err != nil {
+					if err == io.ErrUnexpectedEOF {
+						err = io.EOF
+					}
 					timer.Stop()
 				}
-				n, e := io.Copy(fpart, buf)
-				if e != nil {
-					p.dlogger.Printf("ERR: write to %q: %s", fpart.Name(), e.Error())
-					panic(e)
+				n, err = fpart.Write(buf[:n])
+				if err != nil {
+					p.dlogger.Printf("ERR: write to %q: %s", fpart.Name(), err.Error())
+					panic(err)
 				}
 				if p.totalBar != nil {
-					p.totalBar.IncrInt64(n)
+					p.totalBar.IncrBy(n)
 				}
-				p.Written += n
+				p.Written += int64(n)
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, err == io.EOF)
 				}
@@ -267,7 +269,7 @@ func (p *Part) download(
 				if total := p.total(); total <= 0 {
 					p.Stop = p.Written - 1
 				} else if total != p.Written {
-					return false, errors.New("unexpected EOF")
+					return false, io.ErrUnexpectedEOF
 				}
 				return false, nil
 			}
