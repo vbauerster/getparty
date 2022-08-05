@@ -61,32 +61,24 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGat
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
 			newMainDecorator(curTry, "%s %.1f", p.name, mg, decor.WCSyncWidthR),
-			decor.OnCondition(
-				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WCSyncSpace), "100% "),
+			decor.Conditional(
 				total == 0,
-			),
-			decor.OnCondition(
+				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WCSyncSpace), "100% "),
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
-				total != 0,
 			),
 		),
 		mpb.AppendDecorators(
-			decor.OnCondition(
-				decor.OnComplete(decor.Name(""), "Avg:"),
-				total == 0,
-			),
-			decor.OnCondition(
-				decor.OnComplete(
+			decor.OnComplete(
+				decor.Conditional(
+					total == 0,
+					decor.Name(""),
 					decor.NewAverageETA(
 						decor.ET_STYLE_MMSS,
 						time.Now(),
 						decor.FixedIntervalTimeNormalizer(30),
 						decor.WCSyncWidthR,
 					),
-					"Avg:",
-				),
-				total != 0,
-			),
+				), "Avg:"),
 			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
