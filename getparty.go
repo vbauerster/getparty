@@ -294,9 +294,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	var eg errgroup.Group
 	var partsDone uint32
-	patcher := makeReqPatcher(session.HeaderMap, userInfo, true)
+	var tb *mpb.Bar
 	tw := session.totalWritten()
-	tb := session.makeTotalBar(progress, &partsDone, tw)
+	if !cmd.options.Quiet {
+		tb = session.makeTotalBar(progress, &partsDone, tw)
+	}
+	patcher := makeReqPatcher(session.HeaderMap, userInfo, true)
 	start := time.Now()
 	for i, p := range session.Parts {
 		if p.isDone() {
