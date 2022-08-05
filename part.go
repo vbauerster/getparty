@@ -92,24 +92,19 @@ func (p *Part) download(
 	req *http.Request,
 	timeout uint,
 ) (err error) {
-	defer func() {
-		err = errors.Wrap(err, p.name)
-	}()
-
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return err
+		return errors.Wrap(err, p.name)
 	}
 	defer func() {
-		if err := fpart.Close(); err != nil {
-			p.dlogger.Printf("ERR: close %q: %s", fpart.Name(), err.Error())
+		if e := fpart.Close(); err == nil {
+			err = e
 		}
-		if p.Skip {
+		if p.Skip && err == nil {
 			p.dlogger.Printf("Removing: %q", fpart.Name())
-			if err := os.Remove(p.FileName); err != nil {
-				p.dlogger.Printf("ERR: remove %q: %s", fpart.Name(), err.Error())
-			}
+			err = os.Remove(p.FileName)
 		}
+		err = errors.Wrap(err, p.name)
 	}()
 
 	var bar *mpb.Bar
@@ -131,7 +126,7 @@ func (p *Part) download(
 			pw := p.Written
 			defer func() {
 				if err != nil {
-					p.dlogger.Printf("ERR: %s", err.Error())
+					p.dlogger.Printf("ERR: retry quit: %s", err.Error())
 				}
 				ranDur = time.Since(start)
 				if pw != p.Written {
@@ -202,7 +197,7 @@ func (p *Part) download(
 			case http.StatusOK: // no partial content, so download with single part
 				if p.order != 1 {
 					p.Skip = true
-					p.dlogger.Print("no partial content, skipping...")
+					p.dlogger.Print("Skip: no partial content")
 					return false, nil
 				}
 				if attempt == 0 && p.totalBar != nil {
@@ -263,7 +258,7 @@ func (p *Part) download(
 				}
 			}
 
-			p.dlogger.Printf("Written: %d", p.Written-pw)
+			p.dlogger.Printf("Written to %q: %d", fpart.Name(), p.Written-pw)
 
 			if err == io.EOF {
 				if total := p.total(); total <= 0 {
@@ -283,11 +278,15 @@ func (p *Part) download(
 			if resp.StatusCode != http.StatusPartialContent {
 				bar.SetCurrent(0)
 				bar.SetTotal(0, false)
-				if e := fpart.Close(); e == nil {
-					fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
-					if e != nil {
-						panic(e)
-					}
+				e := fpart.Close()
+				if e != nil {
+					p.dlogger.Printf("ERR: fpart.Close: %s", e.Error())
+					panic(e)
+				}
+				fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
+				if e != nil {
+					p.dlogger.Printf("ERR: os.OpenFile: %s", e.Error())
+					panic(e)
 				}
 			}
 
