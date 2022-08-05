@@ -337,7 +337,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	err = eg.Wait()
 
 	if tw != session.totalWritten() {
-		session.Elapsed = time.Since(start)
+		session.Elapsed += time.Since(start)
 	}
 
 	session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
