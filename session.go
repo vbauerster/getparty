@@ -240,7 +240,7 @@ func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32, written
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidthR), "Avg:"),
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), "Avg:"),
 			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
 		),
 	)

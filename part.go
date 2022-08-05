@@ -76,7 +76,7 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGat
 						decor.ET_STYLE_MMSS,
 						time.Now(),
 						decor.FixedIntervalTimeNormalizer(30),
-						decor.WCSyncWidthR,
+						decor.WCSyncWidth,
 					),
 				), "Avg:"),
 			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
