@@ -20,7 +20,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
@@ -592,7 +591,7 @@ func (cmd Cmd) bestMirror(args []string, reqPatcher func(*http.Request)) (best s
 
 func (cmd Cmd) readPassword() (string, error) {
 	fmt.Fprint(cmd.Out, "Enter Password: ")
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+	bytePassword, err := term.ReadPassword(0)
 	if err != nil {
 		return "", err
 	}
