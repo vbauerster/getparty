@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/VividCortex/ewma"
-	"github.com/vbauerster/mpb/v7/decor"
+	"github.com/vbauerster/mpb/v8/decor"
 )
 
 type message struct {
