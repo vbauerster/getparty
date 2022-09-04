@@ -208,6 +208,19 @@ func (p *Part) download(
 					p.Stop = resp.ContentLength - 1
 				}
 				p.Written = 0
+				defer func() {
+					if retry && err != nil {
+						e := fpart.Close()
+						if e != nil {
+							panic(e)
+						}
+						fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
+						if e != nil {
+							panic(e)
+						}
+						bar.SetCurrent(0)
+					}
+				}()
 			case http.StatusForbidden, http.StatusTooManyRequests:
 				if mg != nil {
 					mg.finalFlash(resp.Status)
@@ -280,19 +293,6 @@ func (p *Part) download(
 				return false, ErrMaxRetry
 			}
 
-			if resp.StatusCode != http.StatusPartialContent {
-				bar.SetCurrent(0)
-				bar.SetTotal(0, false)
-				e := fpart.Close()
-				if e != nil {
-					p.dlogger.Printf("ERR: fpart.Close: %s", e.Error())
-					panic(e)
-				}
-				fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
-				if e != nil {
-					p.dlogger.Printf("ERR: os.OpenFile: %s", e.Error())
-					panic(e)
-				}
 			}
 
 			return true, err
