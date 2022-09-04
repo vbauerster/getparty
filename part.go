@@ -47,7 +47,7 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGat
 	if total < 0 {
 		total = 0
 	}
-	p.dlogger.Printf("Bar total: %d", total)
+	p.dlogger.Printf("Setting bar total to: %d", total)
 	mg := newMsgGate(p.quiet, p.name, 15)
 	bar := progress.New(total,
 		mpb.BarFillerBuilderFunc(func() mpb.BarFiller {
@@ -198,7 +198,7 @@ func (p *Part) download(
 			case http.StatusOK: // no partial content, so download with single part
 				if p.order != 1 {
 					p.Skip = true
-					p.dlogger.Print("Skip: no partial content")
+					p.dlogger.Println("Skip: no partial content")
 					return false, nil
 				}
 				if attempt == 0 && p.totalBar != nil {
@@ -228,8 +228,8 @@ func (p *Part) download(
 			defer body.Close()
 
 			if p.Written > 0 {
+				p.dlogger.Printf("Setting bar refill to: %d", p.Written)
 				bar.SetRefill(p.Written)
-				p.dlogger.Printf("Bar refill: %d", p.Written)
 				if attempt == 0 {
 					bar.SetCurrent(p.Written)
 					bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
