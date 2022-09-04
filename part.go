@@ -183,7 +183,7 @@ func (p *Part) download(
 				return true, err
 			}
 
-			p.dlogger.Printf("Status: %s", resp.Status)
+			p.dlogger.Printf("HTTP status: %s", resp.Status)
 			p.dlogger.Printf("ContentLength: %d", resp.ContentLength)
 			if cookies := p.jar.Cookies(req.URL); len(cookies) != 0 {
 				p.dlogger.Println("CookieJar:")
