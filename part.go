@@ -293,6 +293,8 @@ func (p *Part) download(
 				return false, ErrMaxRetry
 			}
 
+			if err == nil {
+				err = ctx.Err()
 			}
 
 			return true, err
