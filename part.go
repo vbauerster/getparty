@@ -126,9 +126,6 @@ func (p *Part) download(
 		func(attempt int) (retry bool, err error) {
 			pw := p.Written
 			defer func() {
-				if err != nil {
-					p.dlogger.Printf("ERR: retry quit: %s", err.Error())
-				}
 				ranDur = time.Since(start)
 				if pw != p.Written {
 					p.Elapsed += ranDur
@@ -182,6 +179,7 @@ func (p *Part) download(
 					}
 					return false, errors.WithMessage(ErrMaxRetry, err.Error())
 				}
+				p.dlogger.Printf("Retry reason: %s", err.Error())
 				return true, err
 			}
 
@@ -296,6 +294,7 @@ func (p *Part) download(
 				err = ctx.Err()
 			}
 
+			p.dlogger.Printf("Retry reason: %s", err.Error())
 			return true, err
 		})
 }
