@@ -264,8 +264,7 @@ func (p *Part) download(
 				}
 				n, e := fpart.Write(buf[:n])
 				if e != nil {
-					p.dlogger.Printf("ERR: write to %q: %s", fpart.Name(), err.Error())
-					panic(err)
+					panic(e)
 				}
 				if p.totalBar != nil {
 					p.totalBar.IncrBy(n)
