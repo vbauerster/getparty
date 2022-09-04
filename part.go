@@ -241,9 +241,13 @@ func (p *Part) download(
 				n, err = io.ReadFull(body, buf)
 				if err != nil {
 					if err == io.ErrUnexpectedEOF {
-						err = io.EOF
+						p.dlogger.Printf("io.ReadFull: %d %s", n, err.Error())
+						if n > 0 {
+							err = nil
+						}
+					} else {
+						p.dlogger.Printf("Timer stop: %v", timer.Stop())
 					}
-					timer.Stop()
 				}
 				n, e := fpart.Write(buf[:n])
 				if e != nil {
@@ -262,12 +266,12 @@ func (p *Part) download(
 			p.dlogger.Printf("Written to %q: %d", fpart.Name(), p.Written-pw)
 
 			if err == io.EOF {
-				if total := p.total(); total <= 0 {
-					p.Stop = p.Written - 1
-				} else if total != p.Written {
-					return false, io.ErrUnexpectedEOF
+				p.dlogger.Println(err.Error())
+				if p.isDone() || p.total() <= 0 {
+					return false, nil
+				} else {
+					panic("written != total after EOF")
 				}
-				return false, nil
 			}
 
 			if attempt+1 == p.maxTry {
