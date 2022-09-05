@@ -279,9 +279,8 @@ func (p *Part) download(
 				p.dlogger.Println(err.Error())
 				if p.isDone() || p.total() <= 0 {
 					return false, nil
-				} else {
-					panic("written != total after EOF")
 				}
+				panic("written != total after EOF")
 			}
 
 			if attempt+1 == p.maxTry {
