@@ -265,7 +265,7 @@ func (p *Part) download(
 					panic(e)
 				}
 				if p.totalBar != nil {
-					p.totalBar.IncrBy(n)
+					go p.totalBar.IncrBy(n)
 				}
 				p.Written += int64(n)
 				if p.total() <= 0 {
