@@ -251,9 +251,9 @@ func (p *Part) download(
 			for n := 0; err == nil && timer.Reset(ctxTimeout); {
 				n, err = io.ReadFull(body, buf)
 				if err != nil {
+					p.dlogger.Printf("io.ReadFull: %d %s", n, err.Error())
 					if err == io.ErrUnexpectedEOF {
-						p.dlogger.Printf("io.ReadFull: %d %s", n, err.Error())
-						if n > 0 {
+						if n > 0 && timer.Reset(ctxTimeout) {
 							err = nil
 						}
 					} else {
@@ -269,28 +269,29 @@ func (p *Part) download(
 				}
 				p.Written += int64(n)
 				if p.total() <= 0 {
-					bar.SetTotal(p.Written, err == io.EOF)
+					if err == io.EOF || err == io.ErrUnexpectedEOF {
+						p.Stop = p.Written - 1 // so p.isDone() retruns true
+						bar.SetTotal(p.Written, true)
+					} else {
+						bar.SetTotal(p.Written, false)
+					}
 				}
 			}
 
 			p.dlogger.Printf("Written to %q: %d", fpart.Name(), p.Written-pw)
 
-			if err == io.EOF {
-				p.dlogger.Println(err.Error())
-				if p.isDone() || p.total() <= 0 {
+			if p.isDone() {
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					p.dlogger.Printf("Part is done: %s", err.Error())
 					return false, nil
 				}
-				panic("written != total after EOF")
+				panic(fmt.Sprintf("Part is done with unexpected err: %v", err))
 			}
 
 			if attempt+1 == p.maxTry {
 				mg.finalFlash(ErrMaxRetry.Error())
 				bar.Abort(false)
 				return false, ErrMaxRetry
-			}
-
-			if err == nil {
-				err = ctx.Err()
 			}
 
 			p.dlogger.Printf("Retry reason: %s", err.Error())
