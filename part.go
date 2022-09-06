@@ -47,7 +47,7 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGat
 	if total < 0 {
 		total = 0
 	}
-	p.dlogger.Printf("Setting bar total to: %d", total)
+	p.dlogger.Printf("Setting bar total: %d", total)
 	mg := newMsgGate(p.quiet, p.name, 15)
 	bar := progress.New(total,
 		mpb.BarFillerBuilderFunc(func() mpb.BarFiller {
@@ -189,6 +189,7 @@ func (p *Part) download(
 
 			p.dlogger.Printf("HTTP status: %s", resp.Status)
 			p.dlogger.Printf("ContentLength: %d", resp.ContentLength)
+
 			if cookies := p.jar.Cookies(req.URL); len(cookies) != 0 {
 				p.dlogger.Println("CookieJar:")
 				for _, cookie := range cookies {
@@ -243,7 +244,7 @@ func (p *Part) download(
 			defer body.Close()
 
 			if p.Written > 0 {
-				p.dlogger.Printf("Setting bar refill to: %d", p.Written)
+				p.dlogger.Printf("Setting bar refill: %d", p.Written)
 				bar.SetRefill(p.Written)
 				if attempt == 0 {
 					bar.SetCurrent(p.Written)
@@ -282,7 +283,7 @@ func (p *Part) download(
 				}
 			}
 
-			p.dlogger.Printf("Written to %q: %d", fpart.Name(), p.Written-pw)
+			p.dlogger.Printf("Wrote %d bytes to %q", p.Written-pw, fpart.Name())
 
 			if p.isDone() {
 				if err == io.EOF || err == io.ErrUnexpectedEOF {
