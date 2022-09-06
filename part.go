@@ -172,11 +172,15 @@ func (p *Part) download(
 			}
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
-				if attempt+1 == p.maxTry {
-					if bar != nil {
-						mg.finalFlash(ErrMaxRetry.Error())
-						bar.Abort(false)
+				switch attempt + 1 {
+				case 1:
+					if bar == nil {
+						bar, mg = p.makeBar(progress, &curTry)
+						close(barInitDone)
 					}
+				case p.maxTry:
+					mg.finalFlash(ErrMaxRetry.Error())
+					bar.Abort(false)
 					return false, errors.WithMessage(ErrMaxRetry, err.Error())
 				}
 				p.dlogger.Printf("Retry reason: %s", err.Error())
