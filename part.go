@@ -180,6 +180,7 @@ func (p *Part) download(
 					}
 				case p.maxTry:
 					go bar.Abort(false)
+					p.dlogger.Println(ErrMaxRetry.Error())
 					mg.finalFlash(ErrMaxRetry.Error())
 					return false, errors.WithMessage(ErrMaxRetry, err.Error())
 				}
@@ -298,6 +299,7 @@ func (p *Part) download(
 
 			if attempt+1 == p.maxTry {
 				go bar.Abort(false)
+				p.dlogger.Println(ErrMaxRetry.Error())
 				mg.finalFlash(ErrMaxRetry.Error())
 				return false, ErrMaxRetry
 			}
