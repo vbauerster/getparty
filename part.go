@@ -179,8 +179,8 @@ func (p *Part) download(
 						close(barInitDone)
 					}
 				case p.maxTry:
+					go bar.Abort(false)
 					mg.finalFlash(ErrMaxRetry.Error())
-					bar.Abort(false)
 					return false, errors.WithMessage(ErrMaxRetry, err.Error())
 				}
 				p.dlogger.Printf("Retry reason: %s", err.Error())
@@ -204,8 +204,8 @@ func (p *Part) download(
 					p.dlogger.Println("Skip: no partial content")
 					return false, nil
 				}
-				if attempt == 0 && p.totalBar != nil {
-					p.totalBar.Abort(true)
+				if p.totalBar != nil {
+					go p.totalBar.Abort(true)
 				}
 				if resp.ContentLength > 0 {
 					p.Stop = resp.ContentLength - 1
@@ -297,8 +297,8 @@ func (p *Part) download(
 			}
 
 			if attempt+1 == p.maxTry {
+				go bar.Abort(false)
 				mg.finalFlash(ErrMaxRetry.Error())
-				bar.Abort(false)
 				return false, ErrMaxRetry
 			}
 
