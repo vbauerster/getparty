@@ -294,7 +294,7 @@ func (p *Part) download(
 				if err == nil || err == io.EOF {
 					return false, nil
 				}
-				panic(fmt.Sprintf("Part is done with unexpected err: %v", err))
+				panic(fmt.Sprintf("Part is done with unexpected err: %s", err.Error()))
 			}
 
 			if attempt+1 == p.maxTry {
