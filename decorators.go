@@ -107,14 +107,12 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 			d.msg.done = nil
 		}()
 		d.finalMsg = true
-	default:
-		d.msg.times--
-		if stat.Completed || d.msg.times == 0 {
-			defer func() {
-				d.msg = nil
-			}()
-		}
+	case d.msg.times == 0, stat.Completed, stat.Aborted:
+		defer func() {
+			d.msg = nil
+		}()
 	}
+	d.msg.times--
 	return d.FormatMsg(d.msg.msg)
 }
 
