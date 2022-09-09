@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/cookiejar"
@@ -180,7 +179,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	setupLogger := func(out io.Writer, prefix string, discard bool) *log.Logger {
 		if discard {
-			out = ioutil.Discard
+			out = io.Discard
 		}
 		return log.New(out, prefix, log.LstdFlags)
 	}
@@ -504,7 +503,7 @@ func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) 
 	if cmd.options.InsecureSkipVerify {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	} else if cmd.options.CertsFileName != "" {
-		caCerts, err := ioutil.ReadFile(cmd.options.CertsFileName)
+		caCerts, err := os.ReadFile(cmd.options.CertsFileName)
 		if err != nil {
 			return nil, err
 		}
