@@ -111,8 +111,9 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 		defer func() {
 			d.msg = nil
 		}()
+	default:
+		d.msg.times--
 	}
-	d.msg.times--
 	return d.FormatMsg(d.msg.msg)
 }
 
