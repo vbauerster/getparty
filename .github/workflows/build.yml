@@ -8,6 +8,10 @@ on:
       - v*
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: read
+
 defaults:
   run:
     working-directory: cmd/getparty
