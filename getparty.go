@@ -337,10 +337,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	err = eg.Wait()
 
-	if tw != session.totalWritten() {
-		session.Elapsed += time.Since(start)
-	}
-
 	session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
 
 	if err != nil {
@@ -348,11 +344,14 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			tb.Abort(false)
 		}
 		progress.Wait()
-		media, e := cmd.dumpState(session)
-		if e != nil {
-			cmd.debugOrPrintErr(e, false)
-		} else {
-			fmt.Fprintf(cmd.Err, "session state saved to %q\n", media)
+		if tw != session.totalWritten() {
+			session.Elapsed += time.Since(start)
+			media, e := cmd.dumpState(session)
+			if e != nil {
+				cmd.debugOrPrintErr(e, false)
+			} else {
+				fmt.Fprintf(cmd.Err, "session state saved to %q\n", media)
+			}
 		}
 		return err
 	}
