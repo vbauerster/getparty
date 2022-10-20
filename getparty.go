@@ -321,12 +321,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		eg.Go(func() error {
 			defer func() {
 				if p := recover(); p != nil {
-					media, e := cmd.dumpState(session)
-					if e != nil {
-						cmd.debugOrPrintErr(e, false)
-					} else {
-						fmt.Fprintf(cmd.Err, "session state saved to %q\n", media)
-					}
+					cmd.dumpState(session)
 					panic(p)
 				}
 				atomic.AddUint32(&partsDone, 1)
@@ -346,12 +341,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		progress.Wait()
 		if tw != session.totalWritten() {
 			session.Elapsed += time.Since(start)
-			media, e := cmd.dumpState(session)
-			if e != nil {
-				cmd.debugOrPrintErr(e, false)
-			} else {
-				fmt.Fprintf(cmd.Err, "session state saved to %q\n", media)
-			}
+			cmd.dumpState(session)
 		}
 		return err
 	}
@@ -597,26 +587,30 @@ func (cmd Cmd) readPassword() (string, error) {
 	return string(bytePassword), nil
 }
 
-func (cmd Cmd) dumpState(session *Session) (mediaName string, err error) {
+func (cmd Cmd) dumpState(session *Session) {
 	if !session.isResumable() {
-		return "", errors.New("Cannot save non resumable session")
+		return
 	}
 	var media io.Writer
-	mediaName = session.SuggestedFileName + ".json"
+	mediaName := session.SuggestedFileName + ".json"
 	f, err := os.Create(mediaName)
 	if err != nil {
 		media = cmd.Err
 		mediaName = "stderr"
 	} else {
 		defer func() {
-			if e := f.Close(); err == nil {
-				err = e
+			if err := f.Close(); err != nil {
+				cmd.debugOrPrintErr(err, false)
 			}
 		}()
 		media = f
 	}
 	err = json.NewEncoder(media).Encode(session)
-	return
+	if err != nil {
+		cmd.debugOrPrintErr(err, false)
+	} else {
+		fmt.Fprintf(cmd.Err, "session state saved to %q\n", media)
+	}
 }
 
 func setCookies(headers map[string]string, usrURL string, jar http.CookieJar) {
