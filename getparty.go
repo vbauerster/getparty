@@ -592,11 +592,11 @@ func (cmd Cmd) dumpState(session *Session) {
 		return
 	}
 	var media io.Writer
-	mediaName := session.SuggestedFileName + ".json"
-	f, err := os.Create(mediaName)
+	name := session.SuggestedFileName + ".json"
+	f, err := os.Create(name)
 	if err != nil {
 		media = cmd.Err
-		mediaName = "stderr"
+		name = "stderr"
 	} else {
 		defer func() {
 			if err := f.Close(); err != nil {
@@ -609,7 +609,7 @@ func (cmd Cmd) dumpState(session *Session) {
 	if err != nil {
 		cmd.debugOrPrintErr(err, false)
 	} else {
-		fmt.Fprintf(cmd.Err, "session state saved to %q\n", media)
+		fmt.Fprintf(cmd.Err, "session state saved to %q\n", name)
 	}
 }
 
