@@ -670,7 +670,7 @@ func isRedirect(status int) bool {
 }
 
 func isServerError(status int) bool {
-	return status > 499 && status < 500
+	return status > 499 && status < 600
 }
 
 func readLines(r io.Reader) ([]string, error) {
