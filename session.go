@@ -225,14 +225,14 @@ func (s Session) checkPartsSize() error {
 	return nil
 }
 
-func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32, written int64) (bar *mpb.Bar) {
-	if len(s.Parts) <= 1 {
-		return
+func (s Session) makeTotalWriter(progress *mpb.Progress, written int64, partsDone *uint32, quiet bool) (io.Writer, func(bool)) {
+	if len(s.Parts) <= 1 || quiet {
+		return io.Discard, func(bool) {}
 	}
 	totalDecorator := func(_ decor.Statistics) string {
 		return fmt.Sprintf("TOTAL(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
 	}
-	bar = progress.New(s.ContentLength,
+	bar := progress.New(s.ContentLength,
 		totalBarStyle(),
 		mpb.BarFillerTrim(),
 		mpb.PrependDecorators(
@@ -248,5 +248,5 @@ func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32, written
 		bar.SetCurrent(written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
 	}
-	return bar
+	return bar.ProxyWriter(io.Discard), func(drop bool) { bar.Abort(drop) }
 }

@@ -276,8 +276,16 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}
 
+	transport, err := cmd.getTransport(true)
+	if err != nil {
+		return err
+	}
+
 	session.writeSummary(cmd.Out, cmd.options.Quiet)
 
+	var partsDone uint32
+	var eg errgroup.Group
+	written := session.totalWritten()
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
 		mpb.ContainerOptional(mpb.WithOutput(nil), cmd.options.Quiet),
@@ -285,18 +293,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-
-	transport, err := cmd.getTransport(true)
-	if err != nil {
-		return err
-	}
-	var eg errgroup.Group
-	var partsDone uint32
-	var tb *mpb.Bar
-	tw := session.totalWritten()
-	if !cmd.options.Quiet {
-		tb = session.makeTotalBar(progress, &partsDone, tw)
-	}
+	totalWriter, totalCancel := session.makeTotalWriter(progress, written, &partsDone, cmd.options.Quiet)
 	patcher := makeReqPatcher(session.HeaderMap, userInfo, true)
 	start := time.Now()
 	for i, p := range session.Parts {
@@ -310,7 +307,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.maxTry = int(cmd.options.MaxRetry)
 		p.jar = jar
 		p.transport = transport
-		p.totalBar = tb
+		p.totalWriter = totalWriter
+		p.totalCancel = totalCancel
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, location, nil)
 		if err != nil {
@@ -337,11 +335,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
 
 	if err != nil {
-		if tb != nil {
-			tb.Abort(false)
-		}
+		totalCancel(false)
 		progress.Wait()
-		if tw != session.totalWritten() {
+		if written != session.totalWritten() {
 			session.Elapsed += time.Since(start)
 			cmd.dumpState(session)
 		}

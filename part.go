@@ -32,14 +32,15 @@ type Part struct {
 	Skip     bool
 	Elapsed  time.Duration
 
-	name      string
-	order     int
-	maxTry    int
-	quiet     bool
-	jar       http.CookieJar
-	totalBar  *mpb.Bar
-	transport *http.Transport
-	dlogger   *log.Logger
+	name        string
+	order       int
+	maxTry      int
+	quiet       bool
+	jar         http.CookieJar
+	totalWriter io.Writer
+	totalCancel func(bool)
+	transport   *http.Transport
+	dlogger     *log.Logger
 }
 
 func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGate) {
@@ -212,24 +213,24 @@ func (p *Part) download(
 					p.dlogger.Println("Skip: no partial content")
 					return false, nil
 				}
-				if p.totalBar != nil {
-					go p.totalBar.Abort(true)
-				}
+				p.totalCancel(true) // single bar doesn't need total bar
 				if resp.ContentLength > 0 {
 					p.Stop = resp.ContentLength - 1
 				}
 				p.Written = 0
 				defer func() {
-					if retry && err != nil {
+					if err != nil {
 						e := fpart.Close()
 						if e != nil {
 							panic(e)
 						}
-						fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
-						if e != nil {
-							panic(e)
+						if attempt != p.maxTry-1 {
+							fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
+							if e != nil {
+								panic(e)
+							}
+							bar.SetCurrent(0)
 						}
-						bar.SetCurrent(0)
 					}
 				}()
 			case http.StatusForbidden, http.StatusTooManyRequests:
@@ -254,6 +255,8 @@ func (p *Part) download(
 			body := bar.ProxyReader(resp.Body)
 			defer body.Close()
 
+			writer := io.MultiWriter(fpart, p.totalWriter)
+
 			buf := make([]byte, bufSize)
 			for n := 0; err == nil && timer.Reset(ctxTimeout); {
 				n, err = io.ReadFull(body, buf)
@@ -265,12 +268,9 @@ func (p *Part) download(
 						err = io.EOF
 					}
 				}
-				n, e := fpart.Write(buf[:n])
+				n, e := writer.Write(buf[:n])
 				if e != nil {
 					panic(e)
-				}
-				if p.totalBar != nil {
-					go p.totalBar.IncrBy(n)
 				}
 				p.Written += int64(n)
 				if p.total() <= 0 {
