@@ -84,6 +84,15 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGat
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
 		),
 	)
+	if p.Written > 0 {
+		p.dlogger.Printf("Setting bar current: %d", p.Written)
+		bar.SetCurrent(p.Written)
+		bar.SetRefill(p.Written)
+	}
+	if p.Elapsed > 0 {
+		p.dlogger.Printf("Setting bar DecoratorAverageAdjust: -%[1]d (-%[1]s)", p.Elapsed)
+		bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
+	}
 	return bar, mg
 }
 
@@ -172,13 +181,11 @@ func (p *Part) download(
 			}
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
-				switch attempt + 1 {
-				case 1:
-					if bar == nil {
-						bar, mg = p.makeBar(progress, &curTry)
-						close(barInitDone)
-					}
-				case p.maxTry:
+				if bar == nil {
+					bar, mg = p.makeBar(progress, &curTry)
+					close(barInitDone)
+				}
+				if attempt == p.maxTry-1 {
 					go bar.Abort(false)
 					p.dlogger.Println(ErrMaxRetry.Error())
 					mg.finalFlash(ErrMaxRetry.Error())
@@ -239,19 +246,13 @@ func (p *Part) download(
 			if bar == nil {
 				bar, mg = p.makeBar(progress, &curTry)
 				close(barInitDone)
+			} else if p.Written > 0 {
+				p.dlogger.Printf("Setting bar refill: %d", p.Written)
+				bar.SetRefill(p.Written)
 			}
 
 			body := bar.ProxyReader(resp.Body)
 			defer body.Close()
-
-			if p.Written > 0 {
-				p.dlogger.Printf("Setting bar refill: %d", p.Written)
-				bar.SetRefill(p.Written)
-				if attempt == 0 {
-					bar.SetCurrent(p.Written)
-					bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
-				}
-			}
 
 			buf := make([]byte, bufSize)
 			for n := 0; err == nil && timer.Reset(ctxTimeout); {
@@ -297,7 +298,7 @@ func (p *Part) download(
 				panic(fmt.Sprintf("Part is done with unexpected err: %s", err.Error()))
 			}
 
-			if attempt+1 == p.maxTry {
+			if attempt == p.maxTry-1 {
 				go bar.Abort(false)
 				p.dlogger.Println(ErrMaxRetry.Error())
 				mg.finalFlash(ErrMaxRetry.Error())
