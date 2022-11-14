@@ -396,7 +396,11 @@ func (cmd Cmd) follow(
 	err = backoff.Retry(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt int) (retry bool, err error) {
 			for {
-				cmd.logger.Printf("GET: %s", location)
+				if max := cmd.options.MaxRetry; max == 0 {
+					cmd.logger.Printf("GET(%d/∞): %s", attempt+1, location)
+				} else {
+					cmd.logger.Printf("GET(%d/%d): %s", attempt+1, max, location)
+				}
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
 					return false, err
@@ -410,7 +414,6 @@ func (cmd Cmd) follow(
 					if attempt+1 == int(cmd.options.MaxRetry) {
 						return false, errors.WithMessage(ErrMaxRetry, err.Error())
 					}
-					cmd.logger.Printf("Retrying follow: %d", attempt+1)
 					return true, err
 				}
 
