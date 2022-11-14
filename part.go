@@ -224,13 +224,14 @@ func (p *Part) download(
 						if e != nil {
 							panic(e)
 						}
-						if attempt != p.maxTry-1 {
-							fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
-							if e != nil {
-								panic(e)
-							}
-							bar.SetCurrent(0)
+						if attempt == p.maxTry-1 {
+							return
 						}
+						fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
+						if e != nil {
+							panic(e)
+						}
+						bar.SetCurrent(0)
 					}
 				}()
 			case http.StatusForbidden, http.StatusTooManyRequests:
