@@ -43,7 +43,8 @@ type Part struct {
 	dlogger     *log.Logger
 }
 
-func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) (*mpb.Bar, *msgGate) {
+func (p Part) makeBar(progress *mpb.Progress, curTry *uint32, initDone chan struct{}) (*mpb.Bar, *msgGate) {
+	defer close(initDone)
 	total := p.total()
 	if total < 0 {
 		total = 0
@@ -183,8 +184,7 @@ func (p *Part) download(
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
 				if bar == nil {
-					bar, mg = p.makeBar(progress, &curTry)
-					close(barInitDone)
+					bar, mg = p.makeBar(progress, &curTry, barInitDone)
 				}
 				if attempt == p.maxTry-1 {
 					go bar.Abort(false)
@@ -245,8 +245,7 @@ func (p *Part) download(
 			}
 
 			if bar == nil {
-				bar, mg = p.makeBar(progress, &curTry)
-				close(barInitDone)
+				bar, mg = p.makeBar(progress, &curTry, barInitDone)
 			} else if p.Written > 0 {
 				p.dlogger.Printf("Setting bar refill: %d", p.Written)
 				bar.SetRefill(p.Written)
