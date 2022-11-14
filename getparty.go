@@ -324,7 +324,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					cmd.dumpState(session)
 					panic(p)
 				}
-				atomic.AddUint32(&partsDone, 1)
+				if p.isDone() {
+					atomic.AddUint32(&partsDone, 1)
+				}
 			}()
 			return p.download(cmd.Ctx, progress, req, cmd.options.Timeout)
 		})
