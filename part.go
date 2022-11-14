@@ -139,7 +139,7 @@ func (p *Part) download(
 				if pw != p.Written {
 					p.Elapsed += ranDur
 				}
-				p.dlogger.Printf("Ran dur: %v", ranDur)
+				p.dlogger.Printf("Ran dur: %s", ranDur)
 				start = time.Now()
 			}()
 
