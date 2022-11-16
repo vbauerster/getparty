@@ -49,8 +49,8 @@ func (e HttpError) Error() string {
 
 const (
 	ErrCanceledByUser = ExpectedError("Canceled by user")
-	ErrMaxRedirect    = ExpectedError("Max redirects reached")
-	ErrMaxRetry       = ExpectedError("Max retries reached")
+	ErrMaxRedirect    = ExpectedError("Max redirects")
+	ErrMaxRetry       = ExpectedError("Max retries")
 )
 
 const (
