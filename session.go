@@ -232,7 +232,7 @@ func (s Session) checkPartsSize() error {
 	return nil
 }
 
-func (s Session) makeTotalWriter(progress *mpb.Progress, written int64, partsDone *uint32, quiet bool) (io.Writer, func(bool)) {
+func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quiet bool) (io.Writer, func(bool)) {
 	if len(s.Parts) <= 1 || quiet {
 		return io.Discard, func(bool) {}
 	}
@@ -251,7 +251,7 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, written int64, partsDon
 			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
 		),
 	)
-	if written > 0 {
+	if written := s.totalWritten(); written > 0 {
 		bar.SetCurrent(written)
 		bar.SetRefill(written)
 	}

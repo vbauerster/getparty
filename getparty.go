@@ -293,7 +293,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalWriter, totalCancel := session.makeTotalWriter(progress, written, &partsDone, cmd.options.Quiet)
+	totalWriter, totalCancel := session.makeTotalWriter(progress, &partsDone, cmd.options.Quiet)
 	patcher := makeReqPatcher(session.HeaderMap, userInfo, true)
 	start := time.Now()
 	for i, p := range session.Parts {
