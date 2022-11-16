@@ -281,11 +281,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	session.writeSummary(cmd.Out, cmd.options.Quiet)
-
 	var partsDone uint32
 	var eg errgroup.Group
-	written := session.totalWritten()
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
 		mpb.ContainerOptional(mpb.WithOutput(nil), cmd.options.Quiet),
@@ -295,7 +292,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	)
 	totalWriter, totalCancel := session.makeTotalWriter(progress, &partsDone, cmd.options.Quiet)
 	patcher := makeReqPatcher(session.HeaderMap, userInfo, true)
-	start := time.Now()
+	defer cmd.trace(session)()
+	defer progress.Wait()
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&partsDone, 1)
@@ -332,32 +330,38 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	err = eg.Wait()
 
-	session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
-
 	if err != nil {
 		totalCancel(false)
-		progress.Wait()
-		if written != session.totalWritten() {
-			session.Elapsed += time.Since(start)
-			cmd.dumpState(session)
-		}
 		return err
 	}
 
-	size, err := session.concatenateParts(cmd.dlogger, progress)
-	progress.Wait()
+	err = session.concatenateParts(cmd.dlogger, progress)
 	if err != nil {
 		return err
-	}
-	fmt.Fprintln(cmd.Out)
-	cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, size)
-	if session.ContentLength > 0 && size != session.ContentLength {
-		return fmt.Errorf("Corrupted download: ExpectedSize=%d SavedSize=%d", session.ContentLength, size)
 	}
 	if cmd.options.JSONFileName != "" {
 		return os.Remove(cmd.options.JSONFileName)
 	}
 	return nil
+}
+
+func (cmd Cmd) trace(session *Session) func() {
+	session.writeSummary(cmd.Out, cmd.options.Quiet)
+	writtenBefore := session.totalWritten()
+	start := time.Now()
+	return func() {
+		session.Elapsed += time.Since(start)
+		session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
+		writtenAfter := session.totalWritten()
+		if session.isResumable() && writtenAfter < session.ContentLength {
+			if writtenBefore != writtenAfter {
+				cmd.dumpState(session)
+			}
+			return
+		}
+		fmt.Fprintln(cmd.Out)
+		cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, writtenAfter)
+	}
 }
 
 func (cmd Cmd) follow(
