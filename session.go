@@ -246,6 +246,7 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, written int64, partsDon
 	)
 	if written > 0 {
 		bar.SetCurrent(written)
+		bar.SetRefill(written)
 	}
 	if s.Elapsed > 0 {
 		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
