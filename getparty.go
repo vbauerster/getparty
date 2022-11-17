@@ -302,7 +302,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.order = i + 1
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.quiet = cmd.options.Quiet
-		p.maxTry = int(cmd.options.MaxRetry)
+		p.maxTry = cmd.options.MaxRetry
 		p.jar = jar
 		p.transport = transport
 		p.totalWriter = totalWriter
@@ -396,12 +396,12 @@ func (cmd Cmd) follow(
 	location := usrURL
 
 	err = backoff.Retry(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
-		func(attempt int) (retry bool, err error) {
+		func(attempt uint, _ func()) (retry bool, err error) {
 			for {
 				if max := cmd.options.MaxRetry; max == 0 {
-					cmd.logger.Printf("GET(%d/∞) %q", attempt+1, location)
+					cmd.logger.Printf("GET(%d/∞) %q", attempt, location)
 				} else {
-					cmd.logger.Printf("GET(%d/%d) %q", attempt+1, max, location)
+					cmd.logger.Printf("GET(%d/%d) %q", attempt, max, location)
 				}
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
@@ -413,7 +413,7 @@ func (cmd Cmd) follow(
 				resp, err := client.Do(req.WithContext(cmd.Ctx))
 				if err != nil {
 					cmd.dlogger.Printf("ERR: %s", err.Error())
-					if attempt+1 == int(cmd.options.MaxRetry) {
+					if attempt == cmd.options.MaxRetry {
 						return false, errors.WithMessage(ErrMaxRetry, err.Error())
 					}
 					return true, err
@@ -442,7 +442,7 @@ func (cmd Cmd) follow(
 				if resp.StatusCode != http.StatusOK {
 					err = &HttpError{resp.StatusCode, resp.Status}
 					if isServerError(resp.StatusCode) {
-						return attempt+1 != int(cmd.options.MaxRetry), err
+						return attempt != cmd.options.MaxRetry, err
 					}
 					return false, err
 				}

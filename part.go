@@ -34,7 +34,7 @@ type Part struct {
 
 	name        string
 	order       int
-	maxTry      int
+	maxTry      uint
 	quiet       bool
 	jar         http.CookieJar
 	totalWriter io.Writer
@@ -127,25 +127,22 @@ func (p *Part) download(
 	prefix := p.dlogger.Prefix()
 	start := time.Now()
 
-	return backoff.Retry(ctx,
-		exponential.New(
-			exponential.WithReset(time.Duration(timeout*2)*time.Second),
-			exponential.WithBaseDelay(500*time.Millisecond),
-		),
-		func(attempt int) (retry bool, err error) {
+	return backoff.Retry(ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
+		func(attempt uint, reset func()) (retry bool, err error) {
 			writtenBefore := p.Written
 			defer func() {
 				attemptDur := time.Since(start)
 				if diff := p.Written - writtenBefore; diff != 0 {
-					p.Elapsed += attemptDur
+					reset()
 					timeout = resetTimeout
+					p.Elapsed += attemptDur
 					p.dlogger.Printf("Wrote %d bytes", diff)
 				} else if timeout < 180 {
 					timeout += 5
 				}
 				if retry {
 					atomic.StoreUint32(&globTry, 1)
-					atomic.StoreUint32(&curTry, uint32(attempt+1))
+					atomic.StoreUint32(&curTry, uint32(attempt))
 					p.dlogger.Printf("Retry reason: %v", err)
 				}
 				p.dlogger.Printf("Ran dur: %s", attemptDur)
@@ -154,7 +151,7 @@ func (p *Part) download(
 
 			req.Header.Set(hRange, p.getRange())
 
-			p.dlogger.SetPrefix(fmt.Sprintf("%s[%02d] ", prefix, attempt))
+			p.dlogger.SetPrefix(fmt.Sprintf("%s[R%02d] ", prefix, attempt))
 			p.dlogger.Printf("GET %q", req.URL)
 			p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
 			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
@@ -183,7 +180,7 @@ func (p *Part) download(
 				if bar == nil {
 					bar, mg = p.makeBar(progress, &curTry, barInitDone)
 				}
-				if attempt == p.maxTry-1 {
+				if p.isMaxRetry(attempt) {
 					go bar.Abort(false)
 					p.dlogger.Println(ErrMaxRetry.Error())
 					mg.finalFlash(ErrMaxRetry.Error())
@@ -220,7 +217,7 @@ func (p *Part) download(
 						if e != nil {
 							panic(e)
 						}
-						if attempt == p.maxTry-1 {
+						if p.isMaxRetry(attempt) {
 							return
 						}
 						fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
@@ -292,7 +289,7 @@ func (p *Part) download(
 				panic(fmt.Sprintf("Part is done with unexpected err: %s", err.Error()))
 			}
 
-			if attempt == p.maxTry-1 {
+			if p.isMaxRetry(attempt) {
 				go bar.Abort(false)
 				p.dlogger.Println(ErrMaxRetry.Error())
 				mg.finalFlash(ErrMaxRetry.Error())
@@ -317,10 +314,14 @@ func (p Part) getRange() string {
 	return fmt.Sprintf("bytes=%d-%d", p.Start+p.Written, p.Stop)
 }
 
+func (p Part) total() int64 {
+	return p.Stop - p.Start + 1
+}
+
 func (p Part) isDone() bool {
 	return p.Written > 0 && p.Written == p.total()
 }
 
-func (p Part) total() int64 {
-	return p.Stop - p.Start + 1
+func (p Part) isMaxRetry(attempt uint) bool {
+	return attempt == p.maxTry
 }
