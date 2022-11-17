@@ -122,26 +122,33 @@ func (p *Part) download(
 	var bar *mpb.Bar
 	var mg *msgGate
 	var curTry uint32
-	var ranDur time.Duration
-	resetDur := time.Duration(timeout*2) * time.Second
+	resetTimeout := timeout
 	barInitDone := make(chan struct{})
 	prefix := p.dlogger.Prefix()
-	initialTimeout := timeout
 	start := time.Now()
 
 	return backoff.Retry(ctx,
 		exponential.New(
-			exponential.WithReset(resetDur),
+			exponential.WithReset(time.Duration(timeout*2)*time.Second),
 			exponential.WithBaseDelay(500*time.Millisecond),
 		),
 		func(attempt int) (retry bool, err error) {
-			pw := p.Written
+			writtenBefore := p.Written
 			defer func() {
-				ranDur = time.Since(start)
-				if pw != p.Written {
-					p.Elapsed += ranDur
+				attemptDur := time.Since(start)
+				if diff := p.Written - writtenBefore; diff != 0 {
+					p.Elapsed += attemptDur
+					timeout = resetTimeout
+					p.dlogger.Printf("Wrote %d bytes", diff)
+				} else if timeout < 180 {
+					timeout += 5
 				}
-				p.dlogger.Printf("Ran dur: %s", ranDur)
+				if retry {
+					atomic.AddUint32(&globTry, 1)
+					atomic.StoreUint32(&curTry, uint32(attempt+1))
+					p.dlogger.Printf("Retry reason: %v", err)
+				}
+				p.dlogger.Printf("Ran dur: %s", attemptDur)
 				start = time.Now()
 			}()
 
@@ -151,16 +158,6 @@ func (p *Part) download(
 			p.dlogger.Printf("GET %q", req.URL)
 			p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
 			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
-
-			if attempt > 0 {
-				if ranDur < resetDur {
-					timeout += 5
-				} else {
-					timeout = initialTimeout
-				}
-				atomic.AddUint32(&globTry, 1)
-				atomic.StoreUint32(&curTry, uint32(attempt))
-			}
 
 			ctxTimeout := time.Duration(timeout) * time.Second
 			ctx, cancel := context.WithCancel(ctx)
@@ -192,7 +189,6 @@ func (p *Part) download(
 					mg.finalFlash(ErrMaxRetry.Error())
 					return false, errors.WithMessage(ErrMaxRetry, err.Error())
 				}
-				p.dlogger.Printf("Retry reason: %s", err.Error())
 				return true, err
 			}
 
@@ -288,8 +284,6 @@ func (p *Part) download(
 				p.dlogger.Println(ctx.Err())
 			}
 
-			p.dlogger.Printf("Wrote %d bytes to %q", p.Written-pw, fpart.Name())
-
 			if p.isDone() {
 				p.dlogger.Printf("Done result: %v", err)
 				if err == nil || err == io.EOF {
@@ -312,7 +306,6 @@ func (p *Part) download(
 				err = ctx.Err()
 			}
 
-			p.dlogger.Printf("Retry reason: %s", err.Error())
 			return true, err
 		})
 }
