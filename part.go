@@ -144,7 +144,7 @@ func (p *Part) download(
 					timeout += 5
 				}
 				if retry {
-					atomic.AddUint32(&globTry, 1)
+					atomic.StoreUint32(&globTry, 1)
 					atomic.StoreUint32(&curTry, uint32(attempt+1))
 					p.dlogger.Printf("Retry reason: %v", err)
 				}
