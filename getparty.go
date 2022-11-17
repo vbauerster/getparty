@@ -399,9 +399,9 @@ func (cmd Cmd) follow(
 		func(attempt int) (retry bool, err error) {
 			for {
 				if max := cmd.options.MaxRetry; max == 0 {
-					cmd.logger.Printf("GET(%d/∞): %s", attempt+1, location)
+					cmd.logger.Printf("GET(%d/∞) %q", attempt+1, location)
 				} else {
-					cmd.logger.Printf("GET(%d/%d): %s", attempt+1, max, location)
+					cmd.logger.Printf("GET(%d/%d) %q", attempt+1, max, location)
 				}
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
