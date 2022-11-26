@@ -13,8 +13,8 @@ github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINE
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.3 h1:utMvzDsuh3suAEnhH0RdHmoPbU648o6CvXxTx4SBMOw=
 github.com/rivo/uniseg v0.4.3/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
-github.com/vbauerster/backoff v0.0.0-20221117184133-0018d8f155c2 h1:K3PvA8mAIv5oirrJDNW9AGDgHwVbCSCzlzkn2wCH4f4=
-github.com/vbauerster/backoff v0.0.0-20221117184133-0018d8f155c2/go.mod h1:4n8MUPanyimvPJGVSIdWstdHjBIj7lKd2zdz1opy34I=
+github.com/vbauerster/backoff v0.1.0 h1:mLwjvn9oMP19Dt6GGw6BMoR+U/ExzD1Mbp7GixKTDsA=
+github.com/vbauerster/backoff v0.1.0/go.mod h1:tFAdVtgx6cWvP/SEJ2I8NRsfaKw4RBbrGdnyG07zg60=
 github.com/vbauerster/mpb/v8 v8.1.4 h1:MOcLTIbbAA892wVjRiuFHa1nRlNvifQMDVh12Bq/xIs=
 github.com/vbauerster/mpb/v8 v8.1.4/go.mod h1:2fRME8lCLU9gwJwghZb1bO9A3Plc8KPeQ/ayGj+Ek4I=
 golang.org/x/net v0.2.0 h1:sZfSu1wtKLGlWI4ZZayP0ck9Y73K1ynO6gqzTdBVdPU=
