@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	bufSize = 4096
+	bufSize    = 4096
+	maxTimeout = 180
 )
 
 var globTry uint32
@@ -137,7 +138,7 @@ func (p *Part) download(
 					timeout = resetTimeout
 					p.Elapsed += attemptDur
 					p.dlogger.Printf("Wrote %d bytes", diff)
-				} else if timeout < 180 {
+				} else if timeout < maxTimeout {
 					timeout += 5
 				}
 				if retry {
