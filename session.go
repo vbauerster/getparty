@@ -72,6 +72,9 @@ func (s *Session) calcParts(parts uint) error {
 }
 
 func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) error {
+	if !s.isResumable() {
+		return nil
+	}
 	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
