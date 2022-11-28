@@ -93,11 +93,7 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) e
 				decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "Done"),
 			),
 		)
-		defer func() {
-			if err != nil {
-				bar.Abort(false)
-			}
-		}()
+		defer bar.Abort(false) // if bar is completed bar.Abort is nop
 		for i := 1; i < len(s.Parts); i++ {
 			fparti, err := os.Open(s.Parts[i].FileName)
 			if err != nil {
