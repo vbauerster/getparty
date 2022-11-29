@@ -502,7 +502,6 @@ func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) 
 	} else {
 		transport = cleanhttp.DefaultTransport()
 	}
-	transport.TLSHandshakeTimeout = time.Duration(cmd.options.Timeout) * time.Second
 	if cmd.options.InsecureSkipVerify {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	} else if cmd.options.CertsFileName != "" {
