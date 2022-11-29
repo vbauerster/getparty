@@ -158,10 +158,9 @@ func (p *Part) download(
 			p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
 			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
 
-			ctxTimeout := time.Duration(timeout) * time.Second
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
-			timer := time.AfterFunc(ctxTimeout, func() {
+			timer := time.AfterFunc(time.Duration(timeout)*time.Second, func() {
 				cancel()
 				// checking for mg != nil here is a data race
 				select {
@@ -169,7 +168,7 @@ func (p *Part) download(
 					mg.flash("Timeout...")
 				default:
 				}
-				p.dlogger.Printf("Timeout after: %v", ctxTimeout)
+				p.dlogger.Printf("Timeout after: %s", time.Duration(timeout))
 			})
 			defer timer.Stop()
 
@@ -253,7 +252,7 @@ func (p *Part) download(
 			writer := io.MultiWriter(fpart, p.totalWriter)
 
 			buf := make([]byte, bufSize)
-			for n := 0; err == nil && timer.Reset(ctxTimeout); {
+			for n := 0; err == nil && timer.Reset(time.Duration(timeout)*time.Second); {
 				n, err = io.ReadFull(body, buf)
 				if err != nil {
 					p.dlogger.Printf("io.ReadFull: %d %s", n, err.Error())
