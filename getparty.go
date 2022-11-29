@@ -394,9 +394,17 @@ func (cmd Cmd) follow(
 	}
 
 	location := usrURL
+	timeout := cmd.options.Timeout
 
 	err = backoff.Retry(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (retry bool, err error) {
+			ctx, cancel := context.WithTimeout(cmd.Ctx, time.Duration(timeout)*time.Second)
+			defer func() {
+				if timeout < maxTimeout {
+					timeout += 5
+				}
+				cancel()
+			}()
 			for {
 				if max := cmd.options.MaxRetry; max == 0 {
 					cmd.logger.Printf("GET(%d/∞) %q", attempt, location)
@@ -410,7 +418,7 @@ func (cmd Cmd) follow(
 
 				reqPatcher(req)
 
-				resp, err := client.Do(req.WithContext(cmd.Ctx))
+				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
 					cmd.dlogger.Printf("ERR: %s", err.Error())
 					if attempt == cmd.options.MaxRetry {
