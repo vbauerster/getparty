@@ -540,7 +540,7 @@ func (cmd Cmd) bestMirror(args []string, reqPatcher func(*http.Request)) (best s
 	start := make(chan struct{})
 	first := make(chan string, 1)
 	client := cleanhttp.DefaultClient()
-	ctx, cancel := context.WithTimeout(cmd.Ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(cmd.Ctx, time.Duration(cmd.options.Timeout)*time.Second)
 	defer cancel()
 
 	subscribe := func(wg *sync.WaitGroup, start <-chan struct{}, fn func()) {
