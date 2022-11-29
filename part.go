@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	bufSize    = 4096
-	maxTimeout = 180
+	bufSize = 4096
 )
 
 var globTry uint32

@@ -57,6 +57,7 @@ const (
 	cmdName     = "getparty"
 	projectHome = "https://github.com/vbauerster/getparty"
 
+	maxTimeout          = 180
 	maxRedirects        = 10
 	refreshRate         = 200
 	hUserAgentKey       = "User-Agent"
