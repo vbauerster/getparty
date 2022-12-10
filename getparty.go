@@ -415,7 +415,7 @@ func (cmd Cmd) follow(
 
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
-					cmd.dlogger.Printf("ERR: %s", err.Error())
+					cmd.logger.Println(err.Error())
 					if attempt == cmd.options.MaxRetry {
 						return false, errors.WithMessage(ErrMaxRetry, err.Error())
 					}
