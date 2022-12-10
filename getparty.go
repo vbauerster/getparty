@@ -178,12 +178,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		userInfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	setupLogger := func(out io.Writer, prefix string, discard bool) *log.Logger {
-		if discard {
-			out = io.Discard
-		}
-		return log.New(out, prefix, log.LstdFlags)
-	}
 	cmd.logger = setupLogger(cmd.Out, "", cmd.options.Quiet)
 	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
@@ -706,4 +700,11 @@ func filter(parts []*Part, predicate func(*Part) bool) (filtered []*Part) {
 		}
 	}
 	return
+}
+
+func setupLogger(out io.Writer, prefix string, discard bool) *log.Logger {
+	if discard {
+		out = io.Discard
+	}
+	return log.New(out, prefix, log.LstdFlags)
 }
