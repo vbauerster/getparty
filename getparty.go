@@ -402,9 +402,9 @@ func (cmd Cmd) follow(
 			}()
 			for {
 				if max := cmd.options.MaxRetry; max == 0 {
-					cmd.logger.Printf("GET(%d/∞) %q", attempt, location)
+					cmd.logger.Printf("Get (%d/∞) %q", attempt, location)
 				} else {
-					cmd.logger.Printf("GET(%d/%d) %q", attempt, max, location)
+					cmd.logger.Printf("Get (%d/%d) %q", attempt, max, location)
 				}
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
