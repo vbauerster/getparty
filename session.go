@@ -239,7 +239,7 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quie
 		return io.Discard, func(bool) {}
 	}
 	totalDecorator := func(_ decor.Statistics) string {
-		return fmt.Sprintf("TOTAL(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
+		return fmt.Sprintf("Total (%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
 	}
 	bar := progress.New(s.ContentLength,
 		totalBarStyle(),
