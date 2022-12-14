@@ -324,7 +324,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	err = eg.Wait()
-
 	if err != nil {
 		totalCancel(false)
 		return err
