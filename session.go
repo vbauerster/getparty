@@ -199,7 +199,7 @@ func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
 	}
 }
 
-func (s Session) checkSums(other *Session) error {
+func (s Session) checkSums(other Session) error {
 	if s.ContentMD5 != other.ContentMD5 {
 		return fmt.Errorf(
 			"ContentMD5 mismatch: expected %q got %q",

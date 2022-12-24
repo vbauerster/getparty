@@ -222,7 +222,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				return err
 			}
 			if freshSession != nil {
-				err := session.checkSums(freshSession)
+				err := session.checkSums(*freshSession)
 				if err != nil {
 					return err
 				}
