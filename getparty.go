@@ -314,7 +314,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					cmd.dumpState(session)
 					panic(p)
 				}
-				if p.isDone() {
+				if p.isDone() || p.Skip {
 					atomic.AddUint32(&partsDone, 1)
 				}
 			}()
