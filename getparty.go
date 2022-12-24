@@ -250,17 +250,15 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 			state := session.SuggestedFileName + ".json"
 			if _, err := os.Stat(state); err != nil {
-				if cmd.options.Parts == 0 {
-					session.writeSummary(cmd.Out, cmd.options.Quiet)
-					return nil
-				}
-				err = session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
-				if err != nil {
-					return err
-				}
-				err = session.calcParts(cmd.options.Parts)
-				if err != nil {
-					return err
+				if cmd.options.Parts != 0 {
+					err = session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
+					if err != nil {
+						return err
+					}
+					err = session.calcParts(cmd.options.Parts)
+					if err != nil {
+						return err
+					}
 				}
 				session.HeaderMap = cmd.options.HeaderMap
 				location = session.location
