@@ -277,7 +277,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	var partsDone uint32
 	var eg errgroup.Group
-	progress := mpb.NewWithContext(cmd.Ctx,
+	ctx, cancel := context.WithCancel(cmd.Ctx)
+	defer cancel()
+	progress := mpb.NewWithContext(ctx,
 		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
 		mpb.ContainerOptional(mpb.WithOutput(nil), cmd.options.Quiet),
 		mpb.ContainerOptional(mpb.WithDebugOutput(cmd.Err), cmd.options.Debug),
@@ -310,15 +312,16 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {
-				if p := recover(); p != nil {
-					cmd.dumpState(session)
-					panic(p)
+				if e := recover(); e != nil {
+					cancel()
+					cmd.dlogger.Printf("%s panic: %v", p.name, e)
+					return
 				}
 				if p.isDone() || p.Skip {
 					atomic.AddUint32(&partsDone, 1)
 				}
 			}()
-			return p.download(cmd.Ctx, progress, req, cmd.options.Timeout)
+			return p.download(ctx, progress, req, cmd.options.Timeout)
 		})
 	}
 
