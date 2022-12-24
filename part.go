@@ -200,7 +200,7 @@ func (p *Part) download(
 			}
 
 			switch resp.StatusCode {
-			case http.StatusOK: // no partial content, so download with single part
+			case http.StatusOK: // no partial content, download with single part
 				if p.order != 1 {
 					p.Skip = true
 					p.dlogger.Println("Skip: no partial content")
