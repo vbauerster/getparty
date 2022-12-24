@@ -215,7 +215,7 @@ func (s Session) checkSums(other Session) error {
 	return nil
 }
 
-func (s Session) checkPartsSize() error {
+func (s Session) checkSize() error {
 	for _, part := range s.Parts {
 		stat, err := os.Stat(part.FileName)
 		if err != nil {

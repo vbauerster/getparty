@@ -217,7 +217,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				return err
 			}
 			session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
-			err = session.checkPartsSize()
+			err = session.checkSize()
 			if err != nil {
 				return err
 			}
