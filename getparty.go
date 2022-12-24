@@ -634,8 +634,8 @@ func setCookies(headers map[string]string, usrURL string, jar http.CookieJar) {
 }
 
 func makeReqPatcher(headers map[string]string, skipCookie bool) func(*http.Request, *url.Userinfo) {
-	return func(req *http.Request, userInfo *url.Userinfo) {
-		req.URL.User = userInfo
+	return func(req *http.Request, userinfo *url.Userinfo) {
+		req.URL.User = userinfo
 		for k, v := range headers {
 			if skipCookie && k == hCookie {
 				continue
