@@ -217,9 +217,6 @@ func (s Session) checkSums(other Session) error {
 
 func (s Session) checkPartsSize() error {
 	for _, part := range s.Parts {
-		if part.Skip {
-			continue
-		}
 		stat, err := os.Stat(part.FileName)
 		if err != nil {
 			return err
