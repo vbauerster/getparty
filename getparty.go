@@ -216,6 +216,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			if err != nil {
 				return err
 			}
+			session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
 			err = session.checkPartsSize()
 			if err != nil {
 				return err
@@ -345,7 +346,6 @@ func (cmd Cmd) trace(session *Session) func() {
 	start := time.Now()
 	return func() {
 		session.Elapsed += time.Since(start)
-		session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
 		writtenAfter := session.totalWritten()
 		if session.isResumable() && writtenAfter < session.ContentLength {
 			if writtenBefore != writtenAfter {
