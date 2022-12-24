@@ -97,13 +97,14 @@ type Options struct {
 }
 
 type Cmd struct {
-	Ctx     context.Context
-	Out     io.Writer
-	Err     io.Writer
-	options *Options
-	parser  *flags.Parser
-	logger  *log.Logger
-	dlogger *log.Logger
+	Ctx      context.Context
+	Out      io.Writer
+	Err      io.Writer
+	options  *Options
+	parser   *flags.Parser
+	userinfo *url.Userinfo
+	logger   *log.Logger
+	dlogger  *log.Logger
 }
 
 func (cmd Cmd) Exit(err error) int {
@@ -167,7 +168,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return nil
 	}
 
-	var userInfo *url.Userinfo
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
 			cmd.options.AuthPass, err = cmd.readPassword()
@@ -175,7 +175,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				return err
 			}
 		}
-		userInfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
+		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
 	cmd.logger = setupLogger(cmd.Out, "", cmd.options.Quiet)
@@ -190,7 +190,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	if cmd.options.BestMirror {
-		patcher := makeReqPatcher(cmd.options.HeaderMap, userInfo, false)
+		patcher := makeReqPatcher(cmd.options.HeaderMap, false)
 		url, err := cmd.bestMirror(args, patcher)
 		if err != nil {
 			return err
@@ -230,7 +230,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			} else {
 				setCookies(session.HeaderMap, session.URL, jar)
 				if session.Redirected {
-					patcher := makeReqPatcher(session.HeaderMap, userInfo, true)
+					patcher := makeReqPatcher(session.HeaderMap, true)
 					freshSession, err = cmd.follow(session.URL, jar, patcher)
 					if err != nil {
 						return err
@@ -243,7 +243,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			location = session.location
 		case len(args) != 0:
 			setCookies(cmd.options.HeaderMap, args[0], jar)
-			patcher := makeReqPatcher(cmd.options.HeaderMap, userInfo, true)
+			patcher := makeReqPatcher(cmd.options.HeaderMap, true)
 			session, err = cmd.follow(args[0], jar, patcher)
 			if err != nil {
 				return err
@@ -285,7 +285,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithWidth(64),
 	)
 	totalWriter, totalCancel := session.makeTotalWriter(progress, &partsDone, cmd.options.Quiet)
-	patcher := makeReqPatcher(session.HeaderMap, userInfo, true)
+	patcher := makeReqPatcher(session.HeaderMap, true)
 	defer cmd.trace(session)()
 	defer progress.Wait()
 	for i, p := range session.Parts {
@@ -306,7 +306,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		if err != nil {
 			cmd.logger.Fatalf("%s: %s", p.name, err.Error())
 		}
-		patcher(req)
+		patcher(req, cmd.userinfo)
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {
@@ -359,7 +359,7 @@ func (cmd Cmd) trace(session *Session) func() {
 func (cmd Cmd) follow(
 	usrURL string,
 	jar http.CookieJar,
-	reqPatcher func(*http.Request),
+	reqPatcher func(*http.Request, *url.Userinfo),
 ) (session *Session, err error) {
 	var redirected bool
 	var client *http.Client
@@ -408,7 +408,7 @@ func (cmd Cmd) follow(
 					return false, err
 				}
 
-				reqPatcher(req)
+				reqPatcher(req, cmd.userinfo)
 
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
@@ -507,7 +507,7 @@ func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) 
 	return transport, nil
 }
 
-func (cmd Cmd) bestMirror(args []string, reqPatcher func(*http.Request)) (best string, err error) {
+func (cmd Cmd) bestMirror(args []string, reqPatcher func(*http.Request, *url.Userinfo)) (best string, err error) {
 	defer func() {
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "bestMirror")
@@ -547,7 +547,7 @@ func (cmd Cmd) bestMirror(args []string, reqPatcher func(*http.Request)) (best s
 			cmd.dlogger.Printf("skipping %q: %s", u, err.Error())
 			continue
 		}
-		reqPatcher(req)
+		reqPatcher(req, cmd.userinfo)
 		readyWg.Add(1)
 		u := u // https://golang.org/doc/faq#closures_and_goroutines
 		subscribe(&readyWg, start, func() {
@@ -633,15 +633,9 @@ func setCookies(headers map[string]string, usrURL string, jar http.CookieJar) {
 	}
 }
 
-func makeReqPatcher(
-	headers map[string]string,
-	userInfo *url.Userinfo,
-	skipCookie bool,
-) func(*http.Request) {
-	return func(req *http.Request) {
-		if userInfo != nil {
-			req.URL.User = userInfo
-		}
+func makeReqPatcher(headers map[string]string, skipCookie bool) func(*http.Request, *url.Userinfo) {
+	return func(req *http.Request, userInfo *url.Userinfo) {
+		req.URL.User = userInfo
 		for k, v := range headers {
 			if skipCookie && k == hCookie {
 				continue
