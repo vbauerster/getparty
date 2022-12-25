@@ -298,7 +298,7 @@ func (cmd Cmd) trace(session *Session) func() {
 	}
 }
 
-func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, err error) {
+func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (*Session, error) {
 	setJarCookies := func(headers map[string]string, rawURL string) error {
 		u, err := url.Parse(rawURL)
 		if err != nil {
@@ -325,6 +325,7 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 		}
 		return
 	}
+	var session *Session
 	for {
 		switch {
 		case cmd.options.JSONFileName != "":
