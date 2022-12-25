@@ -204,70 +204,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	var session *Session
-	var location string
-
-	for location == "" {
-		switch {
-		case cmd.options.JSONFileName != "":
-			freshSession := session
-			session = new(Session)
-			err := session.loadState(cmd.options.JSONFileName)
-			if err != nil {
-				return err
-			}
-			session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
-			err = session.checkSize()
-			if err != nil {
-				return err
-			}
-			if freshSession != nil {
-				err := session.checkSums(*freshSession)
-				if err != nil {
-					return err
-				}
-				session.location = freshSession.location
-			} else {
-				setCookies(session.HeaderMap, session.URL, jar)
-				if session.Redirected {
-					patcher := makeReqPatcher(session.HeaderMap, true)
-					freshSession, err = cmd.follow(session.URL, jar, patcher)
-					if err != nil {
-						return err
-					}
-					session.location = freshSession.location
-				} else {
-					session.location = session.URL
-				}
-			}
-			location = session.location
-		case len(args) != 0:
-			setCookies(cmd.options.HeaderMap, args[0], jar)
-			patcher := makeReqPatcher(cmd.options.HeaderMap, true)
-			session, err = cmd.follow(args[0], jar, patcher)
-			if err != nil {
-				return err
-			}
-			state := session.SuggestedFileName + ".json"
-			if _, err := os.Stat(state); err != nil {
-				if cmd.options.Parts != 0 {
-					err = session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
-					if err != nil {
-						return err
-					}
-					err = session.calcParts(cmd.options.Parts)
-					if err != nil {
-						return err
-					}
-				}
-				session.HeaderMap = cmd.options.HeaderMap
-				location = session.location
-			} else {
-				cmd.options.JSONFileName = state
-			}
-		default:
-			return new(flags.Error)
-		}
+	session, err := cmd.getState(args, jar)
+	if err != nil {
+		return err
 	}
 
 	transport, err := cmd.getTransport(true)
@@ -304,7 +243,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.totalWriter = totalWriter
 		p.totalCancel = totalCancel
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
-		req, err := http.NewRequest(http.MethodGet, location, nil)
+		req, err := http.NewRequest(http.MethodGet, session.location, nil)
 		if err != nil {
 			cmd.logger.Fatalf("%s: %s", p.name, err.Error())
 		}
@@ -356,6 +295,71 @@ func (cmd Cmd) trace(session *Session) func() {
 		}
 		fmt.Fprintln(cmd.Out)
 		cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, writtenAfter)
+	}
+}
+
+func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, err error) {
+	for {
+		switch {
+		case cmd.options.JSONFileName != "":
+			freshSession := session
+			session = new(Session)
+			err := session.loadState(cmd.options.JSONFileName)
+			if err != nil {
+				return nil, err
+			}
+			session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
+			err = session.checkSize()
+			if err != nil {
+				return nil, err
+			}
+			if freshSession != nil {
+				err := session.checkSums(*freshSession)
+				if err != nil {
+					return nil, err
+				}
+				session.location = freshSession.location
+			} else {
+				setCookies(session.HeaderMap, session.URL, jar)
+				if session.Redirected {
+					patcher := makeReqPatcher(session.HeaderMap, true)
+					freshSession, err = cmd.follow(session.URL, jar, patcher)
+					if err != nil {
+						return nil, err
+					}
+					session.location = freshSession.location
+				} else {
+					session.location = session.URL
+				}
+			}
+			return session, nil
+		case len(args) != 0:
+			setCookies(cmd.options.HeaderMap, args[0], jar)
+			patcher := makeReqPatcher(cmd.options.HeaderMap, true)
+			session, err = cmd.follow(args[0], jar, patcher)
+			if err != nil {
+				return nil, err
+			}
+			state := session.SuggestedFileName + ".json"
+			if _, err := os.Stat(state); err != nil {
+				if cmd.options.Parts != 0 {
+					err = session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
+					if err != nil {
+						return nil, err
+					}
+					err = session.calcParts(cmd.options.Parts)
+					if err != nil {
+						return nil, err
+					}
+				}
+				session.HeaderMap = cmd.options.HeaderMap
+				return session, nil
+			} else {
+				cmd.options.JSONFileName = state
+			}
+		default:
+			return nil, new(flags.Error)
+		}
 	}
 }
 
