@@ -401,20 +401,15 @@ func (cmd Cmd) follow(
 	jar http.CookieJar,
 	reqPatcher func(*http.Request, *url.Userinfo),
 ) (session *Session, err error) {
-	var redirected bool
-	var client *http.Client
 	defer func() {
-		if redirected && client != nil {
-			client.CloseIdleConnections()
-		}
-		err = errors.Wrap(err, "follow")
+		err = errors.WithMessage(err, "follow")
 	}()
 
 	transport, err := cmd.getTransport(false)
 	if err != nil {
 		return nil, err
 	}
-	client = &http.Client{
+	client := &http.Client{
 		Transport: transport,
 		Jar:       jar,
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
@@ -424,6 +419,12 @@ func (cmd Cmd) follow(
 			return http.ErrUseLastResponse
 		},
 	}
+	var redirected bool
+	defer func() {
+		if redirected {
+			client.CloseIdleConnections()
+		}
+	}()
 
 	location := rawURL
 	timeout := cmd.options.Timeout
@@ -454,7 +455,7 @@ func (cmd Cmd) follow(
 				if err != nil {
 					cmd.logger.Println(err.Error())
 					if attempt == cmd.options.MaxRetry {
-						return false, errors.WithMessage(ErrMaxRetry, err.Error())
+						return false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
 					return true, err
 				}
