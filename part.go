@@ -106,7 +106,7 @@ func (p *Part) download(
 ) (err error) {
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return errors.Wrap(err, p.name)
+		return errors.WithMessage(err, p.name)
 	}
 	defer func() {
 		if e := fpart.Close(); err == nil {
@@ -116,7 +116,7 @@ func (p *Part) download(
 			p.dlogger.Printf("Removing: %q", fpart.Name())
 			err = os.Remove(p.FileName)
 		}
-		err = errors.Wrap(err, p.name)
+		err = errors.WithMessage(err, p.name)
 	}()
 
 	var bar *mpb.Bar
@@ -184,7 +184,7 @@ func (p *Part) download(
 					go bar.Abort(false)
 					p.dlogger.Println(ErrMaxRetry.Error())
 					mg.finalFlash(ErrMaxRetry.Error())
-					return false, errors.WithMessage(ErrMaxRetry, err.Error())
+					return false, errors.Wrap(ErrMaxRetry, err.Error())
 				}
 				return true, err
 			}
