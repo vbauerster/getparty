@@ -299,6 +299,29 @@ func (cmd Cmd) trace(session *Session) func() {
 }
 
 func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, err error) {
+	setCookies := func(headers map[string]string, usrURL string) {
+		if hc, ok := headers[hCookie]; ok {
+			var cookies []*http.Cookie
+			for _, cookie := range strings.Split(hc, "; ") {
+				pair := strings.SplitN(cookie, "=", 2)
+				if len(pair) != 2 {
+					continue
+				}
+				cookies = append(cookies, &http.Cookie{Name: pair[0], Value: pair[1]})
+			}
+			if u, err := url.Parse(usrURL); err == nil {
+				jar.SetCookies(u, cookies)
+			}
+		}
+	}
+	filter := func(parts []*Part, predicate func(*Part) bool) (filtered []*Part) {
+		for _, p := range parts {
+			if predicate(p) {
+				filtered = append(filtered, p)
+			}
+		}
+		return
+	}
 	for {
 		switch {
 		case cmd.options.JSONFileName != "":
@@ -320,7 +343,7 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 				}
 				session.location = freshSession.location
 			} else {
-				setCookies(session.HeaderMap, session.URL, jar)
+				setCookies(session.HeaderMap, session.URL)
 				if session.Redirected {
 					patcher := makeReqPatcher(session.HeaderMap, true)
 					freshSession, err = cmd.follow(session.URL, jar, patcher)
@@ -334,7 +357,7 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 			}
 			return session, nil
 		case len(args) != 0:
-			setCookies(cmd.options.HeaderMap, args[0], jar)
+			setCookies(cmd.options.HeaderMap, args[0])
 			patcher := makeReqPatcher(cmd.options.HeaderMap, true)
 			session, err = cmd.follow(args[0], jar, patcher)
 			if err != nil {
@@ -624,22 +647,6 @@ func (cmd Cmd) dumpState(session *Session) {
 	}
 }
 
-func setCookies(headers map[string]string, usrURL string, jar http.CookieJar) {
-	if hc, ok := headers[hCookie]; ok {
-		var cookies []*http.Cookie
-		for _, cookie := range strings.Split(hc, "; ") {
-			pair := strings.SplitN(cookie, "=", 2)
-			if len(pair) != 2 {
-				continue
-			}
-			cookies = append(cookies, &http.Cookie{Name: pair[0], Value: pair[1]})
-		}
-		if u, err := url.Parse(usrURL); err == nil {
-			jar.SetCookies(u, cookies)
-		}
-	}
-}
-
 func makeReqPatcher(headers map[string]string, skipCookie bool) func(*http.Request, *url.Userinfo) {
 	return func(req *http.Request, userinfo *url.Userinfo) {
 		req.URL.User = userinfo
@@ -689,15 +696,6 @@ func readLines(r io.Reader) ([]string, error) {
 		lines = append(lines, text)
 	}
 	return lines, scanner.Err()
-}
-
-func filter(parts []*Part, predicate func(*Part) bool) (filtered []*Part) {
-	for _, p := range parts {
-		if predicate(p) {
-			filtered = append(filtered, p)
-		}
-	}
-	return
 }
 
 func setupLogger(out io.Writer, prefix string, discard bool) *log.Logger {
