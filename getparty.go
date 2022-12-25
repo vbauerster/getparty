@@ -328,7 +328,7 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 	for {
 		switch {
 		case cmd.options.JSONFileName != "":
-			freshSession := session
+			argsSession := session
 			session = new(Session)
 			err := session.loadState(cmd.options.JSONFileName)
 			if err != nil {
@@ -343,18 +343,18 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 			if err != nil {
 				return nil, err
 			}
-			if freshSession != nil {
-				err := session.checkSums(*freshSession)
+			if argsSession != nil {
+				err := session.checkSums(*argsSession)
 				if err != nil {
 					return nil, err
 				}
-				session.location = freshSession.location
+				session.location = argsSession.location
 			} else if session.Redirected {
-				freshSession, err = cmd.follow(session.URL, jar, makeReqPatcher(session.HeaderMap, true))
+				tmpSession, err := cmd.follow(session.URL, jar, makeReqPatcher(session.HeaderMap, true))
 				if err != nil {
 					return nil, err
 				}
-				session.location = freshSession.location
+				session.location = tmpSession.location
 			} else {
 				session.location = session.URL
 			}
