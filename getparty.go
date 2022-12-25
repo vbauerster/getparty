@@ -354,6 +354,10 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 				if err != nil {
 					return nil, err
 				}
+				err = session.checkSums(*tmpSession)
+				if err != nil {
+					return nil, err
+				}
 				session.location = tmpSession.location
 			} else {
 				session.location = session.URL
