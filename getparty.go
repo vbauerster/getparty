@@ -298,7 +298,7 @@ func (cmd Cmd) trace(session *Session) func() {
 	}
 }
 
-func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (*Session, error) {
+func (cmd Cmd) getState(args []string, jar http.CookieJar) (*Session, error) {
 	setJarCookies := func(headers map[string]string, rawURL string) error {
 		u, err := url.Parse(rawURL)
 		if err != nil {
