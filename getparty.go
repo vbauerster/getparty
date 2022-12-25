@@ -178,12 +178,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
-	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
-	if err != nil {
-		return err
-	}
-
 	cmd.logger = setupLogger(cmd.Out, "", cmd.options.Quiet)
 	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
@@ -196,12 +190,17 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	if cmd.options.BestMirror {
-		patcher := makeReqPatcher(cmd.options.HeaderMap, false)
-		url, err := cmd.bestMirror(args, jar, patcher)
+		url, err := cmd.bestMirror(args, makeReqPatcher(cmd.options.HeaderMap, false))
 		if err != nil {
 			return err
 		}
 		args = append(args[:0], url)
+	}
+
+	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		return err
 	}
 
 	session, err := cmd.getState(args, jar)
@@ -550,7 +549,6 @@ func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) 
 
 func (cmd Cmd) bestMirror(
 	args []string,
-	jar http.CookieJar,
 	reqPatcher func(*http.Request, *url.Userinfo),
 ) (best string, err error) {
 	defer func() {
@@ -572,14 +570,7 @@ func (cmd Cmd) bestMirror(
 	}
 	var wg sync.WaitGroup
 	first := make(chan string, 1)
-	transport, err := cmd.getTransport(false)
-	if err != nil {
-		return "", err
-	}
-	client := &http.Client{
-		Transport: transport,
-		Jar:       jar,
-	}
+	client := cleanhttp.DefaultClient()
 
 	for _, u := range urls {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
