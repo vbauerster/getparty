@@ -178,6 +178,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
+	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		return err
+	}
+
 	cmd.logger = setupLogger(cmd.Out, "", cmd.options.Quiet)
 	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
@@ -191,17 +197,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if cmd.options.BestMirror {
 		patcher := makeReqPatcher(cmd.options.HeaderMap, false)
-		url, err := cmd.bestMirror(args, patcher)
+		url, err := cmd.bestMirror(args, jar, patcher)
 		if err != nil {
 			return err
 		}
 		args = append(args[:0], url)
-	}
-
-	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
-	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
-	if err != nil {
-		return err
 	}
 
 	session, err := cmd.getState(args, jar)
@@ -547,11 +547,15 @@ func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) 
 	return transport, nil
 }
 
-func (cmd Cmd) bestMirror(args []string, reqPatcher func(*http.Request, *url.Userinfo)) (best string, err error) {
+func (cmd Cmd) bestMirror(
+	args []string,
+	jar http.CookieJar,
+	reqPatcher func(*http.Request, *url.Userinfo),
+) (best string, err error) {
 	defer func() {
-		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "bestMirror")
 	}()
+
 	input := os.Stdin
 	if len(args) != 0 {
 		fd, err := os.Open(args[0])
@@ -565,20 +569,15 @@ func (cmd Cmd) bestMirror(args []string, reqPatcher func(*http.Request, *url.Use
 	if err != nil {
 		return "", err
 	}
-
-	var readyWg sync.WaitGroup
-	start := make(chan struct{})
+	var wg sync.WaitGroup
 	first := make(chan string, 1)
-	client := cleanhttp.DefaultClient()
-	ctx, cancel := context.WithTimeout(cmd.Ctx, time.Duration(cmd.options.Timeout)*time.Second)
-	defer cancel()
-
-	subscribe := func(wg *sync.WaitGroup, start <-chan struct{}, fn func()) {
-		go func() {
-			wg.Done()
-			<-start
-			fn()
-		}()
+	transport, err := cmd.getTransport(false)
+	if err != nil {
+		return "", err
+	}
+	client := &http.Client{
+		Transport: transport,
+		Jar:       jar,
 	}
 
 	for _, u := range urls {
@@ -588,37 +587,38 @@ func (cmd Cmd) bestMirror(args []string, reqPatcher func(*http.Request, *url.Use
 			continue
 		}
 		reqPatcher(req, cmd.userinfo)
-		readyWg.Add(1)
+		wg.Add(1)
 		u := u // https://golang.org/doc/faq#closures_and_goroutines
-		subscribe(&readyWg, start, func() {
+		go func() {
+			defer wg.Done()
 			cmd.dlogger.Printf("fetching: %q", u)
+			ctx, cancel := context.WithTimeout(cmd.Ctx, time.Duration(cmd.options.Timeout)*time.Second)
+			defer cancel()
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
 				cmd.dlogger.Printf("fetch error: %s", err.Error())
-			}
-			if resp == nil || resp.Body == nil {
 				return
 			}
 			defer resp.Body.Close()
-
-			if resp.StatusCode != http.StatusOK {
-				cmd.dlogger.Printf("fetch %q unexpected status: %s", u, resp.Status)
-				return
-			}
-			select {
-			case first <- u:
+			switch resp.StatusCode {
+			case http.StatusOK:
+				select {
+				case first <- u:
+				default:
+				}
 			default:
+				cmd.dlogger.Printf("fetch %q unexpected status: %s", u, resp.Status)
 			}
-		})
+		}()
 	}
-	readyWg.Wait()
-	close(start)
-	select {
-	case best = <-first:
-		cmd.dlogger.Printf("best mirror found: %q", best)
-	case <-ctx.Done():
+	wg.Wait()
+	close(first)
+	best = <-first
+	if best == "" {
+		return "", errors.New("Best mirror not found")
 	}
-	return best, ctx.Err()
+	cmd.dlogger.Printf("best mirror: %q", best)
+	return best, nil
 }
 
 func (cmd Cmd) readPassword() (string, error) {
