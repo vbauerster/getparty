@@ -711,6 +711,8 @@ func readLines(r io.Reader) ([]string, error) {
 
 func setupLogger(out io.Writer, prefix string, discard bool) *log.Logger {
 	if discard {
+		// log.Logger optimizes for io.Discard
+		// https://github.com/golang/go/blob/db3045b4be5b91cd42c3387dc550c89bbc2f7fb4/src/log/log_test.go#L183-L192
 		out = io.Discard
 	}
 	return log.New(out, prefix, log.LstdFlags)
