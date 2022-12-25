@@ -299,7 +299,11 @@ func (cmd Cmd) trace(session *Session) func() {
 }
 
 func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, err error) {
-	setCookies := func(headers map[string]string, usrURL string) {
+	setCookies := func(headers map[string]string, rawURL string) error {
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			return err
+		}
 		if hc, ok := headers[hCookie]; ok {
 			var cookies []*http.Cookie
 			for _, cookie := range strings.Split(hc, "; ") {
@@ -309,10 +313,9 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 				}
 				cookies = append(cookies, &http.Cookie{Name: k, Value: v})
 			}
-			if u, err := url.Parse(usrURL); err == nil {
-				jar.SetCookies(u, cookies)
-			}
+			jar.SetCookies(u, cookies)
 		}
+		return nil
 	}
 	filter := func(parts []*Part, predicate func(*Part) bool) (filtered []*Part) {
 		for _, p := range parts {
@@ -343,7 +346,10 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 				}
 				session.location = freshSession.location
 			} else {
-				setCookies(session.HeaderMap, session.URL)
+				err := setCookies(session.HeaderMap, session.URL)
+				if err != nil {
+					return nil, err
+				}
 				if session.Redirected {
 					patcher := makeReqPatcher(session.HeaderMap, true)
 					freshSession, err = cmd.follow(session.URL, jar, patcher)
@@ -358,6 +364,9 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 			return session, nil
 		case len(args) != 0:
 			setCookies(cmd.options.HeaderMap, args[0])
+			if err != nil {
+				return nil, err
+			}
 			patcher := makeReqPatcher(cmd.options.HeaderMap, true)
 			session, err = cmd.follow(args[0], jar, patcher)
 			if err != nil {
