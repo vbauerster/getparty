@@ -299,7 +299,7 @@ func (cmd Cmd) trace(session *Session) func() {
 }
 
 func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, err error) {
-	setCookies := func(headers map[string]string, rawURL string) error {
+	setJarCookies := func(headers map[string]string, rawURL string) error {
 		u, err := url.Parse(rawURL)
 		if err != nil {
 			return err
@@ -339,7 +339,7 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 			if err != nil {
 				return nil, err
 			}
-			err = setCookies(session.HeaderMap, session.URL)
+			err = setJarCookies(session.HeaderMap, session.URL)
 			if err != nil {
 				return nil, err
 			}
@@ -360,7 +360,7 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 			}
 			return session, nil
 		case len(args) != 0:
-			setCookies(cmd.options.HeaderMap, args[0])
+			err := setJarCookies(cmd.options.HeaderMap, args[0])
 			if err != nil {
 				return nil, err
 			}
