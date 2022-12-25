@@ -36,10 +36,9 @@ type Part struct {
 	order       int
 	maxTry      uint
 	quiet       bool
-	jar         http.CookieJar
 	totalWriter io.Writer
 	totalCancel func(bool)
-	transport   *http.Transport
+	client      *http.Client
 	dlogger     *log.Logger
 }
 
@@ -171,11 +170,7 @@ func (p *Part) download(
 			})
 			defer timer.Stop()
 
-			client := &http.Client{
-				Transport: p.transport,
-				Jar:       p.jar,
-			}
-			resp, err := client.Do(req.WithContext(ctx))
+			resp, err := p.client.Do(req.WithContext(ctx))
 			if err != nil {
 				if bar == nil {
 					bar, mg = p.makeBar(progress, &curTry, barInitDone)
@@ -192,10 +187,12 @@ func (p *Part) download(
 			p.dlogger.Printf("HTTP status: %s", resp.Status)
 			p.dlogger.Printf("ContentLength: %d", resp.ContentLength)
 
-			if cookies := p.jar.Cookies(req.URL); len(cookies) != 0 {
-				p.dlogger.Println("CookieJar:")
-				for _, cookie := range cookies {
-					p.dlogger.Printf("  %q", cookie)
+			if jar := p.client.Jar; jar != nil {
+				if cookies := jar.Cookies(req.URL); len(cookies) != 0 {
+					p.dlogger.Println("CookieJar:")
+					for _, cookie := range cookies {
+						p.dlogger.Printf("  %q", cookie)
+					}
 				}
 			}
 

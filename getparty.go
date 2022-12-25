@@ -208,15 +208,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
-
 	session, err := cmd.getState(args, jar)
 	if err != nil {
 		return err
 	}
-
-	transport, err := cmd.getTransport(true)
-	if err != nil {
-		return err
+	client := &http.Client{
+		Transport: transport,
+		Jar:       jar,
 	}
 
 	var partsDone uint32
@@ -243,8 +241,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.quiet = cmd.options.Quiet
 		p.maxTry = cmd.options.MaxRetry
-		p.jar = jar
-		p.transport = transport
+		p.client = client
 		p.totalWriter = totalWriter
 		p.totalCancel = totalCancel
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
