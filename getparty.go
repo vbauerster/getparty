@@ -212,10 +212,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
-	client := &http.Client{
-		Transport: transport,
-		Jar:       jar,
-	}
 
 	var partsDone uint32
 	var eg errgroup.Group
@@ -230,6 +226,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	)
 	totalWriter, totalCancel := session.makeTotalWriter(progress, &partsDone, cmd.options.Quiet)
 	patcher := makeReqPatcher(session.HeaderMap, true)
+	client := &http.Client{
+		Transport: transport,
+		Jar:       jar,
+	}
 	defer cmd.trace(session)()
 	defer progress.Wait()
 	for i, p := range session.Parts {
