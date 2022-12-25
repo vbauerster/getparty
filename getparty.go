@@ -339,26 +339,24 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 			if err != nil {
 				return nil, err
 			}
+			err = setCookies(session.HeaderMap, session.URL)
+			if err != nil {
+				return nil, err
+			}
 			if freshSession != nil {
 				err := session.checkSums(*freshSession)
 				if err != nil {
 					return nil, err
 				}
 				session.location = freshSession.location
-			} else {
-				err := setCookies(session.HeaderMap, session.URL)
+			} else if session.Redirected {
+				freshSession, err = cmd.follow(session.URL, jar, makeReqPatcher(session.HeaderMap, true))
 				if err != nil {
 					return nil, err
 				}
-				if session.Redirected {
-					freshSession, err = cmd.follow(session.URL, jar, makeReqPatcher(session.HeaderMap, true))
-					if err != nil {
-						return nil, err
-					}
-					session.location = freshSession.location
-				} else {
-					session.location = session.URL
-				}
+				session.location = freshSession.location
+			} else {
+				session.location = session.URL
 			}
 			return session, nil
 		case len(args) != 0:
