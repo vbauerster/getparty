@@ -351,8 +351,7 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 					return nil, err
 				}
 				if session.Redirected {
-					patcher := makeReqPatcher(session.HeaderMap, true)
-					freshSession, err = cmd.follow(session.URL, jar, patcher)
+					freshSession, err = cmd.follow(session.URL, jar, makeReqPatcher(session.HeaderMap, true))
 					if err != nil {
 						return nil, err
 					}
@@ -367,8 +366,7 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 			if err != nil {
 				return nil, err
 			}
-			patcher := makeReqPatcher(cmd.options.HeaderMap, true)
-			session, err = cmd.follow(args[0], jar, patcher)
+			session, err = cmd.follow(args[0], jar, makeReqPatcher(cmd.options.HeaderMap, true))
 			if err != nil {
 				return nil, err
 			}
