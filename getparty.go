@@ -190,8 +190,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.options.Timeout = 15
 	}
 
+	transport, err := cmd.getTransport(true)
+	if err != nil {
+		return err
+	}
+
 	if cmd.options.BestMirror {
-		url, err := cmd.bestMirror(args, makeReqPatcher(cmd.options.HeaderMap, false))
+		url, err := cmd.bestMirror(args, transport, makeReqPatcher(cmd.options.HeaderMap, false))
 		if err != nil {
 			return err
 		}
@@ -552,6 +557,7 @@ func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) 
 
 func (cmd Cmd) bestMirror(
 	args []string,
+	transport *http.Transport,
 	reqPatcher func(*http.Request, *url.Userinfo),
 ) (best string, err error) {
 	defer func() {
@@ -573,7 +579,9 @@ func (cmd Cmd) bestMirror(
 	}
 	var wg sync.WaitGroup
 	first := make(chan string, 1)
-	client := cleanhttp.DefaultClient()
+	client := &http.Client{
+		Transport: transport,
+	}
 
 	for _, u := range urls {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
