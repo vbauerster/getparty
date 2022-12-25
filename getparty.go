@@ -392,7 +392,7 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 }
 
 func (cmd Cmd) follow(
-	usrURL string,
+	rawURL string,
 	jar http.CookieJar,
 	reqPatcher func(*http.Request, *url.Userinfo),
 ) (session *Session, err error) {
@@ -420,7 +420,7 @@ func (cmd Cmd) follow(
 		},
 	}
 
-	location := usrURL
+	location := rawURL
 	timeout := cmd.options.Timeout
 
 	err = backoff.Retry(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
@@ -505,7 +505,7 @@ func (cmd Cmd) follow(
 
 				session = &Session{
 					location:          location,
-					URL:               usrURL,
+					URL:               rawURL,
 					SuggestedFileName: name,
 					ContentMD5:        resp.Header.Get("Content-MD5"),
 					AcceptRanges:      resp.Header.Get("Accept-Ranges"),
