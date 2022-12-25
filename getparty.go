@@ -303,11 +303,11 @@ func (cmd Cmd) getState(args []string, jar *cookiejar.Jar) (session *Session, er
 		if hc, ok := headers[hCookie]; ok {
 			var cookies []*http.Cookie
 			for _, cookie := range strings.Split(hc, "; ") {
-				pair := strings.SplitN(cookie, "=", 2)
-				if len(pair) != 2 {
+				k, v, ok := strings.Cut(cookie, "=")
+				if !ok {
 					continue
 				}
-				cookies = append(cookies, &http.Cookie{Name: pair[0], Value: pair[1]})
+				cookies = append(cookies, &http.Cookie{Name: k, Value: v})
 			}
 			if u, err := url.Parse(usrURL); err == nil {
 				jar.SetCookies(u, cookies)
