@@ -582,6 +582,7 @@ func (cmd Cmd) bestMirror(
 		return "", err
 	}
 	var wg sync.WaitGroup
+	start := make(chan struct{})
 	first := make(chan string, 1)
 	transport, err := cmd.getTransport(false)
 	if err != nil {
@@ -597,12 +598,13 @@ func (cmd Cmd) bestMirror(
 			cmd.dlogger.Printf("skipping %q: %s", u, err.Error())
 			continue
 		}
+		cmd.dlogger.Printf("fetching: %q", u)
 		reqPatcher(req, cmd.userinfo)
-		wg.Add(1)
 		u := u // https://golang.org/doc/faq#closures_and_goroutines
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			cmd.dlogger.Printf("fetching: %q", u)
+			<-start
 			ctx, cancel := context.WithTimeout(cmd.Ctx, time.Duration(cmd.options.Timeout)*time.Second)
 			defer cancel()
 			resp, err := client.Do(req.WithContext(ctx))
@@ -622,6 +624,7 @@ func (cmd Cmd) bestMirror(
 			}
 		}()
 	}
+	close(start)
 	wg.Wait()
 	close(first)
 	best = <-first
