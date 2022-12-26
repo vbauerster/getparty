@@ -660,7 +660,12 @@ func (cmd Cmd) dumpState(session *Session) {
 
 func makeReqPatcher(headers map[string]string, skipCookie bool) func(*http.Request, *url.Userinfo) {
 	return func(req *http.Request, userinfo *url.Userinfo) {
-		req.URL.User = userinfo
+		if req == nil {
+			return
+		}
+		if req.URL != nil {
+			req.URL.User = userinfo
+		}
 		for k, v := range headers {
 			if skipCookie && k == hCookie {
 				continue
