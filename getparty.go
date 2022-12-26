@@ -91,7 +91,7 @@ type Options struct {
 	ForceOverwrite     bool              `short:"f" long:"force" description:"overwrite existing file silently"`
 	AuthUser           string            `short:"u" long:"username" description:"basic http auth username"`
 	AuthPass           string            `long:"password" description:"basic http auth password"`
-	HeaderMap          map[string]string `short:"H" long:"header" value-name:"key:value" description:"arbitrary http header"`
+	HeaderMap          map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
 	InsecureSkipVerify bool              `long:"no-check-cert" description:"don't validate the server's certificate"`
 	CertsFileName      string            `short:"c" long:"certs-file" value-name:"certs.crt" description:"root certificates to use when verifying server certificates"`
 	Debug              bool              `long:"debug" description:"enable debug to stderr"`
