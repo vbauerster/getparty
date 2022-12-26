@@ -191,11 +191,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.options.Timeout = 15
 	}
 
-	transport, err := cmd.getTransport(true)
-	if err != nil {
-		return err
-	}
-
 	if cmd.options.BestMirror {
 		url, err := cmd.bestMirror(args, makeReqPatcher(cmd.options.HeaderMap, false))
 		if err != nil {
@@ -214,6 +209,18 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
+	var client *http.Client
+	if cmd.options.Parts != 0 {
+		transport, err := cmd.getTransport(true)
+		if err != nil {
+			return err
+		}
+		client = &http.Client{
+			Transport: transport,
+			Jar:       jar,
+		}
+	}
+
 	var partsDone uint32
 	var eg errgroup.Group
 	ctx, cancel := context.WithCancel(cmd.Ctx)
@@ -227,10 +234,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	)
 	totalWriter, totalCancel := session.makeTotalWriter(progress, &partsDone, cmd.options.Quiet)
 	patcher := makeReqPatcher(session.HeaderMap, true)
-	client := &http.Client{
-		Transport: transport,
-		Jar:       jar,
-	}
 	defer cmd.trace(session)()
 	defer progress.Wait()
 	for i, p := range session.Parts {
