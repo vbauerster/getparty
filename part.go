@@ -154,8 +154,9 @@ func (p *Part) download(
 
 			p.dlogger.SetPrefix(fmt.Sprintf("%s[R%02d] ", prefix, attempt))
 			p.dlogger.Printf("GET %q", req.URL)
-			p.dlogger.Printf("%s: %s", hUserAgentKey, req.Header.Get(hUserAgentKey))
-			p.dlogger.Printf("%s: %s", hRange, req.Header.Get(hRange))
+			for k, v := range req.Header {
+				p.dlogger.Printf("%s: %v", k, v)
+			}
 
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()

@@ -454,6 +454,10 @@ func (cmd Cmd) follow(
 
 				reqPatcher(req, cmd.userinfo)
 
+				for k, v := range req.Header {
+					cmd.dlogger.Printf("%s: %v", k, v)
+				}
+
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
 					cmd.logger.Println(err.Error())
