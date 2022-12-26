@@ -64,6 +64,7 @@ const (
 	hContentDisposition = "Content-Disposition"
 	hRange              = "Range"
 	hCookie             = "Cookie"
+	hHost               = "Host"
 )
 
 var (
@@ -664,7 +665,12 @@ func makeReqPatcher(headers map[string]string, skipCookie bool) func(*http.Reque
 			if skipCookie && k == hCookie {
 				continue
 			}
-			req.Header.Set(k, v)
+			switch k {
+			case hHost:
+				req.Host = v
+			default:
+				req.Header.Set(k, v)
+			}
 		}
 	}
 }
