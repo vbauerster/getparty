@@ -41,14 +41,14 @@ Application Options:
   -f, --force                                               overwrite existing file silently
   -u, --username=                                           basic http auth username
       --password=                                           basic http auth password
-  -H, --header=key:value                                    arbitrary http header
+  -H, --header=key:value                                    http header, can be specified more than once
       --no-check-cert                                       don't validate the server's certificate
-  -c  --certs-file=certs.crt                                root certificates to use when verifying server certificates
+  -c, --certs-file=certs.crt                                root certificates to use when verifying server certificates
       --debug                                               enable debug to stderr
-  -v  --version                                             show version
+  -v, --version                                             show version
 
 Help Options:
-  -h, --help                                                show this help message
+  -h, --help                                                Show this help message
 ```
 
 #### Best mirror example:
