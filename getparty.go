@@ -199,26 +199,18 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		args = append(args[:0], url)
 	}
 
+	transport, err := cmd.getTransport(cmd.options.Parts != 0)
+	if err != nil {
+		return err
+	}
 	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		return err
 	}
-	session, err := cmd.getState(args, jar)
+	session, err := cmd.getState(args, transport, jar)
 	if err != nil {
 		return err
-	}
-
-	var client *http.Client
-	if cmd.options.Parts != 0 {
-		transport, err := cmd.getTransport(true)
-		if err != nil {
-			return err
-		}
-		client = &http.Client{
-			Transport: transport,
-			Jar:       jar,
-		}
 	}
 
 	var partsDone uint32
@@ -245,7 +237,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.quiet = cmd.options.Quiet
 		p.maxTry = cmd.options.MaxRetry
-		p.client = client
+		p.client = &http.Client{
+			Transport: transport,
+			Jar:       jar,
+		}
 		p.totalWriter = totalWriter
 		p.totalCancel = totalCancel
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
@@ -304,7 +299,7 @@ func (cmd Cmd) trace(session *Session) func() {
 	}
 }
 
-func (cmd Cmd) getState(args []string, jar http.CookieJar) (*Session, error) {
+func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.CookieJar) (*Session, error) {
 	setJarCookies := func(headers map[string]string, rawURL string) error {
 		u, err := url.Parse(rawURL)
 		if err != nil {
@@ -357,7 +352,7 @@ func (cmd Cmd) getState(args []string, jar http.CookieJar) (*Session, error) {
 				}
 				session.location = argsSession.location
 			} else if session.Redirected {
-				tmpSession, err := cmd.follow(session.URL, jar, makeReqPatcher(session.HeaderMap, true))
+				tmpSession, err := cmd.follow(session.URL, transport, jar, makeReqPatcher(session.HeaderMap, true))
 				if err != nil {
 					return nil, err
 				}
@@ -375,7 +370,7 @@ func (cmd Cmd) getState(args []string, jar http.CookieJar) (*Session, error) {
 			if err != nil {
 				return nil, err
 			}
-			session, err = cmd.follow(args[0], jar, makeReqPatcher(cmd.options.HeaderMap, true))
+			session, err = cmd.follow(args[0], transport, jar, makeReqPatcher(cmd.options.HeaderMap, true))
 			if err != nil {
 				return nil, err
 			}
@@ -404,6 +399,7 @@ func (cmd Cmd) getState(args []string, jar http.CookieJar) (*Session, error) {
 
 func (cmd Cmd) follow(
 	rawURL string,
+	transport http.RoundTripper,
 	jar http.CookieJar,
 	reqPatcher func(*http.Request, *url.Userinfo),
 ) (session *Session, err error) {
@@ -411,10 +407,6 @@ func (cmd Cmd) follow(
 		err = errors.WithMessage(err, "follow")
 	}()
 
-	transport, err := cmd.getTransport(false)
-	if err != nil {
-		return nil, err
-	}
 	client := &http.Client{
 		Transport: transport,
 		Jar:       jar,
