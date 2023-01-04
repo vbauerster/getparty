@@ -24,7 +24,7 @@ type msgGate struct {
 
 func newMsgGate(quiet bool, prefix string, times uint) *msgGate {
 	gate := &msgGate{
-		msgCh: make(chan *message, 8),
+		msgCh: make(chan *message, 4),
 		done:  make(chan struct{}),
 		msgFlash: func(msg *message) {
 			if msg.done != nil {
