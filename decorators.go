@@ -3,7 +3,6 @@ package getparty
 import (
 	"fmt"
 	"math"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -119,12 +118,12 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 
 type peak struct {
 	decor.WC
-	format string
-	msg    string
-	min    float64
-	set    bool
-	mean   ewma.MovingAverage
-	once   sync.Once
+	format    string
+	msg       string
+	min       float64
+	set       bool
+	completed bool
+	mean      ewma.MovingAverage
 }
 
 func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
@@ -148,17 +147,14 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 	}
 }
 
-func (s *peak) onComplete() {
-	if s.min == 0 {
-		s.msg = "N/A"
-	} else {
-		s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/s.min))))
-	}
-}
-
 func (s *peak) Decor(stat decor.Statistics) string {
-	if stat.Completed {
-		s.once.Do(s.onComplete)
+	if stat.Completed && !s.completed {
+		if s.min == 0 {
+			s.msg = "N/A"
+		} else {
+			s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/s.min))))
+		}
+		s.completed = true
 	}
 	return s.FormatMsg(s.msg)
 }
