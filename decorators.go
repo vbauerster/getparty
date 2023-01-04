@@ -121,7 +121,6 @@ type peak struct {
 	format    string
 	msg       string
 	min       float64
-	set       bool
 	completed bool
 	mean      ewma.MovingAverage
 }
@@ -135,15 +134,12 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	return d
 }
 
+// EwmaUpdate will not be called by mpb if n == 0
 func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 	s.mean.Add(float64(dur) / float64(n))
 	durPerByte := s.mean.Value()
-	if durPerByte == 0 {
-		return
-	}
-	if !s.set || durPerByte < s.min {
+	if s.min == 0 || durPerByte < s.min {
 		s.min = durPerByte
-		s.set = true
 	}
 }
 
