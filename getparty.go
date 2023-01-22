@@ -75,7 +75,11 @@ var (
 		"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
 		"edge":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
 	}
-	caCerts []byte
+	caCerts = struct {
+		sync.Mutex
+		pool *x509.CertPool
+		ok   bool
+	}{}
 )
 
 // Options struct, represents cmd line options
@@ -539,15 +543,11 @@ func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) 
 	if cmd.options.InsecureSkipVerify {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	} else if cmd.options.CertsFileName != "" {
-		if caCerts == nil {
-			caCerts, err = os.ReadFile(cmd.options.CertsFileName)
-			if err != nil {
-				return nil, err
-			}
+		certPool, err := readCaCerts(cmd.options.CertsFileName)
+		if err != nil {
+			return nil, err
 		}
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCerts)
-		transport.TLSClientConfig = &tls.Config{RootCAs: caCertPool}
+		transport.TLSClientConfig = &tls.Config{RootCAs: certPool}
 	}
 	return transport, nil
 }
@@ -661,6 +661,23 @@ func (cmd Cmd) dumpState(session *Session) {
 	} else {
 		fmt.Fprintf(cmd.Err, "session state saved to %q\n", name)
 	}
+}
+
+func readCaCerts(name string) (*x509.CertPool, error) {
+	caCerts.Lock()
+	defer caCerts.Unlock()
+	for !caCerts.ok {
+		if caCerts.pool != nil {
+			return nil, errors.Errorf("bad cert file %q", name)
+		}
+		b, err := os.ReadFile(name)
+		if err != nil {
+			return nil, err
+		}
+		caCerts.pool = x509.NewCertPool()
+		caCerts.ok = caCerts.pool.AppendCertsFromPEM(b)
+	}
+	return caCerts.pool, nil
 }
 
 func makeReqPatcher(headers map[string]string, skipCookie bool) func(*http.Request, *url.Userinfo) {
