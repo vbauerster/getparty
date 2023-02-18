@@ -270,9 +270,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	err = eg.Wait()
-	if err != nil {
-		totalCancel(false)
-		return err
+	for _, err := range []error{err, cmd.Ctx.Err()} {
+		if err != nil {
+			totalCancel(false)
+			return err
+		}
 	}
 
 	err = session.concatenateParts(cmd.dlogger, progress)
@@ -303,7 +305,12 @@ func (cmd Cmd) trace(session *Session) func() {
 	}
 }
 
-func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.CookieJar) (*Session, error) {
+func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.CookieJar) (session *Session, err error) {
+	defer func() {
+		if err == nil {
+			err = cmd.Ctx.Err()
+		}
+	}()
 	setJarCookies := func(headers map[string]string, rawURL string) error {
 		u, err := url.Parse(rawURL)
 		if err != nil {
@@ -330,7 +337,6 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 		}
 		return
 	}
-	var session *Session
 	for {
 		switch {
 		case cmd.options.JSONFileName != "":
