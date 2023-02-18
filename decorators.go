@@ -10,6 +10,13 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
+var (
+	_ decor.Decorator        = (*mainDecorator)(nil)
+	_ decor.ShutdownListener = (*mainDecorator)(nil)
+	_ decor.Decorator        = (*peak)(nil)
+	_ decor.EwmaDecorator    = (*peak)(nil)
+)
+
 type message struct {
 	times uint
 	msg   string
