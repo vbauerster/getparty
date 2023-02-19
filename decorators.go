@@ -89,7 +89,7 @@ func newMainDecorator(curTry *uint32, format, name string, gate *msgGate, wc dec
 	return d
 }
 
-func (d *mainDecorator) Shutdown() {
+func (d *mainDecorator) OnShutdown() {
 	close(d.gate.done)
 }
 
