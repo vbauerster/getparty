@@ -458,18 +458,19 @@ func (cmd Cmd) follow(
 					cmd.dlogger.Printf("%s: %v", k, v)
 				}
 
-				cmd.logger.Printf("Get %q", location)
+				if retry := attempt - 1; retry == 0 {
+					cmd.logger.Printf("Get %q", location)
+				} else if max := cmd.options.MaxRetry; max != 0 {
+					cmd.logger.Printf("Get (%d/%d) %q", retry, max, location)
+				} else {
+					cmd.logger.Printf("Get (%d/∞) %q", retry, location)
+				}
 
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
 					cmd.logger.Printf("Error: %s", err.Error())
 					if attempt == cmd.options.MaxRetry+1 {
 						return false, errors.Wrap(ErrMaxRetry, err.Error())
-					}
-					if max := cmd.options.MaxRetry; max == 0 {
-						cmd.logger.Printf("Retrying (%d/∞)", attempt)
-					} else {
-						cmd.logger.Printf("Retrying (%d/%d)", attempt, max)
 					}
 					return true, err
 				}
