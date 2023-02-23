@@ -227,6 +227,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	)
 	totalWriter, totalCancel := session.makeTotalWriter(progress, &partsDone, cmd.options.Quiet)
 	patcher := makeReqPatcher(session.HeaderMap, true)
+	var sleep time.Duration
+	switch l := cmd.options.Limit; l {
+	case 1, 2, 3, 4, 5:
+		sleep = time.Duration(l*100) * time.Millisecond
+	}
 	defer cmd.trace(session)()
 	defer progress.Wait()
 	for i, p := range session.Parts {
@@ -235,6 +240,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			continue
 		}
 		p.order = i + 1
+		p.sleep = sleep
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.quiet = cmd.options.Quiet
 		p.maxTry = cmd.options.MaxRetry

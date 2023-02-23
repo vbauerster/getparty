@@ -35,8 +35,8 @@ type Part struct {
 	name        string
 	order       int
 	maxTry      uint
-	speedLimit  uint
 	quiet       bool
+	sleep       time.Duration
 	totalWriter io.Writer
 	totalCancel func(bool)
 	client      *http.Client
@@ -245,11 +245,6 @@ func (p *Part) download(
 			body := bar.ProxyReader(resp.Body)
 			defer body.Close()
 
-			var sleepDur time.Duration
-			switch p.speedLimit {
-			case 1, 2, 3, 4, 5:
-				sleepDur = time.Duration(p.speedLimit*100) * time.Millisecond
-			}
 			buf := make([]byte, bufSize)
 			writer := io.MultiWriter(fpart, p.totalWriter)
 			cp := func() error {
@@ -279,7 +274,7 @@ func (p *Part) download(
 					break
 				}
 				if timer.Stop() {
-					time.Sleep(sleepDur)
+					time.Sleep(p.sleep)
 				}
 			}
 
