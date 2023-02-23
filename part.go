@@ -169,6 +169,7 @@ func (p *Part) download(
 					mg.flash("Timeout...")
 				default:
 				}
+				p.dlogger.Println("Timer expired")
 			})
 			defer timer.Stop()
 
