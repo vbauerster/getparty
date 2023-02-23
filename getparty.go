@@ -227,6 +227,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	)
 	totalWriter, totalCancel := session.makeTotalWriter(progress, &partsDone, cmd.options.Quiet)
 	patcher := makeReqPatcher(session.HeaderMap, true)
+	timeout := time.Duration(cmd.options.Timeout) * time.Second
 	var sleep time.Duration
 	switch l := cmd.options.Limit; l {
 	case 1, 2, 3, 4, 5:
@@ -240,7 +241,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			continue
 		}
 		p.order = i + 1
-		p.sleep = sleep
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.quiet = cmd.options.Quiet
 		p.maxTry = cmd.options.MaxRetry
@@ -268,7 +268,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&partsDone, 1)
 				}
 			}()
-			return p.download(ctx, progress, req, cmd.options.Timeout)
+			return p.download(ctx, progress, req, timeout, sleep)
 		})
 	}
 

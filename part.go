@@ -36,7 +36,6 @@ type Part struct {
 	order       int
 	maxTry      uint
 	quiet       bool
-	sleep       time.Duration
 	totalWriter io.Writer
 	totalCancel func(bool)
 	client      *http.Client
@@ -103,7 +102,7 @@ func (p *Part) download(
 	ctx context.Context,
 	progress *mpb.Progress,
 	req *http.Request,
-	timeout uint,
+	timeout, sleep time.Duration,
 ) (err error) {
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -139,8 +138,8 @@ func (p *Part) download(
 					timeout = resetTimeout
 					p.Elapsed += attemptDur
 					p.dlogger.Printf("Written %d bytes", diff)
-				} else if timeout < maxTimeout {
-					timeout += 5
+				} else if timeout < maxTimeout*time.Second {
+					timeout += 5 * time.Second
 				}
 				if retry && err != nil {
 					switch attempt {
@@ -166,7 +165,7 @@ func (p *Part) download(
 
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
-			timer := time.AfterFunc(time.Duration(timeout)*time.Second, func() {
+			timer := time.AfterFunc(timeout, func() {
 				cancel()
 				// checking for mg != nil here is a data race
 				select {
@@ -267,14 +266,14 @@ func (p *Part) download(
 				return err
 			}
 			for {
-				timer.Reset(time.Duration(timeout) * time.Second)
+				timer.Reset(timeout)
 				err = cp()
 				if err != nil {
 					p.dlogger.Printf("cp: %s", err.Error())
 					break
 				}
 				if timer.Stop() {
-					time.Sleep(p.sleep)
+					time.Sleep(sleep)
 				}
 			}
 
