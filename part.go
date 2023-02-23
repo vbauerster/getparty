@@ -130,14 +130,14 @@ func (p *Part) download(
 		func(attempt uint, reset func()) (retry bool, err error) {
 			atomic.StoreUint32(&curTry, uint32(attempt))
 			var totalSleep time.Duration
-			writtenBefore := p.Written
+			pWritten := p.Written
 			start := time.Now()
 			defer func() {
-				if diff := p.Written - writtenBefore; diff != 0 {
+				if n := p.Written - pWritten; n != 0 {
 					reset()
 					timeout = resetTimeout
 					p.Elapsed += time.Since(start) - totalSleep
-					p.dlogger.Printf("Written %d bytes", diff)
+					p.dlogger.Printf("Written %d bytes", n)
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
 				}
