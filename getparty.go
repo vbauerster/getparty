@@ -433,7 +433,7 @@ func (cmd Cmd) follow(
 	location := rawURL
 	timeout := cmd.options.Timeout
 
-	err = backoff.Retry(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
+	err = backoff.RetryWithContext(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (retry bool, err error) {
 			ctx, cancel := context.WithTimeout(cmd.Ctx, time.Duration(timeout)*time.Second)
 			defer func() {
@@ -454,18 +454,18 @@ func (cmd Cmd) follow(
 					cmd.dlogger.Printf("%s: %v", k, v)
 				}
 
-				if retry := attempt - 1; retry == 0 {
+				if attempt == 0 {
 					cmd.logger.Printf("Get %q", location)
 				} else if max := cmd.options.MaxRetry; max != 0 {
-					cmd.logger.Printf("Get (%d/%d) %q", retry, max, location)
+					cmd.logger.Printf("Get (%d/%d) %q", attempt, max, location)
 				} else {
-					cmd.logger.Printf("Get (%d/∞) %q", retry, location)
+					cmd.logger.Printf("Get (%d/∞) %q", attempt, location)
 				}
 
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
 					cmd.logger.Printf("Error: %s", err.Error())
-					if attempt == cmd.options.MaxRetry {
+					if attempt != 0 && attempt == cmd.options.MaxRetry {
 						return false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
 					return true, err

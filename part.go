@@ -127,7 +127,7 @@ func (p *Part) download(
 	prefix := p.dlogger.Prefix()
 	start := time.Now()
 
-	return backoff.Retry(ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
+	return backoff.RetryWithContext(ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
 			writtenBefore := p.Written
 			defer func() {
