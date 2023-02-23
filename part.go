@@ -35,6 +35,7 @@ type Part struct {
 	name        string
 	order       int
 	maxTry      uint
+	speedLimit  uint
 	quiet       bool
 	totalWriter io.Writer
 	totalCancel func(bool)
@@ -129,6 +130,7 @@ func (p *Part) download(
 
 	return backoff.RetryWithContext(ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
+			atomic.StoreUint32(&curTry, uint32(attempt))
 			writtenBefore := p.Written
 			defer func() {
 				attemptDur := time.Since(start)
@@ -140,14 +142,17 @@ func (p *Part) download(
 				} else if timeout < maxTimeout {
 					timeout += 5
 				}
-				if retry {
-					if attempt == 1 {
+				if retry && err != nil {
+					switch attempt {
+					case 0:
 						atomic.StoreUint32(&globTry, 1)
+					case p.maxTry:
+						mg.finalFlash(ErrMaxRetry.Error())
+						bar.Abort(false)
+						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
-					atomic.StoreUint32(&curTry, uint32(attempt))
-					p.dlogger.Printf("Retry reason: %v", err)
+					p.dlogger.Printf("Error: %s", err.Error())
 				}
-				p.dlogger.Printf("Ran dur: %s", attemptDur)
 				start = time.Now()
 			}()
 
@@ -178,12 +183,6 @@ func (p *Part) download(
 				if bar == nil {
 					bar, mg = p.makeBar(progress, &curTry, barInitDone)
 				}
-				if p.isMaxRetry(attempt) {
-					go bar.Abort(false)
-					p.dlogger.Println(ErrMaxRetry.Error())
-					mg.finalFlash(ErrMaxRetry.Error())
-					return false, errors.Wrap(ErrMaxRetry, err.Error())
-				}
 				return true, err
 			}
 
@@ -212,13 +211,10 @@ func (p *Part) download(
 				}
 				p.Written = 0
 				defer func() {
-					if err != nil {
+					if retry && err != nil {
 						e := fpart.Close()
 						if e != nil {
 							panic(e)
-						}
-						if p.isMaxRetry(attempt) {
-							return
 						}
 						fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
 						if e != nil {
@@ -244,63 +240,64 @@ func (p *Part) download(
 				return false, &HttpError{resp.StatusCode, resp.Status}
 			}
 
+			timer.Stop()
 
 			body := bar.ProxyReader(resp.Body)
 			defer body.Close()
 
-			writer := io.MultiWriter(fpart, p.totalWriter)
-
+			var sleepDur time.Duration
+			switch p.speedLimit {
+			case 1, 2, 3, 4, 5:
+				sleepDur = time.Duration(p.speedLimit*100) * time.Millisecond
+			}
 			buf := make([]byte, bufSize)
-			for n := 0; err == nil && timer.Reset(time.Duration(timeout)*time.Second); {
-				n, err = io.ReadFull(body, buf)
-				if err != nil {
-					p.dlogger.Printf("io.ReadFull: %d %s", n, err.Error())
-					if n > 0 {
-						err = nil
-					} else if err == io.ErrUnexpectedEOF {
-						err = io.EOF
-					}
-				}
-				n, e := writer.Write(buf[:n])
+			writer := io.MultiWriter(fpart, p.totalWriter)
+			cp := func() error {
+				n, err := io.ReadFull(body, buf)
+				_, e := writer.Write(buf[:n])
 				if e != nil {
 					panic(e)
 				}
 				p.Written += int64(n)
-				if p.total() <= 0 {
-					if err == io.EOF {
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					if p.total() <= 0 {
 						p.Stop = p.Written - 1 // so p.isDone() retruns true
 						bar.SetTotal(p.Written, true)
-					} else {
-						bar.SetTotal(p.Written, false)
 					}
+					return io.EOF
 				}
+				if p.total() <= 0 {
+					bar.SetTotal(p.Written, false)
+				}
+				return err
 			}
-
-			if timer.Stop() {
-				cancel()
-				p.dlogger.Println(ctx.Err())
+			for {
+				timer.Reset(time.Duration(timeout) * time.Second)
+				err = cp()
+				if err != nil {
+					p.dlogger.Printf("cp: %s", err.Error())
+					break
+				}
+				if timer.Stop() {
+					time.Sleep(sleepDur)
+				}
 			}
 
 			if p.isDone() {
-				p.dlogger.Printf("Done result: %v", err)
-				if err == nil || err == io.EOF {
+				if err == io.EOF {
+					p.dlogger.Println("part is done")
 					return false, nil
 				}
-				panic(fmt.Sprintf("Part is done with unexpected err: %s", err.Error()))
-			}
-
-			if p.isMaxRetry(attempt) {
-				go bar.Abort(false)
-				p.dlogger.Println(ErrMaxRetry.Error())
-				mg.finalFlash(ErrMaxRetry.Error())
-				return false, ErrMaxRetry
+				return false, errors.Wrap(err, "done with unexpected error")
 			}
 
 			for i := 0; err == nil; i++ {
-				if i != 0 {
-					panic("cannot retry with nil error")
+				switch i {
+				case 0:
+					err = ctx.Err()
+				default:
+					panic("retry with nil error")
 				}
-				err = ctx.Err()
 			}
 
 			return true, err
@@ -319,9 +316,5 @@ func (p Part) total() int64 {
 }
 
 func (p Part) isDone() bool {
-	return p.Written > 0 && p.Written == p.total()
-}
-
-func (p Part) isMaxRetry(attempt uint) bool {
-	return attempt == p.maxTry
+	return p.Written != 0 && p.Written == p.total()
 }

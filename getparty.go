@@ -87,6 +87,7 @@ type Options struct {
 	Parts              uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
 	MaxRetry           uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retry per each part, 0 for infinite"`
 	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
+	Limit              uint              `short:"l" long:"limit" value-name:"[1|2|3|4|5]" description:"speed limit gauge"`
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName       string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
 	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
