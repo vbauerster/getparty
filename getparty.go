@@ -438,14 +438,14 @@ func (cmd Cmd) follow(
 	}()
 
 	location := rawURL
-	timeout := cmd.options.Timeout
+	timeout := time.Duration(cmd.options.Timeout) * time.Second
 
 	err = backoff.RetryWithContext(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (retry bool, err error) {
-			ctx, cancel := context.WithTimeout(cmd.Ctx, time.Duration(timeout)*time.Second)
+			ctx, cancel := context.WithTimeout(cmd.Ctx, timeout)
 			defer func() {
-				if timeout < maxTimeout {
-					timeout += 5
+				if timeout < maxTimeout*time.Second {
+					timeout += 5 * time.Second
 				}
 				cancel()
 			}()
