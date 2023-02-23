@@ -125,18 +125,18 @@ func (p *Part) download(
 	resetTimeout := timeout
 	barInitDone := make(chan struct{})
 	prefix := p.dlogger.Prefix()
-	start := time.Now()
 
 	return backoff.RetryWithContext(ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
 			atomic.StoreUint32(&curTry, uint32(attempt))
+			var totalSleep time.Duration
 			writtenBefore := p.Written
+			start := time.Now()
 			defer func() {
-				attemptDur := time.Since(start)
 				if diff := p.Written - writtenBefore; diff != 0 {
 					reset()
 					timeout = resetTimeout
-					p.Elapsed += attemptDur
+					p.Elapsed += time.Since(start) - totalSleep
 					p.dlogger.Printf("Written %d bytes", diff)
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
@@ -152,7 +152,6 @@ func (p *Part) download(
 					}
 					p.dlogger.Printf("Error: %s", err.Error())
 				}
-				start = time.Now()
 			}()
 
 			req.Header.Set(hRange, p.getRange())
@@ -273,6 +272,7 @@ func (p *Part) download(
 					break
 				}
 				if timer.Stop() {
+					totalSleep += sleep
 					time.Sleep(sleep)
 				}
 			}
