@@ -227,23 +227,23 @@ func (p *Part) download(
 						bar.SetCurrent(0)
 					}
 				}()
+				fallthrough
+			case http.StatusPartialContent:
+				if bar == nil {
+					bar, mg = p.makeBar(progress, &curTry, barInitDone)
+				} else if p.Written > 0 {
+					p.dlogger.Printf("Setting bar refill: %d", p.Written)
+					bar.SetRefill(p.Written)
+				}
 			case http.StatusForbidden, http.StatusTooManyRequests:
 				if mg != nil {
 					mg.finalFlash(resp.Status)
 				}
 				fallthrough
 			default:
-				if resp.StatusCode != http.StatusPartialContent {
-					return false, &HttpError{resp.StatusCode, resp.Status}
-				}
+				return false, &HttpError{resp.StatusCode, resp.Status}
 			}
 
-			if bar == nil {
-				bar, mg = p.makeBar(progress, &curTry, barInitDone)
-			} else if p.Written > 0 {
-				p.dlogger.Printf("Setting bar refill: %d", p.Written)
-				bar.SetRefill(p.Written)
-			}
 
 			body := bar.ProxyReader(resp.Body)
 			defer body.Close()
