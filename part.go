@@ -136,7 +136,7 @@ func (p *Part) download(
 					reset()
 					timeout = resetTimeout
 					p.Elapsed += attemptDur
-					p.dlogger.Printf("Wrote %d bytes", diff)
+					p.dlogger.Printf("Written %d bytes", diff)
 				} else if timeout < maxTimeout {
 					timeout += 5
 				}
