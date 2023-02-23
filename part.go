@@ -88,6 +88,7 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32, initDone chan stru
 	if p.Written > 0 {
 		p.dlogger.Printf("Setting bar current: %d", p.Written)
 		bar.SetCurrent(p.Written)
+		p.dlogger.Printf("Setting bar refill: %d", p.Written)
 		bar.SetRefill(p.Written)
 	}
 	if p.Elapsed > 0 {
