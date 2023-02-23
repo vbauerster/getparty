@@ -240,7 +240,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.order = i + 1
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.quiet = cmd.options.Quiet
-		p.maxTry = cmd.options.MaxRetry + 1
+		p.maxTry = cmd.options.MaxRetry
 		p.client = &http.Client{
 			Transport: transport,
 			Jar:       jar,
@@ -469,7 +469,7 @@ func (cmd Cmd) follow(
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
 					cmd.logger.Printf("Error: %s", err.Error())
-					if attempt == cmd.options.MaxRetry+1 {
+					if attempt == cmd.options.MaxRetry {
 						return false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
 					return true, err
