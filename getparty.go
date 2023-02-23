@@ -114,10 +114,6 @@ type Cmd struct {
 }
 
 func (cmd Cmd) Exit(err error) int {
-	if cmd.Ctx.Err() == context.Canceled {
-		// most probably user hit ^C, so mark as expected
-		err = errors.WithMessage(err, ErrCanceledByUser.Error())
-	}
 	switch e := errors.Cause(err).(type) {
 	case nil:
 		return 0
