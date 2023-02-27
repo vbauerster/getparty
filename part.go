@@ -299,7 +299,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 					panic("part isn't done at io.EOF")
 				}
 			} else if p.isDone() {
-				panic(fmt.Sprintf("done with unexpected error: %v", err))
+				panic(fmt.Sprintf("done with not io.EOF: %v", err))
 			}
 
 			for i := 0; err == nil; i++ {
