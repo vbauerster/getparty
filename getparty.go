@@ -240,6 +240,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			atomic.AddUint32(&partsDone, 1)
 			continue
 		}
+		p.ctx = ctx
 		p.order = i + 1
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.quiet = cmd.options.Quiet
@@ -268,7 +269,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&partsDone, 1)
 				}
 			}()
-			return p.download(ctx, progress, req, timeout, sleep)
+			return p.download(progress, req, timeout, sleep)
 		})
 	}
 

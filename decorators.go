@@ -1,6 +1,7 @@
 package getparty
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync/atomic"
@@ -11,10 +12,11 @@ import (
 )
 
 var (
-	_ decor.Decorator        = (*mainDecorator)(nil)
-	_ decor.ShutdownListener = (*mainDecorator)(nil)
-	_ decor.Decorator        = (*peak)(nil)
-	_ decor.EwmaDecorator    = (*peak)(nil)
+	_ decor.Decorator     = (*mainDecorator)(nil)
+	_ decor.Decorator     = (*flashDecorator)(nil)
+	_ decor.Wrapper       = (*flashDecorator)(nil)
+	_ decor.Decorator     = (*peak)(nil)
+	_ decor.EwmaDecorator = (*peak)(nil)
 )
 
 type message struct {
@@ -23,96 +25,62 @@ type message struct {
 	done  chan struct{}
 }
 
-type msgGate struct {
-	msgCh    chan *message
-	done     chan struct{}
-	msgFlash func(*message)
-}
-
-func newMsgGate(quiet bool, prefix string, times uint) *msgGate {
-	gate := &msgGate{
-		msgCh: make(chan *message, 4),
-		done:  make(chan struct{}),
-		msgFlash: func(msg *message) {
-			if msg.done != nil {
-				close(msg.done)
-				msg.done = nil
-			}
-		},
-	}
-	if !quiet {
-		sinkFlash := gate.msgFlash
-		gate.msgFlash = func(msg *message) {
-			msg.times = times
-			msg.msg = fmt.Sprintf("%s %s", prefix, msg.msg)
-			select {
-			case gate.msgCh <- msg:
-			case <-gate.done:
-				sinkFlash(msg)
-			}
+func makeMsgHandler(ctx context.Context, quiet bool, msgCh chan<- *message) func(*message) {
+	sinkFlash := func(msg *message) {
+		if msg.done != nil {
+			close(msg.done)
 		}
 	}
-	return gate
+	if quiet {
+		return sinkFlash
+	}
+	return func(msg *message) {
+		go func() {
+			select {
+			case msgCh <- msg:
+			case <-ctx.Done():
+				sinkFlash(msg)
+			}
+		}()
+	}
 }
 
-func (g *msgGate) flash(msg string) {
-	g.msgFlash(&message{msg: msg})
-}
-
-func (g *msgGate) finalFlash(msg string) {
-	flushed := make(chan struct{})
-	g.msgFlash(&message{
-		msg:  msg,
-		done: flushed,
-	})
-	<-flushed
-}
-
-type mainDecorator struct {
-	decor.WC
-	curTry   *uint32
-	name     string
-	format   string
-	finalMsg bool
-	gate     *msgGate
-	msg      *message
-}
-
-func newMainDecorator(curTry *uint32, format, name string, gate *msgGate, wc decor.WC) decor.Decorator {
-	d := &mainDecorator{
-		WC:     wc.Init(),
-		curTry: curTry,
-		name:   name,
-		format: format,
-		gate:   gate,
+func newFlashDecorator(decorator decor.Decorator, msgCh <-chan *message) decor.Decorator {
+	if decorator == nil {
+		return nil
+	}
+	d := &flashDecorator{
+		Decorator: decorator,
+		msgCh:     msgCh,
 	}
 	return d
 }
 
-func (d *mainDecorator) OnShutdown() {
-	close(d.gate.done)
+type flashDecorator struct {
+	decor.Decorator
+	msgCh <-chan *message
+	msg   *message
 }
 
-func (d *mainDecorator) Decor(stat decor.Statistics) string {
+func (d *flashDecorator) Unwrap() decor.Decorator {
+	return d.Decorator
+}
+
+func (d *flashDecorator) Decor(stat decor.Statistics) string {
 	for d.msg == nil {
 		select {
-		case d.msg = <-d.gate.msgCh:
+		case d.msg = <-d.msgCh:
 		default:
-			name := d.name
-			if atomic.LoadUint32(&globTry) > 0 {
-				name = fmt.Sprintf("%s:R%02d", name, atomic.LoadUint32(d.curTry))
-			}
-			return d.FormatMsg(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
+			return d.Decorator.Decor(stat)
 		}
 	}
 	switch {
-	case d.finalMsg:
 	case d.msg.done != nil:
 		defer func() {
 			close(d.msg.done)
 			d.msg.done = nil
 		}()
-		d.finalMsg = true
+		d.msg.times = math.MaxUint
 	case d.msg.times == 0, stat.Completed, stat.Aborted:
 		defer func() {
 			d.msg = nil
@@ -120,7 +88,32 @@ func (d *mainDecorator) Decor(stat decor.Statistics) string {
 	default:
 		d.msg.times--
 	}
-	return d.FormatMsg(d.msg.msg)
+	return d.GetConf().FormatMsg(d.msg.msg)
+}
+
+type mainDecorator struct {
+	decor.WC
+	name   string
+	format string
+	curTry *uint32
+}
+
+func newMainDecorator(curTry *uint32, name, format string, wc decor.WC) decor.Decorator {
+	d := &mainDecorator{
+		WC:     wc.Init(),
+		name:   name,
+		format: format,
+		curTry: curTry,
+	}
+	return d
+}
+
+func (d *mainDecorator) Decor(stat decor.Statistics) string {
+	name := d.name
+	if atomic.LoadUint32(&globTry) != 0 {
+		name = fmt.Sprintf("%s:R%02d", name, atomic.LoadUint32(d.curTry))
+	}
+	return d.FormatMsg(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
 }
 
 type peak struct {

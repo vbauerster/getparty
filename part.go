@@ -32,6 +32,7 @@ type Part struct {
 	Skip     bool
 	Elapsed  time.Duration
 
+	ctx         context.Context
 	name        string
 	order       int
 	maxTry      uint
@@ -42,15 +43,34 @@ type Part struct {
 	dlogger     *log.Logger
 }
 
-func (p Part) makeBar(progress *mpb.Progress, curTry *uint32, initDone chan struct{}) (*mpb.Bar, *msgGate) {
-	defer close(initDone)
+type flashBar struct {
+	*mpb.Bar
+	prefix     string
+	msgHandler func(*message)
+}
+
+func (b *flashBar) flash(msg string, final bool) {
+	m := &message{
+		msg:   fmt.Sprintf("%s %s", b.prefix, msg),
+		times: 15,
+	}
+	if final {
+		m.done = make(chan struct{})
+		b.msgHandler(m)
+		<-m.done
+	} else {
+		b.msgHandler(m)
+	}
+}
+
+func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) *flashBar {
 	total := p.total()
 	if total < 0 {
 		total = 0
 	}
 	p.dlogger.Printf("Setting bar total: %d", total)
-	mg := newMsgGate(p.quiet, p.name, 15)
-	bar := progress.New(total,
+	msgCh := make(chan *message)
+	b := progress.New(total,
 		mpb.BarFillerBuilderFunc(func() mpb.BarFiller {
 			if total == 0 {
 				return mpb.NopStyle().Build()
@@ -60,7 +80,7 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32, initDone chan stru
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
-			newMainDecorator(curTry, "%s %.1f", p.name, mg, decor.WCSyncWidthR),
+			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msgCh),
 			decor.Conditional(
 				total == 0,
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WCSyncSpace), "100% "),
@@ -87,23 +107,22 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32, initDone chan stru
 	)
 	if p.Written > 0 {
 		p.dlogger.Printf("Setting bar current: %d", p.Written)
-		bar.SetCurrent(p.Written)
+		b.SetCurrent(p.Written)
 		p.dlogger.Printf("Setting bar refill: %d", p.Written)
-		bar.SetRefill(p.Written)
+		b.SetRefill(p.Written)
 	}
 	if p.Elapsed > 0 {
 		p.dlogger.Printf("Setting bar DecoratorAverageAdjust: -%d (-%[1]s)", p.Elapsed)
-		bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
+		b.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
-	return bar, mg
+	return &flashBar{
+		Bar:        b,
+		prefix:     p.name,
+		msgHandler: makeMsgHandler(p.ctx, p.quiet, msgCh),
+	}
 }
 
-func (p *Part) download(
-	ctx context.Context,
-	progress *mpb.Progress,
-	req *http.Request,
-	timeout, sleep time.Duration,
-) (err error) {
+func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, sleep time.Duration) (err error) {
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return errors.WithMessage(err, p.name)
@@ -119,14 +138,13 @@ func (p *Part) download(
 		err = errors.WithMessage(err, p.name)
 	}()
 
-	var bar *mpb.Bar
-	var mg *msgGate
+	var bar *flashBar
 	var curTry uint32
 	resetTimeout := timeout
 	barInitDone := make(chan struct{})
 	prefix := p.dlogger.Prefix()
 
-	return backoff.RetryWithContext(ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
+	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
 			atomic.StoreUint32(&curTry, uint32(attempt))
 			var totalSleep time.Duration
@@ -146,7 +164,7 @@ func (p *Part) download(
 					case 0:
 						atomic.StoreUint32(&globTry, 1)
 					case p.maxTry:
-						mg.finalFlash(ErrMaxRetry.Error())
+						bar.flash(ErrMaxRetry.Error(), true)
 						bar.Abort(false)
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
@@ -162,14 +180,14 @@ func (p *Part) download(
 				p.dlogger.Printf("%s: %v", k, v)
 			}
 
-			ctx, cancel := context.WithCancel(ctx)
+			ctx, cancel := context.WithCancel(p.ctx)
 			defer cancel()
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
-				// checking for mg != nil here is a data race
+				// checking for bar != nil here is a data race
 				select {
 				case <-barInitDone:
-					mg.flash("Timeout...")
+					bar.flash("Timeout...", false)
 				default:
 				}
 				p.dlogger.Println("Timer expired")
@@ -179,7 +197,8 @@ func (p *Part) download(
 			resp, err := p.client.Do(req.WithContext(ctx))
 			if err != nil {
 				if bar == nil {
-					bar, mg = p.makeBar(progress, &curTry, barInitDone)
+					bar = p.makeBar(progress, &curTry)
+					close(barInitDone)
 				}
 				return true, err
 			}
@@ -224,14 +243,15 @@ func (p *Part) download(
 				fallthrough
 			case http.StatusPartialContent:
 				if bar == nil {
-					bar, mg = p.makeBar(progress, &curTry, barInitDone)
+					bar = p.makeBar(progress, &curTry)
+					close(barInitDone)
 				} else if p.Written > 0 {
 					p.dlogger.Printf("Setting bar refill: %d", p.Written)
 					bar.SetRefill(p.Written)
 				}
 			case http.StatusForbidden, http.StatusTooManyRequests:
-				if mg != nil {
-					mg.finalFlash(resp.Status)
+				if bar != nil {
+					bar.flash(resp.Status, true)
 				}
 				fallthrough
 			default:
