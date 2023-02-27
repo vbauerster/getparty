@@ -2,6 +2,7 @@ package getparty
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -172,7 +173,7 @@ func (s Session) writeSummary(w io.Writer, quiet bool) {
 	}
 }
 
-func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
+func (s Session) checkExistingFile(ctx context.Context, w io.Writer, forceOverwrite bool) error {
 	stat, err := os.Stat(s.SuggestedFileName)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -193,6 +194,9 @@ func (s Session) checkExistingFile(w io.Writer, forceOverwrite bool) error {
 	}
 	switch answer {
 	case '\n', 'y', 'Y':
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		return os.Remove(s.SuggestedFileName)
 	default:
 		return ErrCanceledByUser

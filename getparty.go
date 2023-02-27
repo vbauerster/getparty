@@ -391,7 +391,7 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 			state := session.SuggestedFileName + ".json"
 			if _, err := os.Stat(state); err != nil {
 				if cmd.options.Parts != 0 {
-					err = session.checkExistingFile(cmd.Out, cmd.options.ForceOverwrite)
+					err = session.checkExistingFile(cmd.Ctx, cmd.Out, cmd.options.ForceOverwrite)
 					if err != nil {
 						return nil, err
 					}
