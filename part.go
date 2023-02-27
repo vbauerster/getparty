@@ -279,7 +279,7 @@ func (p *Part) download(
 
 			if p.isDone() {
 				if err == io.EOF {
-					p.dlogger.Println("part is done")
+					p.dlogger.Println("Part is done")
 					return false, nil
 				}
 				return false, errors.Wrap(err, "done with unexpected error")
