@@ -136,8 +136,8 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 	var bar *flashBar
 	var curTry uint32
 	resetTimeout := timeout
-	barInitDone := make(chan struct{})
 	prefix := p.dlogger.Prefix()
+	barInitDone := make(chan struct{})
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
