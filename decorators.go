@@ -21,27 +21,23 @@ var (
 
 type message struct {
 	times uint
+	final bool
 	msg   string
-	done  chan struct{}
 }
 
 func makeMsgHandler(ctx context.Context, quiet bool, msgCh chan<- *message) func(*message) {
-	sinkFlash := func(msg *message) {
-		if msg.done != nil {
-			close(msg.done)
+	send := func(msg *message) {
+		select {
+		case msgCh <- msg:
+		case <-ctx.Done():
 		}
 	}
-	if quiet {
-		return sinkFlash
-	}
 	return func(msg *message) {
-		go func() {
-			select {
-			case msgCh <- msg:
-			case <-ctx.Done():
-				sinkFlash(msg)
-			}
-		}()
+		if msg.final {
+			send(msg)
+		} else {
+			go send(msg)
+		}
 	}
 }
 
@@ -75,13 +71,8 @@ func (d *flashDecorator) Decor(stat decor.Statistics) string {
 		}
 	}
 	switch {
-	case d.msg.done != nil:
-		defer func() {
-			close(d.msg.done)
-			d.msg.done = nil
-		}()
-		d.msg.times = math.MaxUint
-	case d.msg.times == 0, stat.Completed, stat.Aborted:
+	case d.msg.final:
+	case d.msg.times == 0:
 		defer func() {
 			d.msg = nil
 		}()

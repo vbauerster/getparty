@@ -51,16 +51,11 @@ type flashBar struct {
 
 func (b *flashBar) flash(msg string, final bool) {
 	m := &message{
-		msg:   fmt.Sprintf("%s %s", b.prefix, msg),
 		times: 15,
+		final: final,
+		msg:   fmt.Sprintf("%s %s", b.prefix, msg),
 	}
-	if final {
-		m.done = make(chan struct{})
-		b.msgHandler(m)
-		<-m.done
-	} else {
-		b.msgHandler(m)
-	}
+	b.msgHandler(m)
 }
 
 func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) *flashBar {
