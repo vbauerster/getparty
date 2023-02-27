@@ -259,45 +259,47 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 			defer body.Close()
 
 			buf := make([]byte, bufSize)
-			writer := io.MultiWriter(fpart, p.totalWriter)
-			cp := func() error {
-				n, err := io.ReadFull(body, buf)
-				_, e := writer.Write(buf[:n])
+			dst := io.MultiWriter(fpart, p.totalWriter)
+			for n := 0; err == nil; {
+				timer.Reset(timeout)
+				n, err = io.ReadFull(body, buf)
+				switch err {
+				case io.EOF:
+					if n != 0 {
+						panic("n != 0 at io.EOF")
+					}
+					continue
+				case io.ErrUnexpectedEOF:
+					err = io.EOF
+				default:
+					if timer.Stop() {
+						totalSleep += sleep
+						time.Sleep(sleep)
+					}
+				}
+				_, e := dst.Write(buf[:n])
 				if e != nil {
 					panic(e)
 				}
 				p.Written += int64(n)
-				if err == io.EOF || err == io.ErrUnexpectedEOF {
-					if p.total() <= 0 {
-						p.Stop = p.Written - 1 // so p.isDone() retruns true
-						bar.SetTotal(p.Written, true)
-					}
-					return io.EOF
-				}
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
 				}
-				return err
-			}
-			for {
-				timer.Reset(timeout)
-				err = cp()
-				if err != nil {
-					p.dlogger.Printf("cp: %s", err.Error())
-					break
-				}
-				if timer.Stop() {
-					totalSleep += sleep
-					time.Sleep(sleep)
-				}
 			}
 
-			if p.isDone() {
-				if err == io.EOF {
+			if err == io.EOF {
+				if p.total() <= 0 {
+					p.Stop = p.Written - 1 // so p.isDone() retruns true
+					bar.EnableTriggerComplete()
+				}
+				if p.isDone() {
 					p.dlogger.Println("Part is done")
 					return false, nil
+				} else {
+					panic("part isn't done at io.EOF")
 				}
-				return false, errors.Wrap(err, "done with unexpected error")
+			} else if p.isDone() {
+				panic(fmt.Sprintf("done with unexpected error: %v", err))
 			}
 
 			for i := 0; err == nil; i++ {
