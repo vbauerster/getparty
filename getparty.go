@@ -181,7 +181,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	cmd.logger = setupLogger(cmd.Out, "", cmd.options.Quiet)
+	cmd.logger = setupLogger(cmd.Out, "[INFO] ", cmd.options.Quiet)
 	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
 	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
@@ -478,7 +478,14 @@ func (cmd Cmd) follow(
 
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
-					cmd.logger.Printf("Error: %s", err.Error())
+					prefix := cmd.logger.Prefix()
+					cmd.logger.SetPrefix("[WARN] ")
+					if e := errors.Unwrap(err); e != nil {
+						cmd.logger.Println(e.Error())
+					} else {
+						cmd.logger.Println(err.Error())
+					}
+					cmd.logger.SetPrefix(prefix)
 					if attempt != 0 && attempt == cmd.options.MaxRetry {
 						return false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
