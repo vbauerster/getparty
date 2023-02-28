@@ -115,6 +115,10 @@ type Cmd struct {
 }
 
 func (cmd Cmd) Exit(err error) int {
+	if cmd.options.Debug {
+		// if there is stack trace available, +v will include it
+		cmd.dlogger.Printf("Exit error: %+v", err)
+	}
 	switch e := errors.Cause(err).(type) {
 	case nil:
 		return 0
@@ -124,29 +128,18 @@ func (cmd Cmd) Exit(err error) int {
 		}
 		cmd.parser.WriteHelp(cmd.Err)
 		return 2
-	case *url.Error:
-		cmd.debugOrPrintErr(err, true)
-		return cmd.Exit(e.Err)
 	case ExpectedError:
-		cmd.debugOrPrintErr(err, true)
+		cmd.logError(e)
 		return 1
 	default:
-		cmd.debugOrPrintErr(err, false)
+		cmd.logError(err)
 		return 3
 	}
 }
 
-func (cmd Cmd) debugOrPrintErr(err error, expected bool) {
-	var unexpected string
-	if !expected {
-		unexpected = "unexpected: "
-	}
-	if cmd.options.Debug {
-		// if there is stack trace available, +v will include it
-		cmd.dlogger.Printf("%s%+v", unexpected, err)
-	} else {
-		fmt.Fprintf(cmd.Err, "%s%s\n", unexpected, err.Error())
-	}
+func (cmd Cmd) logError(err error) {
+	cmd.logger.SetPrefix("[ERROR] ")
+	cmd.logger.Println(err.Error())
 }
 
 func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
@@ -696,14 +689,14 @@ func (cmd Cmd) dumpState(session *Session) {
 	} else {
 		defer func() {
 			if err := f.Close(); err != nil {
-				cmd.debugOrPrintErr(err, false)
+				cmd.logError(err)
 			}
 		}()
 		media = f
 	}
 	err = json.NewEncoder(media).Encode(session)
 	if err != nil {
-		cmd.debugOrPrintErr(err, false)
+		cmd.logError(err)
 	} else {
 		fmt.Fprintf(cmd.Err, "session state saved to %q\n", name)
 	}
