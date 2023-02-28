@@ -253,8 +253,6 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				return false, &HttpError{resp.StatusCode, resp.Status}
 			}
 
-			timer.Stop()
-
 			body := bar.ProxyReader(resp.Body)
 			defer body.Close()
 
