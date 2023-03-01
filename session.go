@@ -147,28 +147,25 @@ func (s Session) totalWritten() int64 {
 	return total
 }
 
-func (s Session) writeSummary(w io.Writer, quiet bool) {
-	if quiet {
-		return
-	}
-	format := fmt.Sprintf("Length: %%s [%s]\n", s.ContentType)
-	lengthSummary := "unknown"
-	if s.ContentLength >= 0 {
-		lengthSummary = fmt.Sprintf("%d (%.1f)", s.ContentLength, decor.SizeB1024(s.ContentLength))
-		if written := s.totalWritten(); written > 0 {
-			remaining := s.ContentLength - written
-			lengthSummary += fmt.Sprintf(", %d (%.1f) remaining", remaining, decor.SizeB1024(remaining))
+func (s Session) logSummary(logger *log.Logger) {
+	format := fmt.Sprintf("Length: %%s [%s]", s.ContentType)
+	if s.ContentLength <= 0 {
+		logger.Printf(format, "unknown")
+	} else {
+		summary := fmt.Sprintf("%d (%.1f)", s.ContentLength, decor.SizeB1024(s.ContentLength))
+		if total := s.totalWritten(); total != 0 {
+			remaining := s.ContentLength - total
+			summary += fmt.Sprintf(", %d (%.1f) remaining", remaining, decor.SizeB1024(remaining))
 		}
-	}
-	fmt.Fprintf(w, format, lengthSummary)
-	if s.ContentMD5 != "" {
-		fmt.Fprintf(w, "MD5: %s\n", s.ContentMD5)
-	}
-	if !s.isResumable() {
-		fmt.Fprintln(w, "HTTP server doesn't seem to support byte ranges. Cannot resume.")
+		logger.Printf(format, summary)
 	}
 	if len(s.Parts) != 0 {
-		fmt.Fprintf(w, "Saving to: %q\n\n", s.SuggestedFileName)
+		logger.Printf("Saving to: %q", s.SuggestedFileName)
+	}
+	if s.isResumable() {
+		logger.Println("Session is resumable")
+	} else {
+		logger.Println("Session is not resumable")
 	}
 }
 

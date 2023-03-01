@@ -285,20 +285,24 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 }
 
 func (cmd Cmd) trace(session *Session) func() {
-	session.writeSummary(cmd.Out, cmd.options.Quiet)
-	writtenBefore := session.totalWritten()
+	if cmd.options.Quiet {
+		cmd.Out = io.Discard // effective in this scope only
+	}
+	session.logSummary(cmd.logger)
+	fmt.Fprintln(cmd.Out)
+	pTotal := session.totalWritten()
 	start := time.Now()
 	return func() {
 		session.Elapsed += time.Since(start)
-		writtenAfter := session.totalWritten()
-		if session.isResumable() && writtenAfter < session.ContentLength {
-			if writtenBefore != writtenAfter {
+		total := session.totalWritten()
+		fmt.Fprintln(cmd.Out)
+		if session.isResumable() && total != session.ContentLength {
+			if total-pTotal != 0 { // if some bytes were written
 				cmd.dumpState(session)
 			}
 			return
 		}
-		fmt.Fprintln(cmd.Out)
-		cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, writtenAfter)
+		cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, total)
 	}
 }
 
@@ -698,7 +702,7 @@ func (cmd Cmd) dumpState(session *Session) {
 	if err != nil {
 		cmd.logError(err)
 	} else {
-		fmt.Fprintf(cmd.Err, "session state saved to %q\n", name)
+		cmd.logger.Printf("Session state saved to %q", name)
 	}
 }
 
