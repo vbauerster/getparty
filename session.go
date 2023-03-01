@@ -71,7 +71,7 @@ func (s *Session) calcParts(parts uint) error {
 	return nil
 }
 
-func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) error {
+func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) error {
 	if len(s.Parts) == 0 || !s.isResumable() {
 		return nil
 	}
@@ -99,13 +99,13 @@ func (s Session) concatenateParts(dlogger *log.Logger, progress *mpb.Progress) e
 			if err != nil {
 				return err
 			}
-			dlogger.Printf("concatenating: %s", fparti.Name())
+			logger.Printf("concatenating: %s", fparti.Name())
 			if _, err := io.Copy(fpart0, fparti); err != nil {
 				return err
 			}
 			for _, err := range [...]error{fparti.Close(), os.Remove(fparti.Name())} {
 				if err != nil {
-					dlogger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
+					logger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
 				}
 			}
 			bar.Increment()
