@@ -681,9 +681,6 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 }
 
 func (cmd Cmd) dumpState(session *Session) {
-	if !session.isResumable() {
-		return
-	}
 	var media io.Writer
 	name := session.SuggestedFileName + ".json"
 	f, err := os.Create(name)
