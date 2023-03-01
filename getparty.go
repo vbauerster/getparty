@@ -62,6 +62,9 @@ const (
 	refreshRate         = 200
 	hUserAgentKey       = "User-Agent"
 	hContentDisposition = "Content-Disposition"
+	hContentMD5         = "Content-MD5"
+	hAcceptRanges       = "Accept-Ranges"
+	hContentType        = "Content-Type"
 	hRange              = "Range"
 	hCookie             = "Cookie"
 	hHost               = "Host"
@@ -542,9 +545,9 @@ func (cmd Cmd) follow(
 					location:          location,
 					URL:               rawURL,
 					SuggestedFileName: name,
-					ContentMD5:        resp.Header.Get("Content-MD5"),
-					AcceptRanges:      resp.Header.Get("Accept-Ranges"),
-					ContentType:       resp.Header.Get("Content-Type"),
+					ContentMD5:        resp.Header.Get(hContentMD5),
+					AcceptRanges:      resp.Header.Get(hAcceptRanges),
+					ContentType:       resp.Header.Get(hContentType),
 					StatusCode:        resp.StatusCode,
 					ContentLength:     resp.ContentLength,
 					Redirected:        redirected,
