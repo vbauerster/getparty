@@ -26,6 +26,9 @@ type message struct {
 }
 
 func makeMsgHandler(ctx context.Context, quiet bool, msgCh chan<- *message) func(*message) {
+	if quiet {
+		return func(*message) {}
+	}
 	send := func(msg *message) {
 		select {
 		case msgCh <- msg:
