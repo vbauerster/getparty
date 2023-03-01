@@ -401,6 +401,8 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 				}
 				session.HeaderMap = cmd.options.HeaderMap
 				return session, nil
+			} else {
+				return nil, err
 			}
 		default:
 			return nil, new(flags.Error)
