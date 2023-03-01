@@ -155,6 +155,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
 	cmd.parser.Name = cmdName
 	cmd.parser.Usage = "[OPTIONS] url"
+	cmd.logger = setupLogger(cmd.Out, "[INFO] ", cmd.options.Quiet)
+	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
 	args, err = cmd.parser.ParseArgs(args)
 	if err != nil {
@@ -176,9 +178,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
-
-	cmd.logger = setupLogger(cmd.Out, "[INFO] ", cmd.options.Quiet)
-	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
 	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
 		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
