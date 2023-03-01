@@ -389,7 +389,9 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 				return nil, err
 			}
 			state := session.SuggestedFileName + ".json"
-			if _, err := os.Stat(state); err != nil {
+			if _, err := os.Stat(state); err == nil {
+				cmd.options.JSONFileName = state
+			} else if errors.Is(err, os.ErrNotExist) {
 				if cmd.options.Parts != 0 {
 					exist, err := session.checkFileExist()
 					if err != nil {
@@ -408,8 +410,6 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 				}
 				session.HeaderMap = cmd.options.HeaderMap
 				return session, nil
-			} else {
-				cmd.options.JSONFileName = state
 			}
 		default:
 			return nil, new(flags.Error)
