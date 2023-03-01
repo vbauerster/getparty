@@ -2,7 +2,6 @@ package getparty
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -173,34 +172,18 @@ func (s Session) writeSummary(w io.Writer, quiet bool) {
 	}
 }
 
-func (s Session) checkExistingFile(ctx context.Context, w io.Writer, forceOverwrite bool) error {
+func (s Session) checkFileExist() (bool, error) {
 	stat, err := os.Stat(s.SuggestedFileName)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil
+			return false, nil
 		}
-		return err
+		return false, err
 	}
 	if stat.IsDir() {
-		return fmt.Errorf("%v: %q is a directory", os.ErrInvalid, stat.Name())
+		return true, errors.Wrap(os.ErrInvalid, "expected file got directory")
 	}
-	if forceOverwrite {
-		return os.Remove(s.SuggestedFileName)
-	}
-	var answer rune
-	fmt.Fprintf(w, "File %q already exists, overwrite? [Y/n] ", stat.Name())
-	if _, err := fmt.Scanf("%c", &answer); err != nil {
-		return err
-	}
-	switch answer {
-	case '\n', 'y', 'Y':
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		return os.Remove(s.SuggestedFileName)
-	default:
-		return ErrCanceledByUser
-	}
+	return true, nil
 }
 
 func (s Session) checkSums(other Session) error {

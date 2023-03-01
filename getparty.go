@@ -391,9 +391,15 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 			state := session.SuggestedFileName + ".json"
 			if _, err := os.Stat(state); err != nil {
 				if cmd.options.Parts != 0 {
-					err = session.checkExistingFile(cmd.Ctx, cmd.Out, cmd.options.ForceOverwrite)
+					exist, err := session.checkFileExist()
 					if err != nil {
 						return nil, err
+					}
+					if exist {
+						err = cmd.overwriteIfConfirmed(session.SuggestedFileName)
+						if err != nil {
+							return nil, err
+						}
 					}
 					err = session.calcParts(cmd.options.Parts)
 					if err != nil {
@@ -648,6 +654,26 @@ func (cmd Cmd) readPassword() (string, error) {
 	}
 	fmt.Fprintln(cmd.Out)
 	return string(bytePassword), nil
+}
+
+func (cmd Cmd) overwriteIfConfirmed(name string) error {
+	if cmd.options.ForceOverwrite {
+		return os.Remove(name)
+	}
+	var answer rune
+	fmt.Fprintf(cmd.Out, "File %q already exists, overwrite? [Y/n] ", name)
+	if _, err := fmt.Scanf("%c", &answer); err != nil {
+		return err
+	}
+	switch answer {
+	case '\n', 'y', 'Y':
+		if err := cmd.Ctx.Err(); err != nil {
+			return err
+		}
+		return os.Remove(name)
+	default:
+		return ErrCanceledByUser
+	}
 }
 
 func (cmd Cmd) dumpState(session *Session) {
