@@ -103,7 +103,7 @@ func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) er
 			if _, err := io.Copy(fpart0, fparti); err != nil {
 				return err
 			}
-			for _, err := range [...]error{fparti.Close(), os.Remove(fparti.Name())} {
+			for _, err := range []error{fparti.Close(), os.Remove(fparti.Name())} {
 				if err != nil {
 					logger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
 				}
