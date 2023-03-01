@@ -169,10 +169,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
-			cmd.options.AuthPass, err = cmd.readPassword()
+			err = cmd.orCtxErr(cmd.readPassword())
 			if err != nil {
 				return err
 			}
+			fmt.Fprintln(cmd.Out)
 		}
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
@@ -203,7 +204,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	session, err := cmd.getState(args, transport, jar)
-	if err != nil {
+	if err = cmd.orCtxErr(err); err != nil {
 		return err
 	}
 
@@ -266,12 +267,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
-	err = eg.Wait()
-	for _, err := range []error{err, cmd.Ctx.Err()} {
-		if err != nil {
-			totalCancel(false)
-			return err
-		}
+	cmd.orCtxErr(eg.Wait())
+	if err != nil {
+		totalCancel(false)
+		return err
 	}
 
 	err = session.concatenateParts(cmd.dlogger, progress)
@@ -307,11 +306,6 @@ func (cmd Cmd) trace(session *Session) func() {
 }
 
 func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.CookieJar) (session *Session, err error) {
-	defer func() {
-		if err == nil {
-			err = cmd.Ctx.Err()
-		}
-	}()
 	setJarCookies := func(headers map[string]string, rawURL string) error {
 		u, err := url.Parse(rawURL)
 		if err != nil {
@@ -650,14 +644,14 @@ func (cmd Cmd) bestMirror(
 	return best, nil
 }
 
-func (cmd Cmd) readPassword() (string, error) {
+func (cmd *Cmd) readPassword() error {
 	fmt.Fprint(cmd.Out, "Enter Password: ")
 	bytePassword, err := term.ReadPassword(0)
 	if err != nil {
-		return "", err
+		return err
 	}
-	fmt.Fprintln(cmd.Out)
-	return string(bytePassword), nil
+	cmd.options.AuthPass = string(bytePassword)
+	return nil
 }
 
 func (cmd Cmd) overwriteIfConfirmed(name string) error {
@@ -671,13 +665,13 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	}
 	switch answer {
 	case '\n', 'y', 'Y':
-		if err := cmd.Ctx.Err(); err != nil {
-			return err
+		if cmd.Ctx.Err() == nil {
+			return os.Remove(name)
 		}
-		return os.Remove(name)
 	default:
 		return ErrCanceledByUser
 	}
+	return nil
 }
 
 func (cmd Cmd) dumpState(session *Session) {
@@ -701,6 +695,15 @@ func (cmd Cmd) dumpState(session *Session) {
 	} else {
 		cmd.logger.Printf("Session state saved to %q", name)
 	}
+}
+
+func (cmd Cmd) orCtxErr(err error) error {
+	for _, err := range []error{err, cmd.Ctx.Err()} {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func readCaCerts(name string) (*x509.CertPool, error) {
