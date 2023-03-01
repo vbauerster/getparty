@@ -118,10 +118,8 @@ type Cmd struct {
 }
 
 func (cmd Cmd) Exit(err error) int {
-	if cmd.options.Debug {
-		// if there is stack trace available, +v will include it
-		cmd.dlogger.Printf("Exit error: %+v", err)
-	}
+	// if there is stack trace available, +v will include it
+	cmd.dlogger.Printf("Exit error: %+v", err)
 	switch e := errors.Cause(err).(type) {
 	case nil:
 		return 0
