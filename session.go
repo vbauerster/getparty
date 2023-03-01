@@ -153,11 +153,11 @@ func (s Session) logSummary(logger *log.Logger) {
 		logger.Printf(format, "unknown")
 	} else {
 		summary := fmt.Sprintf("%d (%.1f)", s.ContentLength, decor.SizeB1024(s.ContentLength))
+		logger.Printf(format, summary)
 		if total := s.totalWritten(); total != 0 {
 			remaining := s.ContentLength - total
-			summary += fmt.Sprintf(", %d (%.1f) remaining", remaining, decor.SizeB1024(remaining))
+			logger.Printf("Remaining: %d (%.1f)", remaining, decor.SizeB1024(remaining))
 		}
-		logger.Printf(format, summary)
 	}
 	if len(s.Parts) != 0 {
 		logger.Printf("Saving to: %q", s.SuggestedFileName)
