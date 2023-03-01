@@ -162,10 +162,11 @@ func (s Session) logSummary(logger *log.Logger) {
 	if len(s.Parts) != 0 {
 		logger.Printf("Saving to: %q", s.SuggestedFileName)
 	}
-	if s.isResumable() {
-		logger.Println("Session is resumable")
-	} else {
+	if !s.isResumable() {
+		prefix := logger.Prefix()
+		logger.SetPrefix("[WARN] ")
 		logger.Println("Session is not resumable")
+		logger.SetPrefix(prefix)
 	}
 }
 
