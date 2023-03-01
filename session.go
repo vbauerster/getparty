@@ -187,8 +187,8 @@ func (s Session) checkFileExist() (bool, error) {
 func (s Session) checkSums(other Session) error {
 	if s.ContentMD5 != other.ContentMD5 {
 		return fmt.Errorf(
-			"ContentMD5 mismatch: expected %q got %q",
-			s.ContentMD5, other.ContentMD5,
+			"%s mismatch: expected %q got %q",
+			hContentMD5, s.ContentMD5, other.ContentMD5,
 		)
 	}
 	if s.ContentLength != other.ContentLength {
