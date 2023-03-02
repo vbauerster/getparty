@@ -258,7 +258,9 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 
 			buf := make([]byte, bufSize)
 			dst := io.MultiWriter(fpart, p.totalWriter)
-			for n := 0; err == nil; {
+			ctx, cancel = context.WithCancel(p.ctx)
+			cancel()
+			for n := 0; err == nil; cancel() {
 				timer.Reset(timeout)
 				n, err = io.ReadFull(body, buf)
 				switch err {
@@ -271,8 +273,8 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 					err = io.EOF
 				default:
 					if timer.Stop() && sleep != 0 {
+						ctx, cancel = context.WithTimeout(p.ctx, sleep)
 						totalSleep += sleep
-						time.Sleep(sleep)
 					}
 				}
 				_, e := dst.Write(buf[:n])
@@ -283,6 +285,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
 				}
+				<-ctx.Done()
 			}
 
 			if err == io.EOF {
