@@ -300,11 +300,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				panic(fmt.Sprintf("expected EOF after part is done, got: %v", err))
 			}
 
-			if err = eitherError(err, ctx.Err()); err == nil {
-				panic("expected some error to trigger retry")
-			}
-
-			return true, err
+			return p.ctx.Err() == nil, err
 		})
 }
 
