@@ -294,14 +294,14 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 					p.dlogger.Println("Part is done")
 					return false, nil
 				} else {
-					panic("part isn't done at io.EOF")
+					panic("expected part to be done after EOF")
 				}
 			} else if p.isDone() {
-				panic(fmt.Sprintf("done with not io.EOF: %v", err))
+				panic(fmt.Sprintf("expected EOF after part is done, got: %v", err))
 			}
 
 			if err = eitherError(err, ctx.Err()); err == nil {
-				panic("retry with nil error")
+				panic("expected some error to trigger retry")
 			}
 
 			return true, err
