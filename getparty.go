@@ -20,6 +20,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	flags "github.com/jessevdk/go-flags"
@@ -777,11 +778,14 @@ func readLines(r io.Reader) ([]string, error) {
 	var lines []string
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		text := strings.TrimSpace(scanner.Text())
-		if len(text) == 0 || strings.HasPrefix(text, "#") {
+		line := scanner.Text()
+		if len(line) == 0 || strings.HasPrefix(line, "#") {
 			continue
 		}
-		lines = append(lines, text)
+		line = strings.TrimFunc(line, func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+		})
+		lines = append(lines, line)
 	}
 	return lines, scanner.Err()
 }
