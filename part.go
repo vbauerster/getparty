@@ -270,7 +270,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				case io.ErrUnexpectedEOF:
 					err = io.EOF
 				default:
-					if timer.Stop() {
+					if timer.Stop() && sleep != 0 {
 						totalSleep += sleep
 						time.Sleep(sleep)
 					}
