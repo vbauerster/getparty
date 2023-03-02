@@ -300,13 +300,8 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				panic(fmt.Sprintf("done with not io.EOF: %v", err))
 			}
 
-			for i := 0; err == nil; i++ {
-				switch i {
-				case 0:
-					err = ctx.Err()
-				default:
-					panic("retry with nil error")
-				}
+			if err = eitherError(err, ctx.Err()); err == nil {
+				panic("retry with nil error")
 			}
 
 			return true, err

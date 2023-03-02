@@ -169,7 +169,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
-			err = cmd.orCtxErr(cmd.readPassword())
+			err = eitherError(cmd.readPassword(), cmd.Ctx.Err())
 			if err != nil {
 				return err
 			}
@@ -204,7 +204,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	session, err := cmd.getState(args, transport, jar)
-	if err = cmd.orCtxErr(err); err != nil {
+	if err = eitherError(err, cmd.Ctx.Err()); err != nil {
 		return err
 	}
 
@@ -267,7 +267,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
-	cmd.orCtxErr(eg.Wait())
+	err = eitherError(eg.Wait(), cmd.Ctx.Err())
 	if err != nil {
 		totalCancel(false)
 		return err
@@ -699,8 +699,8 @@ func (cmd Cmd) dumpState(session *Session) {
 	}
 }
 
-func (cmd Cmd) orCtxErr(err error) error {
-	for _, err := range []error{err, cmd.Ctx.Err()} {
+func eitherError(errors ...error) error {
+	for _, err := range errors {
 		if err != nil {
 			return err
 		}
