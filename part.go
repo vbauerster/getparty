@@ -150,6 +150,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 					reset()
 					timeout = resetTimeout
 					p.Elapsed += time.Since(start) - totalSleep
+					p.dlogger.Printf("Total sleep: %s", totalSleep)
 					p.dlogger.Printf("Written: %d", n)
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
