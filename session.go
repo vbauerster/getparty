@@ -179,7 +179,7 @@ func (s Session) checkFileExist() (bool, error) {
 		return false, err
 	}
 	if stat.IsDir() {
-		return true, errors.Wrap(os.ErrInvalid, "expected file got directory")
+		return true, errors.Wrapf(os.ErrInvalid, "%q is a directory", s.SuggestedFileName)
 	}
 	return true, nil
 }
