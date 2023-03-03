@@ -501,8 +501,9 @@ func (cmd Cmd) follow(
 						return false, err
 					}
 					location = loc.String()
-					// don't bother closing resp.Body here,
-					// it will be closed by underlying RoundTripper
+					if resp.Body != nil {
+						resp.Body.Close()
+					}
 					continue
 				}
 
