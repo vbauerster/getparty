@@ -508,7 +508,7 @@ func (cmd Cmd) follow(
 				}
 
 				if resp.StatusCode != http.StatusOK {
-					err = &HttpError{resp.StatusCode, resp.Status}
+					err = HttpError{resp.StatusCode, resp.Status}
 					if isServerError(resp.StatusCode) {
 						return attempt != cmd.options.MaxRetry, err
 					}
