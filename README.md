@@ -33,7 +33,7 @@ Application Options:
   -p, --parts=n                                             number of parts (default: 1)
   -r, --max-retry=n                                         max retry per each part, 0 for infinite (default: 10)
   -t, --timeout=sec                                         context timeout (default: 15)
-  -l, --speed-limit=[1|2|3|4|5]                             speed limit gauge
+  -l, --speed-limit=n                                       speed limit gauge, value from 1 to 10 inclusive
   -o, --output=filename                                     user defined output
   -s, --session=session.json                                path to saved session file (optional)
   -a, --user-agent=[chrome|firefox|safari|edge|getparty]    User-Agent header (default: chrome)

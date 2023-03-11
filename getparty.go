@@ -91,7 +91,7 @@ type Options struct {
 	Parts              uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
 	MaxRetry           uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retry per each part, 0 for infinite"`
 	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
-	SpeedLimit         uint              `short:"l" long:"speed-limit" value-name:"[1|2|3|4|5]" description:"speed limit gauge"`
+	SpeedLimit         uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName       string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
 	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
@@ -225,8 +225,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	timeout := time.Duration(cmd.options.Timeout) * time.Second
 	var sleep time.Duration
 	switch l := cmd.options.SpeedLimit; l {
-	case 1, 2, 3, 4, 5:
-		sleep = time.Duration(l*100) * time.Millisecond
+	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10:
+		sleep = time.Duration(l*50) * time.Millisecond
 	}
 	defer cmd.trace(session)()
 	defer progress.Wait()
