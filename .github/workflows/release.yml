@@ -19,6 +19,6 @@ jobs:
         with:
           workdir: cmd/getparty
           version: latest
-          args: release --rm-dist
+          args: release
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
