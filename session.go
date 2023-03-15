@@ -71,7 +71,7 @@ func (s *Session) calcParts(parts uint) error {
 	return nil
 }
 
-func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) error {
+func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) (err error) {
 	if len(s.Parts) == 0 || !s.isResumable() {
 		return nil
 	}
@@ -79,6 +79,11 @@ func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) er
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if e := fpart0.Close(); err == nil {
+			err = e
+		}
+	}()
 
 	if len(s.Parts) > 1 {
 		bar, err := progress.Add(int64(len(s.Parts)-1),
@@ -103,13 +108,14 @@ func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) er
 				return err
 			}
 			logger.Printf("concatenating: %s", fparti.Name())
-			if _, err := io.Copy(fpart0, fparti); err != nil {
+			_, err = io.Copy(fpart0, fparti)
+			if err != nil {
+				fparti.Close()
 				return err
 			}
-			for _, err := range []error{fparti.Close(), os.Remove(fparti.Name())} {
-				if err != nil {
-					logger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
-				}
+			err = eitherError(fparti.Close(), os.Remove(fparti.Name()))
+			if err != nil {
+				logger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
 			}
 			bar.Increment()
 		}
@@ -122,7 +128,7 @@ func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) er
 	if size := stat.Size(); size != s.ContentLength {
 		return errors.Errorf("Size mismatch: Expected=%d Saved=%d", s.ContentLength, size)
 	}
-	return fpart0.Close()
+	return nil
 }
 
 func (s *Session) loadState(fileName string) error {
