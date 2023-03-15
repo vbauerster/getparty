@@ -81,8 +81,8 @@ func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) er
 	}
 
 	if len(s.Parts) > 1 {
-		bar := progress.New(int64(len(s.Parts)-1),
-			mpb.BarStyle().Lbound(" ").Rbound(" "),
+		bar, err := progress.Add(int64(len(s.Parts)-1),
+			mpb.BarStyle().Lbound(" ").Rbound(" ").Build(),
 			mpb.BarFillerTrim(),
 			mpb.BarPriority(len(s.Parts)+1),
 			mpb.PrependDecorators(
@@ -93,6 +93,9 @@ func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) er
 				decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "Done"),
 			),
 		)
+		if err != nil {
+			return err
+		}
 		defer bar.Abort(false) // if bar is completed bar.Abort is nop
 		for i := 1; i < len(s.Parts); i++ {
 			fparti, err := os.Open(s.Parts[i].FileName)
