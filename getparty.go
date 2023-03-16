@@ -464,10 +464,8 @@ func (cmd Cmd) follow(
 
 				if attempt == 0 {
 					cmd.logger.Printf("Get %q", location)
-				} else if max := cmd.options.MaxRetry; max != 0 {
-					cmd.logger.Printf("Get (%d/%d) %q", attempt, max, location)
 				} else {
-					cmd.logger.Printf("Get (%d/∞) %q", attempt, location)
+					cmd.logger.Printf("Get:R%02d %q", attempt, location)
 				}
 
 				resp, err := client.Do(req.WithContext(ctx))
