@@ -140,7 +140,7 @@ func (cmd Cmd) Exit(err error) int {
 }
 
 func (cmd Cmd) logError(err error) {
-	cmd.logger.SetPrefix("[ERROR] ")
+	cmd.logger.SetPrefix("[ERRO] ")
 	cmd.logger.Println(err.Error())
 }
 
