@@ -304,7 +304,9 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				} else {
 					panic("expected part to be done after EOF")
 				}
-			} else if p.isDone() {
+			}
+
+			if p.isDone() {
 				panic(fmt.Sprintf("expected EOF after part is done, got: %v", err))
 			}
 
