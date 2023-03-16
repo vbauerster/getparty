@@ -273,6 +273,8 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				case io.ErrUnexpectedEOF:
 					if n != 0 {
 						err = nil
+					} else {
+						continue
 					}
 				default:
 					if timer.Stop() && sleep != 0 {
