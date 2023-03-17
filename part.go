@@ -267,7 +267,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				switch err {
 				case io.EOF:
 					if n != 0 {
-						panic("n != 0 at io.EOF")
+						panic("expected no bytes were read at EOF")
 					}
 					continue
 				case io.ErrUnexpectedEOF:
