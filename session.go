@@ -16,9 +16,6 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
-// not concurrency safe!
-var totalWrittenCache map[time.Duration]int64 = make(map[time.Duration]int64)
-
 // Session represents download session state
 type Session struct {
 	location          string
@@ -145,14 +142,10 @@ func (s *Session) loadState(fileName string) error {
 }
 
 func (s Session) totalWritten() int64 {
-	total, ok := totalWrittenCache[s.Elapsed]
-	if ok {
-		return total
-	}
+	var total int64
 	for _, p := range s.Parts {
 		total += p.Written
 	}
-	totalWrittenCache[s.Elapsed] = total
 	return total
 }
 
