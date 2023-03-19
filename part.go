@@ -135,6 +135,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 
 	var bar *flashBar
 	var curTry uint32
+	var statusPartialContent bool
 	resetTimeout := timeout
 	prefix := p.dlogger.Prefix()
 	barInitDone := make(chan struct{})
@@ -213,6 +214,9 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 
 			switch resp.StatusCode {
 			case http.StatusOK: // no partial content, download with single part
+				if statusPartialContent {
+					panic("http.StatusOK after http.StatusPartialContent")
+				}
 				if p.order != 1 {
 					p.Skip = true
 					p.dlogger.Println("Skip: no partial content")
@@ -238,6 +242,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				}()
 				fallthrough
 			case http.StatusPartialContent:
+				statusPartialContent = true
 				if bar == nil {
 					bar = p.makeBar(progress, &curTry)
 					close(barInitDone)
