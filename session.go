@@ -72,6 +72,10 @@ func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) (e
 	if len(s.Parts) == 0 || !s.isResumable() {
 		return nil
 	}
+	totalWritten := s.totalWritten()
+	if totalWritten != s.ContentLength {
+		return errors.Errorf("Size mismatch: Expected=%d Got=%d", s.ContentLength, totalWritten)
+	}
 	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -122,8 +126,8 @@ func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) (e
 	if err != nil {
 		return err
 	}
-	if size := stat.Size(); size != s.ContentLength {
-		return errors.Errorf("Size mismatch: Expected=%d Saved=%d", s.ContentLength, size)
+	if totalWritten != stat.Size() {
+		panic("totalWritten != stat.Size()")
 	}
 	return nil
 }
