@@ -215,7 +215,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 			switch resp.StatusCode {
 			case http.StatusOK: // no partial content, download with single part
 				if statusPartialContent {
-					panic("http.StatusOK after http.StatusPartialContent")
+					return false, errors.New("http.StatusOK after http.StatusPartialContent")
 				}
 				if p.order != 1 {
 					p.Skip = true
