@@ -592,7 +592,7 @@ func (cmd Cmd) bestMirror(
 	if err != nil {
 		return "", err
 	}
-	var wg sync.WaitGroup
+	var wg1, wg2 sync.WaitGroup
 	start := make(chan struct{})
 	first := make(chan string, 1)
 	transport, err := cmd.getTransport(false)
@@ -612,9 +612,11 @@ func (cmd Cmd) bestMirror(
 		cmd.dlogger.Printf("fetching: %q", u)
 		reqPatcher(req, cmd.userinfo)
 		u := u // https://golang.org/doc/faq#closures_and_goroutines
-		wg.Add(1)
+		wg1.Add(1)
+		wg2.Add(1)
 		go func() {
-			defer wg.Done()
+			defer wg2.Done()
+			wg1.Done()
 			<-start
 			ctx, cancel := context.WithTimeout(cmd.Ctx, time.Duration(cmd.options.Timeout)*time.Second)
 			defer cancel()
@@ -635,8 +637,9 @@ func (cmd Cmd) bestMirror(
 			}
 		}()
 	}
+	wg1.Wait()
 	close(start)
-	wg.Wait()
+	wg2.Wait()
 	close(first)
 	best = <-first
 	if best == "" {
