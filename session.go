@@ -238,7 +238,7 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quie
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), "Avg:"),
-			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
+			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
 		),
 	)
 	if written := s.totalWritten(); written > 0 {

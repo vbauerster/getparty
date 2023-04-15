@@ -95,7 +95,7 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) *flashBar {
 							decor.WCSyncWidth,
 						), "--:--"),
 				), "Avg:"),
-			decor.AverageSpeed(decor.UnitKiB, "%.1f", decor.WCSyncSpace),
+			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
 		),
