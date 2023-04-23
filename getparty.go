@@ -319,14 +319,6 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 		jar.SetCookies(u, cookies)
 		return nil
 	}
-	filter := func(parts []*Part, predicate func(*Part) bool) (filtered []*Part) {
-		for _, p := range parts {
-			if predicate(p) {
-				filtered = append(filtered, p)
-			}
-		}
-		return
-	}
 	for {
 		switch {
 		case cmd.options.JSONFileName != "":
@@ -774,6 +766,15 @@ func parseCookies(headers map[string]string) ([]*http.Cookie, error) {
 		}
 	}
 	return cookies, nil
+}
+
+func filter(parts []*Part, predicate func(*Part) bool) (filtered []*Part) {
+	for _, p := range parts {
+		if predicate(p) {
+			filtered = append(filtered, p)
+		}
+	}
+	return
 }
 
 func isRedirect(status int) bool {
