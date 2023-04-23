@@ -306,7 +306,7 @@ func (cmd Cmd) trace(session *Session) func() {
 	}
 }
 
-func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.CookieJar) (session *Session, err error) {
+func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.CookieJar) (*Session, error) {
 	setJarCookies := func(headers map[string]string, rawURL string) error {
 		cookies, err := parseCookies(headers)
 		if err != nil {
@@ -319,75 +319,75 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 		jar.SetCookies(u, cookies)
 		return nil
 	}
+	var scratch, restored *Session
 	for {
 		switch {
 		case cmd.options.JSONFileName != "":
-			argsSession := session
-			session = new(Session)
-			err := session.loadState(cmd.options.JSONFileName)
+			restored = new(Session)
+			err := restored.loadState(cmd.options.JSONFileName)
 			if err != nil {
 				return nil, err
 			}
-			session.Parts = filter(session.Parts, func(p *Part) bool { return !p.Skip })
-			err = session.checkSize()
+			restored.Parts = filter(restored.Parts, func(p *Part) bool { return !p.Skip })
+			err = restored.checkSize()
 			if err != nil {
 				return nil, err
 			}
-			err = setJarCookies(session.HeaderMap, session.URL)
+			err = setJarCookies(restored.HeaderMap, restored.URL)
 			if err != nil {
 				return nil, err
 			}
-			if argsSession != nil {
-				err := session.checkSums(*argsSession)
+			if scratch != nil {
+				err := restored.checkSums(*scratch)
 				if err != nil {
 					return nil, err
 				}
-				session.location = argsSession.location
-			} else if session.Redirected {
-				tmpSession, err := cmd.follow(session.URL, transport, jar, makeReqPatcher(session.HeaderMap, true))
+				restored.location = scratch.location
+			} else if restored.Redirected {
+				tmpSession, err := cmd.follow(restored.URL, transport, jar, makeReqPatcher(restored.HeaderMap, true))
 				if err != nil {
 					return nil, err
 				}
-				err = session.checkSums(*tmpSession)
+				err = restored.checkSums(*tmpSession)
 				if err != nil {
 					return nil, err
 				}
-				session.location = tmpSession.location
+				restored.location = tmpSession.location
 			} else {
-				session.location = session.URL
+				restored.location = restored.URL
 			}
-			return session, nil
+			return restored, nil
 		case len(args) != 0:
 			err := setJarCookies(cmd.options.HeaderMap, args[0])
 			if err != nil {
 				return nil, err
 			}
-			session, err = cmd.follow(args[0], transport, jar, makeReqPatcher(cmd.options.HeaderMap, true))
+			scratch, err = cmd.follow(args[0], transport, jar, makeReqPatcher(cmd.options.HeaderMap, true))
 			if err != nil {
 				return nil, err
 			}
-			state := session.SuggestedFileName + ".json"
+			state := scratch.SuggestedFileName + ".json"
 			if _, err := os.Stat(state); err == nil {
 				cmd.options.JSONFileName = state
 			} else if errors.Is(err, os.ErrNotExist) {
 				if cmd.options.Parts != 0 {
-					exist, err := session.checkFileExist()
+					exist, err := scratch.checkFileExist()
 					if err != nil {
 						return nil, err
 					}
 					if exist {
-						err = cmd.overwriteIfConfirmed(session.SuggestedFileName)
+						err = cmd.overwriteIfConfirmed(scratch.SuggestedFileName)
 						if err != nil {
 							return nil, err
 						}
 					}
-					err = session.calcParts(cmd.options.Parts)
+					err = scratch.calcParts(cmd.options.Parts)
 					if err != nil {
 						return nil, err
 					}
 				}
-				session.HeaderMap = cmd.options.HeaderMap
-				return session, nil
+				scratch.HeaderMap = cmd.options.HeaderMap
+				return scratch, nil
 			} else {
 				return nil, err
 			}
