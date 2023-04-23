@@ -308,21 +308,15 @@ func (cmd Cmd) trace(session *Session) func() {
 
 func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.CookieJar) (session *Session, err error) {
 	setJarCookies := func(headers map[string]string, rawURL string) error {
+		cookies, err := parseCookies(headers)
+		if err != nil {
+			return err
+		}
 		u, err := url.Parse(rawURL)
 		if err != nil {
 			return err
 		}
-		if hc, ok := headers[hCookie]; ok {
-			var cookies []*http.Cookie
-			for _, cookie := range strings.Split(hc, "; ") {
-				k, v, ok := strings.Cut(cookie, "=")
-				if !ok {
-					continue
-				}
-				cookies = append(cookies, &http.Cookie{Name: k, Value: v})
-			}
-			jar.SetCookies(u, cookies)
-		}
+		jar.SetCookies(u, cookies)
 		return nil
 	}
 	filter := func(parts []*Part, predicate func(*Part) bool) (filtered []*Part) {
@@ -766,6 +760,20 @@ func parseContentDisposition(input string) string {
 		}
 	}
 	return ""
+}
+
+func parseCookies(headers map[string]string) ([]*http.Cookie, error) {
+	var cookies []*http.Cookie
+	if hc, ok := headers[hCookie]; ok {
+		for _, cookie := range strings.Split(hc, "; ") {
+			k, v, ok := strings.Cut(cookie, "=")
+			if !ok {
+				continue
+			}
+			cookies = append(cookies, &http.Cookie{Name: k, Value: v})
+		}
+	}
+	return cookies, nil
 }
 
 func isRedirect(status int) bool {
