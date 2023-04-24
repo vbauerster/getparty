@@ -371,7 +371,7 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 				cmd.options.JSONFileName = state
 			} else if errors.Is(err, os.ErrNotExist) {
 				if cmd.options.Parts != 0 {
-					exist, err := scratch.checkFileExist()
+					exist, err := scratch.isOutputFileExist()
 					if err != nil {
 						return nil, err
 					}

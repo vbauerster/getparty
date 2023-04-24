@@ -176,7 +176,7 @@ func (s Session) logSummary(logger *log.Logger) {
 	}
 }
 
-func (s Session) checkFileExist() (bool, error) {
+func (s Session) isOutputFileExist() (bool, error) {
 	stat, err := os.Stat(s.OutputFileName)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
