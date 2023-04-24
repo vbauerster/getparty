@@ -302,7 +302,7 @@ func (cmd Cmd) trace(session *Session) func() {
 			}
 			return
 		}
-		cmd.logger.Printf("%q saved [%d/%d]", session.SuggestedFileName, session.ContentLength, total)
+		cmd.logger.Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
 	}
 }
 
@@ -366,7 +366,7 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 			if err != nil {
 				return nil, err
 			}
-			state := scratch.SuggestedFileName + ".json"
+			state := scratch.OutputFileName + ".json"
 			if _, err := os.Stat(state); err == nil {
 				cmd.options.JSONFileName = state
 			} else if errors.Is(err, os.ErrNotExist) {
@@ -376,7 +376,7 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 						return nil, err
 					}
 					if exist {
-						err = cmd.overwriteIfConfirmed(scratch.SuggestedFileName)
+						err = cmd.overwriteIfConfirmed(scratch.OutputFileName)
 						if err != nil {
 							return nil, err
 						}
@@ -521,15 +521,15 @@ func (cmd Cmd) follow(
 				}
 
 				session = &Session{
-					location:          location,
-					URL:               rawURL,
-					SuggestedFileName: name,
-					ContentMD5:        resp.Header.Get(hContentMD5),
-					AcceptRanges:      resp.Header.Get(hAcceptRanges),
-					ContentType:       resp.Header.Get(hContentType),
-					StatusCode:        resp.StatusCode,
-					ContentLength:     resp.ContentLength,
-					Redirected:        redirected,
+					location:       location,
+					URL:            rawURL,
+					OutputFileName: name,
+					ContentMD5:     resp.Header.Get(hContentMD5),
+					AcceptRanges:   resp.Header.Get(hAcceptRanges),
+					ContentType:    resp.Header.Get(hContentType),
+					StatusCode:     resp.StatusCode,
+					ContentLength:  resp.ContentLength,
+					Redirected:     redirected,
 				}
 
 				resp.Body.Close()
@@ -667,7 +667,7 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 
 func (cmd Cmd) dumpState(session *Session) {
 	var media io.Writer
-	name := session.SuggestedFileName + ".json"
+	name := session.OutputFileName + ".json"
 	f, err := os.Create(name)
 	if err != nil {
 		media = cmd.Err

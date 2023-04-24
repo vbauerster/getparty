@@ -18,18 +18,18 @@ import (
 
 // Session represents download session state
 type Session struct {
-	location          string
-	URL               string
-	SuggestedFileName string
-	ContentMD5        string
-	AcceptRanges      string
-	ContentType       string
-	StatusCode        int
-	ContentLength     int64
-	Redirected        bool
-	Elapsed           time.Duration
-	HeaderMap         map[string]string
-	Parts             []*Part
+	location       string
+	URL            string
+	OutputFileName string
+	ContentMD5     string
+	AcceptRanges   string
+	ContentType    string
+	StatusCode     int
+	ContentLength  int64
+	Redirected     bool
+	Elapsed        time.Duration
+	HeaderMap      map[string]string
+	Parts          []*Part
 }
 
 func (s Session) isResumable() bool {
@@ -48,7 +48,7 @@ func (s *Session) calcParts(parts uint) error {
 
 	s.Parts = make([]*Part, parts)
 	s.Parts[0] = &Part{
-		FileName: s.SuggestedFileName,
+		FileName: s.OutputFileName,
 	}
 
 	var stop int64
@@ -57,7 +57,7 @@ func (s *Session) calcParts(parts uint) error {
 		stop = start - 1
 		start = stop - fragment
 		s.Parts[i] = &Part{
-			FileName: fmt.Sprintf("%s.%02d", s.SuggestedFileName, i),
+			FileName: fmt.Sprintf("%s.%02d", s.OutputFileName, i),
 			Start:    start,
 			Stop:     stop,
 		}
@@ -166,7 +166,7 @@ func (s Session) logSummary(logger *log.Logger) {
 		}
 	}
 	if len(s.Parts) != 0 {
-		logger.Printf("Saving to: %q", s.SuggestedFileName)
+		logger.Printf("Saving to: %q", s.OutputFileName)
 	}
 	if !s.isResumable() {
 		prefix := logger.Prefix()
@@ -177,7 +177,7 @@ func (s Session) logSummary(logger *log.Logger) {
 }
 
 func (s Session) checkFileExist() (bool, error) {
-	stat, err := os.Stat(s.SuggestedFileName)
+	stat, err := os.Stat(s.OutputFileName)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
@@ -185,7 +185,7 @@ func (s Session) checkFileExist() (bool, error) {
 		return false, err
 	}
 	if stat.IsDir() {
-		return true, errors.Wrapf(os.ErrInvalid, "%q is a directory", s.SuggestedFileName)
+		return true, errors.Wrapf(os.ErrInvalid, "%q is a directory", s.OutputFileName)
 	}
 	return true, nil
 }
