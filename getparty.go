@@ -312,6 +312,9 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 		if err != nil {
 			return err
 		}
+		if len(cookies) == 0 {
+			return nil
+		}
 		u, err := url.Parse(rawURL)
 		if err != nil {
 			return err
