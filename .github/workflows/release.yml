@@ -13,6 +13,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v4
+        with:
+          go-version: 'stable'
       - uses: goreleaser/goreleaser-action@v4
         with:
           workdir: cmd/getparty
