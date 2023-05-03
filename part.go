@@ -147,6 +147,9 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 			pWritten := p.Written
 			start := time.Now()
 			defer func() {
+				if p.Skip {
+					return
+				}
 				if n := p.Written - pWritten; n != 0 {
 					reset()
 					timeout = resetTimeout
