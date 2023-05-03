@@ -242,12 +242,10 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 						bar.SetCurrent(0)
 					}
 				}()
-			case http.StatusForbidden, http.StatusTooManyRequests:
+			default:
 				if bar != nil {
 					bar.flash(resp.Status, true)
 				}
-				fallthrough
-			default:
 				return false, HttpError{resp.StatusCode, resp.Status}
 			}
 
