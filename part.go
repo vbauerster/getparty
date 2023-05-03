@@ -150,11 +150,12 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				if p.Skip {
 					return
 				}
+				p.dlogger.Printf("Error: %s", err.Error())
+				p.dlogger.Printf("Total sleep: %s", totalSleep)
 				if n := p.Written - pWritten; n != 0 {
 					reset()
 					timeout = resetTimeout
 					p.Elapsed += time.Since(start) - totalSleep
-					p.dlogger.Printf("Total sleep: %s", totalSleep)
 					p.dlogger.Printf("Written: %d", n)
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
@@ -168,7 +169,6 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 						bar.Abort(false)
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
-					p.dlogger.Printf("Error: %s", err.Error())
 				}
 			}()
 
