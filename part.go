@@ -213,6 +213,8 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 			}
 
 			switch resp.StatusCode {
+			case http.StatusPartialContent:
+				statusPartialContent = true
 			case http.StatusOK: // no partial content, download with single part
 				if statusPartialContent {
 					return false, errors.New("http.StatusOK after http.StatusPartialContent")
@@ -240,16 +242,6 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 						bar.SetCurrent(0)
 					}
 				}()
-				fallthrough
-			case http.StatusPartialContent:
-				statusPartialContent = true
-				if bar == nil {
-					bar = p.makeBar(progress, &curTry)
-					close(barInitDone)
-				} else if p.Written > 0 {
-					p.dlogger.Printf("Setting bar refill: %d", p.Written)
-					bar.SetRefill(p.Written)
-				}
 			case http.StatusForbidden, http.StatusTooManyRequests:
 				if bar != nil {
 					bar.flash(resp.Status, true)
@@ -257,6 +249,14 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				fallthrough
 			default:
 				return false, HttpError{resp.StatusCode, resp.Status}
+			}
+
+			if bar == nil {
+				bar = p.makeBar(progress, &curTry)
+				close(barInitDone)
+			} else if p.Written > 0 {
+				p.dlogger.Printf("Setting bar refill: %d", p.Written)
+				bar.SetRefill(p.Written)
 			}
 
 			body := bar.ProxyReader(resp.Body)
