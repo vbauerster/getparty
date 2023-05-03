@@ -228,7 +228,6 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				if resp.ContentLength > 0 {
 					p.Stop = resp.ContentLength - 1
 				}
-				p.Written = 0
 				defer func() {
 					if retry && err != nil {
 						e := fpart.Close()
@@ -239,6 +238,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 						if e != nil {
 							panic(e)
 						}
+						p.Written = 0
 						bar.SetCurrent(0)
 					}
 				}()
