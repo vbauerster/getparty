@@ -341,21 +341,21 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 				return nil, err
 			}
 			if scratch != nil {
-				err := restored.checkSums(*scratch)
+				err = restored.checkSums(*scratch)
 				if err != nil {
 					return nil, err
 				}
 				restored.location = scratch.location
 			} else if restored.Redirected {
-				tmpSession, err := cmd.follow(restored.URL, transport, jar, makeReqPatcher(restored.HeaderMap, true))
+				scratch, err = cmd.follow(restored.URL, transport, jar, makeReqPatcher(restored.HeaderMap, true))
 				if err != nil {
 					return nil, err
 				}
-				err = restored.checkSums(*tmpSession)
+				err = restored.checkSums(*scratch)
 				if err != nil {
 					return nil, err
 				}
-				restored.location = tmpSession.location
+				restored.location = scratch.location
 			} else {
 				restored.location = restored.URL
 			}
