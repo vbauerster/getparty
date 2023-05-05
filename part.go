@@ -153,8 +153,10 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				p.dlogger.Printf("Error: %s", err.Error())
 				p.dlogger.Printf("Total sleep: %s", totalSleep)
 				if n := p.Written - pWritten; n != 0 {
-					reset()
-					timeout = resetTimeout
+					if n >= bufSize {
+						reset()
+						timeout = resetTimeout
+					}
 					p.Elapsed += time.Since(start) - totalSleep
 					p.dlogger.Printf("Written: %d", n)
 				} else if timeout < maxTimeout*time.Second {
