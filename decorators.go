@@ -29,6 +29,7 @@ func makeMsgHandler(ctx context.Context, quiet bool, msgCh chan<- *message) func
 	if quiet {
 		return func(*message) {}
 	}
+	ctx, cancel := context.WithCancel(ctx)
 	send := func(msg *message) {
 		select {
 		case msgCh <- msg:
@@ -38,6 +39,7 @@ func makeMsgHandler(ctx context.Context, quiet bool, msgCh chan<- *message) func
 	return func(msg *message) {
 		if msg.final {
 			send(msg)
+			cancel()
 		} else {
 			go send(msg)
 		}
