@@ -184,13 +184,14 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 			defer cancel()
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
+				msg := "Timeout..."
 				// checking for bar != nil here is a data race
 				select {
 				case <-barInitDone:
-					bar.flash("Timeout...", false)
+					bar.flash(msg, false)
 				default:
 				}
-				p.dlogger.Println("Timer expired")
+				p.dlogger.Println(msg)
 			})
 			defer timer.Stop()
 
