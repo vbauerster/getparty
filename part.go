@@ -107,7 +107,7 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) *flashBar {
 		b.SetRefill(p.Written)
 	}
 	if p.Elapsed > 0 {
-		p.dlogger.Printf("Setting bar DecoratorAverageAdjust: -%d (-%[1]s)", p.Elapsed)
+		p.dlogger.Printf("Setting bar DecoratorAverageAdjust: (now - %s)", p.Elapsed.Truncate(time.Second))
 		b.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
 	return &flashBar{
