@@ -72,19 +72,24 @@ const (
 )
 
 var (
+	userAgents           map[string]string
 	reContentDisposition = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`) // https://regex101.com/r/N4AovD/3
-	userAgents           = map[string]string{
-		"chrome":  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-		"firefox": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/112.0",
-		"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
-		"edge":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
-	}
-	caCerts = struct {
+	caCerts              = struct {
 		sync.Mutex
 		pool *x509.CertPool
 		ok   bool
 	}{}
 )
+
+func init() {
+	userAgents = map[string]string{
+		"chrome":  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+		"firefox": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/112.0",
+		"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
+		"edge":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
+	}
+	userAgents[""] = userAgents["chrome"]
+}
 
 // Options struct, represents cmd line options
 type Options struct {
@@ -94,7 +99,7 @@ type Options struct {
 	SpeedLimit         uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName       string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
-	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
+	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" description:"User-Agent header (default: chrome)"`
 	BestMirror         bool              `short:"b" long:"best-mirror" description:"pickup the fastest mirror"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	ForceOverwrite     bool              `short:"f" long:"force" description:"overwrite existing file silently"`
@@ -339,6 +344,9 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 			err = setJarCookies(restored.HeaderMap, restored.URL)
 			if err != nil {
 				return nil, err
+			}
+			if cmd.options.UserAgent != "" || restored.HeaderMap[hUserAgentKey] == "" {
+				restored.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 			}
 			if scratch != nil {
 				err = restored.checkSums(*scratch)
