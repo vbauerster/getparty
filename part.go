@@ -252,6 +252,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 			default:
 				if bar != nil {
 					bar.flash(resp.Status, true)
+					bar.Abort(false)
 				}
 				return false, HttpError{resp.StatusCode, resp.Status}
 			}
