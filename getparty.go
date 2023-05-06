@@ -184,12 +184,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
-		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
-	}
-
 	if cmd.options.Timeout == 0 {
 		cmd.options.Timeout = 15
+	}
+
+	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
+		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	}
 
 	if cmd.options.BestMirror {
