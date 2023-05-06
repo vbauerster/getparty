@@ -348,23 +348,20 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 			if cmd.options.UserAgent != "" || restored.HeaderMap[hUserAgentKey] == "" {
 				restored.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 			}
-			if scratch != nil {
-				err = restored.checkSums(*scratch)
-				if err != nil {
-					return nil, err
-				}
-				restored.location = scratch.location
-			} else if restored.Redirected {
+			switch {
+			case scratch == nil && restored.Redirected:
 				scratch, err = cmd.follow(restored.URL, transport, jar, makeReqPatcher(restored.HeaderMap, true))
 				if err != nil {
 					return nil, err
 				}
+				fallthrough
+			case scratch != nil:
 				err = restored.checkSums(*scratch)
 				if err != nil {
 					return nil, err
 				}
 				restored.location = scratch.location
-			} else {
+			default:
 				restored.location = restored.URL
 			}
 			return restored, nil
