@@ -75,14 +75,15 @@ func (d *flashDecorator) Decor(stat decor.Statistics) string {
 			return d.Decorator.Decor(stat)
 		}
 	}
-	switch {
-	case d.msg.final:
-	case d.msg.times == 0:
+	switch d.msg.times {
+	case 0:
 		defer func() {
 			d.msg = nil
 		}()
 	default:
-		d.msg.times--
+		if !d.msg.final {
+			d.msg.times--
+		}
 	}
 	return d.GetConf().FormatMsg(d.msg.msg)
 }
