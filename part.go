@@ -51,8 +51,8 @@ type flashBar struct {
 
 func (b *flashBar) flash(msg string, final bool) {
 	m := &message{
+		str:   fmt.Sprintf("%s %s", b.prefix, msg),
 		final: final,
-		msg:   fmt.Sprintf("%s %s", b.prefix, msg),
 	}
 	b.msgHandler(m)
 }

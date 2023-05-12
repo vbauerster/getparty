@@ -20,8 +20,8 @@ var (
 )
 
 type message struct {
+	str   string
 	final bool
-	msg   string
 }
 
 func makeMsgHandler(ctx context.Context, quiet bool, msgCh chan<- *message) func(*message) {
@@ -87,7 +87,7 @@ func (d *flashDecorator) Decor(stat decor.Statistics) string {
 	if !msg.final {
 		d.current = d.current[:len(d.current)-1]
 	}
-	return d.GetConf().FormatMsg(msg.msg)
+	return d.GetConf().FormatMsg(msg.str)
 }
 
 type mainDecorator struct {
