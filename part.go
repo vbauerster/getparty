@@ -51,7 +51,6 @@ type flashBar struct {
 
 func (b *flashBar) flash(msg string, final bool) {
 	m := &message{
-		times: 15,
 		final: final,
 		msg:   fmt.Sprintf("%s %s", b.prefix, msg),
 	}
@@ -75,7 +74,7 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) *flashBar {
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
-			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msgCh),
+			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), 15, msgCh),
 			decor.Conditional(
 				total == 0,
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WCSyncSpace), "100% "),
