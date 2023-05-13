@@ -46,15 +46,12 @@ type Part struct {
 type flashBar struct {
 	*mpb.Bar
 	prefix     string
-	msgHandler func(*message)
+	msgHandler func(message)
 }
 
 func (b *flashBar) flash(msg string, final bool) {
-	m := &message{
-		str:   fmt.Sprintf("%s %s", b.prefix, msg),
-		final: final,
-	}
-	b.msgHandler(m)
+	msg = fmt.Sprintf("%s %s", b.prefix, msg)
+	b.msgHandler(message{msg, final})
 }
 
 func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) *flashBar {
@@ -63,7 +60,7 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) *flashBar {
 		total = 0
 	}
 	p.dlogger.Printf("Setting bar total: %d", total)
-	msgCh := make(chan *message)
+	msgCh := make(chan message)
 	b := progress.New(total,
 		mpb.BarFillerBuilderFunc(func() mpb.BarFiller {
 			if total == 0 {

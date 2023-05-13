@@ -25,22 +25,22 @@ type message struct {
 }
 
 type flashMessage struct {
-	*message
+	message
 	count uint
 }
 
-func makeMsgHandler(ctx context.Context, quiet bool, msgCh chan<- *message) func(*message) {
+func makeMsgHandler(ctx context.Context, quiet bool, msgCh chan<- message) func(message) {
 	if quiet {
-		return func(*message) {}
+		return func(message) {}
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	send := func(msg *message) {
+	send := func(msg message) {
 		select {
 		case msgCh <- msg:
 		case <-ctx.Done():
 		}
 	}
-	return func(msg *message) {
+	return func(msg message) {
 		if msg.final {
 			send(msg)
 			cancel()
@@ -50,7 +50,7 @@ func makeMsgHandler(ctx context.Context, quiet bool, msgCh chan<- *message) func
 	}
 }
 
-func newFlashDecorator(decorator decor.Decorator, limit uint, msgCh <-chan *message) decor.Decorator {
+func newFlashDecorator(decorator decor.Decorator, limit uint, msgCh <-chan message) decor.Decorator {
 	if decorator == nil {
 		return nil
 	}
@@ -65,7 +65,7 @@ func newFlashDecorator(decorator decor.Decorator, limit uint, msgCh <-chan *mess
 type flashDecorator struct {
 	decor.Decorator
 	limit   uint
-	msgCh   <-chan *message
+	msgCh   <-chan message
 	current flashMessage
 }
 
@@ -77,9 +77,6 @@ func (d *flashDecorator) Decor(stat decor.Statistics) string {
 	for d.current.count == 0 {
 		select {
 		case msg := <-d.msgCh:
-			if msg == nil {
-				break
-			}
 			d.current.message = msg
 			d.current.count = d.limit
 		default:
