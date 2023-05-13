@@ -74,18 +74,18 @@ func (d *flashDecorator) Unwrap() decor.Decorator {
 }
 
 func (d *flashDecorator) Decor(stat decor.Statistics) string {
-	for d.current.count == 0 {
+	if d.current.count == 0 {
 		select {
 		case msg := <-d.msgCh:
+			if !msg.final {
+				d.current.count = d.limit
+			}
 			d.current.message = msg
-			d.current.count = d.limit
 		default:
 			return d.Decorator.Decor(stat)
 		}
 	}
-	if !d.current.final {
-		d.current.count--
-	}
+	d.current.count--
 	return d.GetConf().FormatMsg(d.current.message.str)
 }
 
