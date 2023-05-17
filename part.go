@@ -131,7 +131,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 
 	var bar *flashBar
 	var curTry uint32
-	var statusPartialContent bool
+	var statusPartialContent, statusOK bool
 	resetTimeout := timeout
 	prefix := p.dlogger.Prefix()
 	barInitDone := make(chan struct{})
@@ -143,9 +143,6 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 			pWritten := p.Written
 			start := time.Now()
 			defer func() {
-				if p.Skip {
-					return
-				}
 				p.dlogger.Printf("Retry: %v", retry)
 				p.dlogger.Printf("Error: %v", err)
 				if n := p.Written - pWritten; n != 0 {
@@ -159,15 +156,28 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
 				}
-				if retry && err != nil {
-					switch attempt {
-					case 0:
-						atomic.StoreUint32(&globTry, 1)
-					case p.maxTry:
-						bar.flash(ErrMaxRetry.Error(), true)
-						bar.Abort(false)
-						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
+				if p.Skip || !retry || err == nil {
+					return
+				}
+				if statusOK && p.Written != 0 {
+					e := fpart.Close()
+					if e != nil {
+						panic(e)
 					}
+					fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
+					if e != nil {
+						panic(e)
+					}
+					p.Written = 0
+					bar.SetCurrent(0)
+				}
+				switch attempt {
+				case 0:
+					atomic.StoreUint32(&globTry, 1)
+				case p.maxTry:
+					bar.flash(ErrMaxRetry.Error(), true)
+					bar.Abort(false)
+					retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 				}
 			}()
 
@@ -231,23 +241,7 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 				if resp.ContentLength > 0 {
 					p.Stop = resp.ContentLength - 1
 				}
-				defer func() {
-					if p.Written == 0 {
-						return
-					}
-					if retry && err != nil {
-						e := fpart.Close()
-						if e != nil {
-							panic(e)
-						}
-						fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
-						if e != nil {
-							panic(e)
-						}
-						p.Written = 0
-						bar.SetCurrent(0)
-					}
-				}()
+				statusOK = true
 			default:
 				if bar != nil {
 					bar.flash(resp.Status, true)
