@@ -223,7 +223,6 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
 				statusPartialContent = true
-				p.initBar(&bar, &curTry)
 			case http.StatusOK: // no partial content, download with single part
 				if statusPartialContent {
 					bar.Abort(false)
@@ -239,7 +238,6 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 				statusOK = true
 				p.totalCancel(true) // single bar doesn't need total bar
-				p.initBar(&bar, &curTry)
 			default:
 				p.initBar(&bar, &curTry)
 				bar.flash(resp.Status, true)
@@ -247,7 +245,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				return false, HttpError{resp.StatusCode, resp.Status}
 			}
 
-			if attempt != 0 && p.Written != 0 {
+			if attempt == 0 {
+				p.initBar(&bar, &curTry)
+			} else if p.Written != 0 {
 				p.dlogger.Printf("Setting bar refill: %d", p.Written)
 				bar.SetRefill(p.Written)
 			}
