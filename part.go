@@ -39,29 +39,36 @@ type Part struct {
 	quiet       bool
 	totalWriter io.Writer
 	totalCancel func(bool)
-	client      *http.Client
+	progress    *mpb.Progress
 	dlogger     *log.Logger
 }
 
 type flashBar struct {
 	*mpb.Bar
-	prefix     string
-	msgHandler func(message)
+	msgHandler  func(message)
+	prefix      string
+	initialized uint32
 }
 
-func (b *flashBar) flash(msg string, final bool) {
+func (b flashBar) flash(msg string, final bool) {
+	if atomic.LoadUint32(&b.initialized) == 0 {
+		return
+	}
 	msg = fmt.Sprintf("%s %s", b.prefix, msg)
 	b.msgHandler(message{msg, final})
 }
 
-func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) *flashBar {
+func (p Part) initBar(fb *flashBar, curTry *uint32) {
+	if atomic.LoadUint32(&fb.initialized) == 1 {
+		return
+	}
 	total := p.total()
 	if total < 0 {
 		total = 0
 	}
 	p.dlogger.Printf("Setting bar total: %d", total)
 	msgCh := make(chan message)
-	b := progress.New(total,
+	b := p.progress.New(total,
 		mpb.BarFillerBuilderFunc(func() mpb.BarFiller {
 			if total == 0 {
 				return mpb.NopStyle().Build()
@@ -106,14 +113,13 @@ func (p Part) makeBar(progress *mpb.Progress, curTry *uint32) *flashBar {
 		p.dlogger.Printf("Setting bar DecoratorAverageAdjust: (now - %s)", p.Elapsed.Truncate(time.Second))
 		b.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
-	return &flashBar{
-		Bar:        b,
-		prefix:     p.name,
-		msgHandler: makeMsgHandler(p.ctx, p.quiet, msgCh),
-	}
+	fb.Bar = b
+	fb.prefix = p.name
+	fb.msgHandler = makeMsgHandler(p.ctx, p.quiet, msgCh)
+	atomic.StoreUint32(&fb.initialized, 1)
 }
 
-func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, sleep time.Duration) (err error) {
+func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep time.Duration) (err error) {
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return errors.WithMessage(err, p.name)
@@ -129,12 +135,11 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 		err = errors.WithMessage(err, p.name)
 	}()
 
-	var bar *flashBar
+	var bar flashBar
 	var curTry uint32
 	var statusPartialContent, statusOK bool
 	resetTimeout := timeout
 	prefix := p.dlogger.Prefix()
-	barInitDone := make(chan struct{})
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
@@ -194,29 +199,21 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
 				msg := "Timeout..."
-				// checking for bar != nil here is a data race
-				select {
-				case <-barInitDone:
-					bar.flash(msg, false)
-				default:
-				}
+				bar.flash(msg, false)
 				p.dlogger.Println(msg)
 			})
 			defer timer.Stop()
 
-			resp, err := p.client.Do(req.WithContext(ctx))
+			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
-				if bar == nil {
-					bar = p.makeBar(progress, &curTry)
-					close(barInitDone)
-				}
+				p.initBar(&bar, &curTry)
 				return true, err
 			}
 
 			p.dlogger.Printf("HTTP status: %s", resp.Status)
 			p.dlogger.Printf("ContentLength: %d", resp.ContentLength)
 
-			if jar := p.client.Jar; jar != nil {
+			if jar := client.Jar; jar != nil {
 				if cookies := jar.Cookies(req.URL); len(cookies) != 0 {
 					p.dlogger.Println("CookieJar:")
 					for _, cookie := range cookies {
@@ -228,8 +225,10 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
 				statusPartialContent = true
+				p.initBar(&bar, &curTry)
 			case http.StatusOK: // no partial content, download with single part
 				if statusPartialContent {
+					bar.Abort(false)
 					return false, errors.New("http.StatusOK after http.StatusPartialContent")
 				}
 				if p.order != 1 {
@@ -237,23 +236,20 @@ func (p *Part) download(progress *mpb.Progress, req *http.Request, timeout, slee
 					p.dlogger.Println("Skip: no partial content")
 					return false, nil
 				}
-				p.totalCancel(true) // single bar doesn't need total bar
 				if resp.ContentLength > 0 {
 					p.Stop = resp.ContentLength - 1
 				}
 				statusOK = true
+				p.totalCancel(true) // single bar doesn't need total bar
+				p.initBar(&bar, &curTry)
 			default:
-				if bar != nil {
-					bar.flash(resp.Status, true)
-					bar.Abort(false)
-				}
+				p.initBar(&bar, &curTry)
+				bar.flash(resp.Status, true)
+				bar.Abort(false)
 				return false, HttpError{resp.StatusCode, resp.Status}
 			}
 
-			if bar == nil {
-				bar = p.makeBar(progress, &curTry)
-				close(barInitDone)
-			} else if p.Written > 0 {
+			if p.Written != 0 && attempt != 0 {
 				p.dlogger.Printf("Setting bar refill: %d", p.Written)
 				bar.SetRefill(p.Written)
 			}

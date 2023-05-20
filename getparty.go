@@ -245,12 +245,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.quiet = cmd.options.Quiet
 		p.maxTry = cmd.options.MaxRetry
-		p.client = &http.Client{
-			Transport: transport,
-			Jar:       jar,
-		}
 		p.totalWriter = totalWriter
 		p.totalCancel = totalCancel
+		p.progress = progress
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, session.location, nil)
 		if err != nil {
@@ -269,7 +266,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&partsDone, 1)
 				}
 			}()
-			return p.download(progress, req, timeout, sleep)
+			return p.download(&http.Client{
+				Transport: transport,
+				Jar:       jar,
+			}, req, timeout, sleep)
 		})
 	}
 
