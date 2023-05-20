@@ -103,13 +103,11 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) {
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
 		),
 	)
-	if p.Written > 0 {
+	if p.Written != 0 {
 		p.dlogger.Printf("Setting bar current: %d", p.Written)
 		b.SetCurrent(p.Written)
 		p.dlogger.Printf("Setting bar refill: %d", p.Written)
 		b.SetRefill(p.Written)
-	}
-	if p.Elapsed > 0 {
 		p.dlogger.Printf("Setting bar DecoratorAverageAdjust: (now - %s)", p.Elapsed.Truncate(time.Second))
 		b.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
