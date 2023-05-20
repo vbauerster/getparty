@@ -262,7 +262,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					cmd.dlogger.Printf("%s panic: %v", p.name, e)
 					return
 				}
-				if p.isDone() || p.Skip {
+				if p.Skip || p.isDone() {
 					atomic.AddUint32(&partsDone, 1)
 				}
 			}()
