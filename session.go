@@ -241,11 +241,9 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quie
 			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
 		),
 	)
-	if written := s.totalWritten(); written > 0 {
+	if written := s.totalWritten(); written != 0 {
 		bar.SetCurrent(written)
 		bar.SetRefill(written)
-	}
-	if s.Elapsed > 0 {
 		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
 	}
 	return bar.ProxyWriter(io.Discard), func(drop bool) { bar.Abort(drop) }
