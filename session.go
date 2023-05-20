@@ -226,14 +226,13 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quie
 	if len(s.Parts) <= 1 || quiet {
 		return io.Discard, func(bool) {}
 	}
-	totalDecorator := func(_ decor.Statistics) string {
-		return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
-	}
 	bar := progress.New(s.ContentLength,
 		totalBarStyle(),
 		mpb.BarFillerTrim(),
 		mpb.PrependDecorators(
-			decor.Any(totalDecorator, decor.WCSyncWidthR),
+			decor.Any(func(_ decor.Statistics) string {
+				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
+			}, decor.WCSyncWidthR),
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 		),
 		mpb.AppendDecorators(
