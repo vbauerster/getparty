@@ -179,7 +179,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					atomic.StoreUint32(&globTry, 1)
 				case p.maxTry:
 					bar.flash(ErrMaxRetry.Error(), true)
-					bar.Abort(false)
+					go bar.Abort(false)
 					retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 				}
 			}()
@@ -225,7 +225,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				statusPartialContent = true
 			case http.StatusOK: // no partial content, download with single part
 				if statusPartialContent {
-					bar.Abort(false)
+					go bar.Abort(false)
 					return false, errors.New("http.StatusOK after http.StatusPartialContent")
 				}
 				if p.order != 1 {
@@ -241,7 +241,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			default:
 				p.initBar(&bar, &curTry)
 				bar.flash(resp.Status, true)
-				bar.Abort(false)
+				go bar.Abort(false)
 				return false, HttpError{resp.StatusCode, resp.Status}
 			}
 
