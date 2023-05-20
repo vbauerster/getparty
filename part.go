@@ -247,7 +247,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				return false, HttpError{resp.StatusCode, resp.Status}
 			}
 
-			if p.Written != 0 && attempt != 0 {
+			if attempt != 0 && p.Written != 0 {
 				p.dlogger.Printf("Setting bar refill: %d", p.Written)
 				bar.SetRefill(p.Written)
 			}
