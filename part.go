@@ -51,9 +51,6 @@ type flashBar struct {
 }
 
 func (b flashBar) flash(msg string, final bool) {
-	if atomic.LoadUint32(&b.initialized) == 0 {
-		return
-	}
 	msg = fmt.Sprintf("%s %s", b.prefix, msg)
 	b.msgHandler(message{msg, final})
 }
@@ -194,8 +191,13 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
 				msg := "Timeout..."
-				bar.flash(msg, false)
 				p.dlogger.Println(msg)
+				// following check is needed, because this func runs in different goroutine
+				// at first attempt bar may be not initialized by the time this func runs
+				if attempt == 0 && atomic.LoadUint32(&bar.initialized) == 0 {
+					return
+				}
+				bar.flash(msg, false)
 			})
 			defer timer.Stop()
 
