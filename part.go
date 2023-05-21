@@ -59,9 +59,6 @@ func (b flashBar) flash(msg string, final bool) {
 }
 
 func (p Part) initBar(fb *flashBar, curTry *uint32) {
-	if atomic.LoadUint32(&fb.initialized) == 1 {
-		return
-	}
 	total := p.total()
 	if total < 0 {
 		total = 0
@@ -204,7 +201,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
-				p.initBar(&bar, &curTry)
+				if attempt == 0 {
+					p.initBar(&bar, &curTry)
+				}
 				return true, err
 			}
 
@@ -239,7 +238,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				statusOK = true
 				p.totalCancel(true) // single bar doesn't need total bar
 			default:
-				p.initBar(&bar, &curTry)
+				if attempt == 0 {
+					p.initBar(&bar, &curTry)
+				}
 				bar.flash(resp.Status, true)
 				go bar.Abort(false)
 				return false, HttpError{resp.StatusCode, resp.Status}
