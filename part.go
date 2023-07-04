@@ -56,21 +56,17 @@ func (b flashBar) flash(msg string, final bool) {
 }
 
 func (p Part) initBar(fb *flashBar, curTry *uint32) {
+	var barBuilder mpb.BarFillerBuilder
+	msgCh := make(chan message)
 	total := p.total()
 	if total < 0 {
 		total = 0
+		barBuilder = mpb.NopStyle()
+	} else {
+		p.dlogger.Printf("Setting bar total: %d", total)
+		barBuilder = mpb.BarStyle().Lbound(" ").Rbound(" ")
 	}
-	p.dlogger.Printf("Setting bar total: %d", total)
-	msgCh := make(chan message)
-	b := p.progress.New(total,
-		mpb.BarFillerBuilderFunc(func() mpb.BarFiller {
-			if total == 0 {
-				return mpb.NopStyle().Build()
-			}
-			return mpb.BarStyle().Lbound(" ").Rbound(" ").Build()
-		}),
-		mpb.BarFillerTrim(),
-		mpb.BarPriority(p.order),
+	b := p.progress.New(total, barBuilder, mpb.BarFillerTrim(), mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
 			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), 16, msgCh),
 			decor.Conditional(
