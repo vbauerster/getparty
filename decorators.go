@@ -73,7 +73,7 @@ func (d *flashDecorator) Unwrap() decor.Decorator {
 	return d.Decorator
 }
 
-func (d *flashDecorator) Decor(stat decor.Statistics) string {
+func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 	if d.current.count == 0 {
 		select {
 		case msg := <-d.msgCh:
@@ -86,7 +86,7 @@ func (d *flashDecorator) Decor(stat decor.Statistics) string {
 		}
 	}
 	d.current.count--
-	return d.GetConf().FormatMsg(d.current.message.str)
+	return d.Format(d.current.message.str)
 }
 
 type mainDecorator struct {
@@ -106,12 +106,12 @@ func newMainDecorator(curTry *uint32, name, format string, wc decor.WC) decor.De
 	return d
 }
 
-func (d *mainDecorator) Decor(stat decor.Statistics) string {
+func (d *mainDecorator) Decor(stat decor.Statistics) (string, int) {
 	name := d.name
 	if atomic.LoadUint32(&globTry) != 0 {
 		name = fmt.Sprintf("%s:R%02d", name, atomic.LoadUint32(d.curTry))
 	}
-	return d.FormatMsg(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
+	return d.Format(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
 }
 
 type peak struct {
@@ -141,7 +141,7 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 	}
 }
 
-func (s *peak) Decor(stat decor.Statistics) string {
+func (s *peak) Decor(stat decor.Statistics) (string, int) {
 	if stat.Completed && !s.completed {
 		if s.min == 0 {
 			s.msg = "N/A"
@@ -150,5 +150,5 @@ func (s *peak) Decor(stat decor.Statistics) string {
 		}
 		s.completed = true
 	}
-	return s.FormatMsg(s.msg)
+	return s.Format(s.msg)
 }
