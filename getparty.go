@@ -716,7 +716,10 @@ func readCaCerts(name string) (*x509.CertPool, error) {
 		if err != nil {
 			return nil, err
 		}
-		caCerts.pool = x509.NewCertPool()
+		caCerts.pool, err = x509.SystemCertPool()
+		if err != nil {
+			return nil, err
+		}
 		caCerts.ok = caCerts.pool.AppendCertsFromPEM(b)
 	}
 	return caCerts.pool, nil
