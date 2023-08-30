@@ -708,11 +708,8 @@ func eitherError(errors ...error) error {
 func readCaCerts(name string) (*x509.CertPool, error) {
 	caCerts.Lock()
 	defer caCerts.Unlock()
-	for !caCerts.ok {
-		if caCerts.pool != nil {
-			return nil, errors.Errorf("bad cert file %q", name)
-		}
-		b, err := os.ReadFile(name)
+	if !caCerts.ok {
+		buf, err := os.ReadFile(name)
 		if err != nil {
 			return nil, err
 		}
@@ -720,7 +717,10 @@ func readCaCerts(name string) (*x509.CertPool, error) {
 		if err != nil {
 			return nil, err
 		}
-		caCerts.ok = caCerts.pool.AppendCertsFromPEM(b)
+		caCerts.ok = caCerts.pool.AppendCertsFromPEM(buf)
+		if !caCerts.ok {
+			return nil, errors.Errorf("bad cert file %q", name)
+		}
 	}
 	return caCerts.pool, nil
 }
