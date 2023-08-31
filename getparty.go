@@ -74,11 +74,6 @@ const (
 var (
 	userAgents           map[string]string
 	reContentDisposition = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`) // https://regex101.com/r/N4AovD/3
-	caCerts              = struct {
-		sync.Mutex
-		pool *x509.CertPool
-		ok   bool
-	}{}
 )
 
 func init() {
@@ -113,14 +108,15 @@ type Options struct {
 }
 
 type Cmd struct {
-	Ctx      context.Context
-	Out      io.Writer
-	Err      io.Writer
-	options  *Options
-	parser   *flags.Parser
-	userinfo *url.Userinfo
-	logger   *log.Logger
-	dlogger  *log.Logger
+	Ctx       context.Context
+	Out       io.Writer
+	Err       io.Writer
+	options   *Options
+	parser    *flags.Parser
+	userinfo  *url.Userinfo
+	tlsConfig *tls.Config
+	logger    *log.Logger
+	dlogger   *log.Logger
 }
 
 func (cmd Cmd) Exit(err error) int {
@@ -192,6 +188,23 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	}
 
+	if cmd.options.InsecureSkipVerify {
+		cmd.tlsConfig = &tls.Config{InsecureSkipVerify: true}
+	} else if cmd.options.CertsFileName != "" {
+		buf, err := os.ReadFile(cmd.options.CertsFileName)
+		if err != nil {
+			return err
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			return err
+		}
+		if ok := pool.AppendCertsFromPEM(buf); !ok {
+			return errors.Errorf("bad cert file %q", cmd.options.CertsFileName)
+		}
+		cmd.tlsConfig = &tls.Config{RootCAs: pool}
+	}
+
 	if cmd.options.BestMirror {
 		url, err := cmd.bestMirror(args, makeReqPatcher(cmd.options.HeaderMap, false))
 		if err != nil {
@@ -200,15 +213,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		args = append(args[:0], url)
 	}
 
-	transport, err := cmd.getTransport(cmd.options.Parts != 0)
-	if err != nil {
-		return err
-	}
 	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		return err
 	}
+	transport := cmd.getTransport(cmd.options.Parts != 0)
 	session, err := cmd.getState(args, transport, jar)
 	if err = eitherError(err, cmd.Ctx.Err()); err != nil {
 		return err
@@ -547,22 +557,14 @@ func (cmd Cmd) follow(
 	return session, err
 }
 
-func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport, err error) {
+func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport) {
 	if pooled {
 		transport = cleanhttp.DefaultPooledTransport()
 	} else {
 		transport = cleanhttp.DefaultTransport()
 	}
-	if cmd.options.InsecureSkipVerify {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	} else if cmd.options.CertsFileName != "" {
-		certPool, err := readCaCerts(cmd.options.CertsFileName)
-		if err != nil {
-			return nil, err
-		}
-		transport.TLSClientConfig = &tls.Config{RootCAs: certPool}
-	}
-	return transport, nil
+	transport.TLSClientConfig = cmd.tlsConfig
+	return transport
 }
 
 func (cmd Cmd) bestMirror(
@@ -589,12 +591,8 @@ func (cmd Cmd) bestMirror(
 	var wg1, wg2 sync.WaitGroup
 	start := make(chan struct{})
 	first := make(chan string, 1)
-	transport, err := cmd.getTransport(false)
-	if err != nil {
-		return "", err
-	}
 	client := &http.Client{
-		Transport: transport,
+		Transport: cmd.getTransport(false),
 	}
 
 	for _, u := range urls {
@@ -703,26 +701,6 @@ func eitherError(errors ...error) error {
 		}
 	}
 	return nil
-}
-
-func readCaCerts(name string) (*x509.CertPool, error) {
-	caCerts.Lock()
-	defer caCerts.Unlock()
-	if !caCerts.ok {
-		buf, err := os.ReadFile(name)
-		if err != nil {
-			return nil, err
-		}
-		caCerts.pool, err = x509.SystemCertPool()
-		if err != nil {
-			return nil, err
-		}
-		caCerts.ok = caCerts.pool.AppendCertsFromPEM(buf)
-		if !caCerts.ok {
-			return nil, errors.Errorf("bad cert file %q", name)
-		}
-	}
-	return caCerts.pool, nil
 }
 
 func makeReqPatcher(headers map[string]string, skipCookie bool) func(*http.Request, *url.Userinfo) {
