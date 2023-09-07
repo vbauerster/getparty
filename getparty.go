@@ -283,6 +283,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
+	cmd.userinfo = nil
+	cmd.tlsConfig = nil
+
 	err = eitherError(eg.Wait(), cmd.Ctx.Err())
 	if err != nil {
 		totalCancel(false)
