@@ -52,7 +52,7 @@ type flashBar struct {
 
 func (b flashBar) flash(msg string, final bool) {
 	msg = fmt.Sprintf("%s %s", b.prefix, msg)
-	b.msgHandler(message{msg, final})
+	b.msgHandler(message{str: msg, final: final})
 }
 
 func (p Part) initBar(fb *flashBar, curTry *uint32) {
@@ -66,9 +66,10 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) {
 		p.dlogger.Printf("Setting bar total: %d", total)
 		barBuilder = mpb.BarStyle().Lbound(" ").Rbound(" ")
 	}
+	ctx, cancel := context.WithCancel(p.ctx)
 	b := p.progress.New(total, barBuilder, mpb.BarFillerTrim(), mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
-			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), 16, msgCh),
+			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), 16, msgCh, cancel),
 			decor.Conditional(
 				total == 0,
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WCSyncSpace), "100% "),
@@ -103,7 +104,7 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) {
 	}
 	fb.Bar = b
 	fb.prefix = p.name
-	fb.msgHandler = makeMsgHandler(p.ctx, p.quiet, msgCh)
+	fb.msgHandler = makeMsgHandler(ctx, p.quiet, msgCh)
 	atomic.StoreUint32(&fb.initialized, 1)
 }
 
