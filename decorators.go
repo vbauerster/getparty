@@ -40,9 +40,11 @@ func makeMsgHandler(ctx context.Context, msgCh chan<- message, quiet bool) func(
 		}
 	}
 	return func(msg message) {
-		go send(msg)
 		if msg.final {
+			send(msg)
 			<-ctx.Done()
+		} else {
+			go send(msg)
 		}
 	}
 }
