@@ -104,7 +104,7 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) {
 	}
 	fb.Bar = b
 	fb.prefix = p.name
-	fb.msgHandler = makeMsgHandler(ctx, p.quiet, msgCh)
+	fb.msgHandler = makeMsgHandler(ctx, msgCh, p.quiet)
 	atomic.StoreUint32(&fb.initialized, 1)
 }
 

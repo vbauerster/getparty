@@ -29,7 +29,7 @@ type flashMessage struct {
 	count uint
 }
 
-func makeMsgHandler(ctx context.Context, quiet bool, msgCh chan<- message) func(message) {
+func makeMsgHandler(ctx context.Context, msgCh chan<- message, quiet bool) func(message) {
 	if quiet {
 		return func(message) {}
 	}
