@@ -52,7 +52,7 @@ type flashBar struct {
 
 func (b flashBar) flash(msg string, final bool) {
 	msg = fmt.Sprintf("%s %s", b.prefix, msg)
-	b.msgHandler(message{str: msg, final: final})
+	b.msgHandler(message{msg, final})
 }
 
 func (p Part) initBar(fb *flashBar, curTry *uint32) {
