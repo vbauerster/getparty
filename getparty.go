@@ -496,7 +496,6 @@ func (cmd Cmd) follow(
 					return true, err
 				}
 
-				cmd.logger.Printf("HTTP response: %s", resp.Status)
 				if cookies := jar.Cookies(req.URL); len(cookies) != 0 {
 					cmd.dlogger.Println("CookieJar:")
 					for _, cookie := range cookies {
@@ -505,6 +504,7 @@ func (cmd Cmd) follow(
 				}
 
 				if isRedirect(resp.StatusCode) {
+					cmd.logger.Printf("HTTP response: %s", resp.Status)
 					redirected = true
 					loc, err := resp.Location()
 					if err != nil {
@@ -518,12 +518,18 @@ func (cmd Cmd) follow(
 				}
 
 				if resp.StatusCode != http.StatusOK {
+					prefix := cmd.logger.Prefix()
+					cmd.logger.SetPrefix("[WARN] ")
+					cmd.logger.Printf("HTTP response: %s", resp.Status)
 					err = HttpError{resp.StatusCode, resp.Status}
-					if isServerError(resp.StatusCode) {
+					if isServerError(resp.StatusCode) { // server error may be temporary
+						cmd.logger.SetPrefix(prefix)
 						return attempt != cmd.options.MaxRetry, err
 					}
 					return false, err
 				}
+
+				cmd.logger.Printf("HTTP response: %s", resp.Status)
 
 				name := cmd.options.OutFileName
 				for i := 0; name == ""; i++ {
