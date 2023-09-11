@@ -77,20 +77,18 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) {
 			),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(
+			decor.OnCompleteOrOnAbort(
 				decor.Conditional(
 					total == 0,
 					decor.Name(""),
-					decor.OnAbort(
-						decor.NewAverageETA(
-							decor.ET_STYLE_MMSS,
-							time.Now(),
-							decor.FixedIntervalTimeNormalizer(30),
-							decor.WCSyncWidth,
-						), "--:--"),
-				), "Avg:"),
+					decor.NewAverageETA(
+						decor.ET_STYLE_MMSS,
+						time.Now(),
+						decor.FixedIntervalTimeNormalizer(30),
+						decor.WCSyncWidth,
+					)), "Avg:"),
 			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
-			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
+			decor.OnCompleteOrOnAbort(decor.Name("", decor.WCSyncSpace), "Peak:"),
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
 		),
 	)
