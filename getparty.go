@@ -306,8 +306,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 func (cmd Cmd) trace(session *Session) func() {
 	if cmd.options.Quiet {
 		cmd.Out = io.Discard // effective in this scope only
+	} else {
+		session.logSummary(cmd.logger)
 	}
-	session.logSummary(cmd.logger)
+	if cmd.options.Parts == 0 {
+		return func() {}
+	}
 	fmt.Fprintln(cmd.Out)
 	pTotal := session.totalWritten()
 	start := time.Now()
