@@ -20,7 +20,7 @@ var (
 )
 
 type message struct {
-	str   string
+	msg   string
 	final bool
 }
 
@@ -49,25 +49,25 @@ func makeMsgHandler(ctx context.Context, msgCh chan<- message, quiet bool) func(
 	}
 }
 
-func newFlashDecorator(decorator decor.Decorator, limit uint, msgCh <-chan message, cancel func()) decor.Decorator {
+func newFlashDecorator(decorator decor.Decorator, msgCh <-chan message, cancel func(), limit uint) decor.Decorator {
 	if decorator == nil {
 		return nil
 	}
 	d := &flashDecorator{
 		Decorator: decorator,
-		limit:     limit,
 		msgCh:     msgCh,
 		cancel:    cancel,
+		limit:     limit,
 	}
 	return d
 }
 
 type flashDecorator struct {
 	decor.Decorator
-	limit   uint
 	msgCh   <-chan message
-	current flashMessage
 	cancel  func()
+	limit   uint
+	current flashMessage
 }
 
 func (d *flashDecorator) Unwrap() decor.Decorator {
@@ -89,7 +89,7 @@ func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 		}
 	}
 	d.current.count--
-	return d.Format(d.current.message.str)
+	return d.Format(d.current.message.msg)
 }
 
 type mainDecorator struct {

@@ -69,7 +69,12 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) {
 	ctx, cancel := context.WithCancel(p.ctx)
 	b := p.progress.New(total, barBuilder, mpb.BarFillerTrim(), mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
-			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), 16, msgCh, cancel),
+			newFlashDecorator(
+				newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR),
+				msgCh,
+				cancel,
+				16,
+			),
 			decor.Conditional(
 				total == 0,
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WCSyncSpace), "100% "),
