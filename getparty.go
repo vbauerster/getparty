@@ -243,7 +243,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10:
 		sleep = time.Duration(l*50) * time.Millisecond
 	}
-	defer cmd.trace(session)()
+	stateSave := cmd.trace(session)
+	defer stateSave()
 	defer progress.Wait()
 	for i, p := range session.Parts {
 		if p.isDone() {
@@ -269,8 +270,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			defer func() {
 				if e := recover(); e != nil {
 					cancel()
-					cmd.dlogger.Printf("%s panic: %v", p.name, e)
-					return
+					progress.Wait()
+					stateSave()
+					panic(fmt.Sprintf("%s panic: %v", p.name, e))
 				}
 				if p.Skip || p.isDone() {
 					atomic.AddUint32(&partsDone, 1)
