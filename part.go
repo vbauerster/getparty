@@ -226,8 +226,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				statusPartialContent = true
 			case http.StatusOK: // no partial content, download with single part
 				if statusPartialContent {
-					go bar.Abort(false)
-					return false, errors.New("http.StatusOK after http.StatusPartialContent")
+					panic("http.StatusOK after http.StatusPartialContent")
 				}
 				if p.order != 1 {
 					p.Skip = true
