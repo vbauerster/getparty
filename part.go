@@ -228,6 +228,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				if statusPartialContent {
 					panic("http.StatusOK after http.StatusPartialContent")
 				}
+				if p.Written != 0 {
+					panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
+				}
 				if p.order != 1 {
 					p.Skip = true
 					p.dlogger.Println("Skip: no partial content")
