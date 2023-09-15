@@ -238,7 +238,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 				if p.order != 1 {
 					p.Skip = true
-					p.dlogger.Println("Skip: no partial content")
+					p.dlogger.Println("Stopping: no partial content")
 					return false, nil
 				}
 				if resp.ContentLength > 0 {
