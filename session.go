@@ -208,6 +208,9 @@ func (s Session) checkContentSums(other Session) error {
 
 func (s Session) checkSizeOfEachPart() error {
 	for _, part := range s.Parts {
+		if part.Written == 0 {
+			continue
+		}
 		stat, err := os.Stat(part.FileName)
 		if err != nil {
 			return err
