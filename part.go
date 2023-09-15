@@ -145,6 +145,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			start := time.Now()
 			defer func() {
 				p.dlogger.Printf("Retry: %v, Error: %v", retry, err)
+				if p.Skip {
+					return
+				}
 				if n := p.Written - pWritten; n != 0 {
 					if n >= bufSize {
 						reset()
@@ -156,28 +159,27 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
 				}
-				if p.Skip || !retry || err == nil {
-					return
-				}
-				if statusOK && p.Written != 0 {
-					e := fpart.Close()
-					if e != nil {
-						panic(e)
+				if retry && err != nil {
+					if statusOK && p.Written != 0 {
+						e := fpart.Close()
+						if e != nil {
+							panic(e)
+						}
+						fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
+						if e != nil {
+							panic(e)
+						}
+						p.Written = 0
+						bar.SetCurrent(0)
 					}
-					fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
-					if e != nil {
-						panic(e)
+					switch attempt {
+					case 0:
+						atomic.StoreUint32(&globTry, 1)
+					case p.maxTry:
+						bar.flash(ErrMaxRetry.Error(), true)
+						go bar.Abort(false)
+						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
-					p.Written = 0
-					bar.SetCurrent(0)
-				}
-				switch attempt {
-				case 0:
-					atomic.StoreUint32(&globTry, 1)
-				case p.maxTry:
-					bar.flash(ErrMaxRetry.Error(), true)
-					go bar.Abort(false)
-					retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 				}
 			}()
 
