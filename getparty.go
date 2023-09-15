@@ -150,24 +150,26 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "run")
 	}()
-	userAgents[cmdName] = fmt.Sprintf("%s/%s", cmdName, version)
+
 	cmd.options = new(Options)
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
 	cmd.parser.Name = cmdName
 	cmd.parser.Usage = "[OPTIONS] url"
-	cmd.logger = setupLogger(cmd.Out, "[INFO] ", cmd.options.Quiet)
-	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
-
 	args, err = cmd.parser.ParseArgs(args)
 	if err != nil {
 		return err
 	}
+
+	userAgents[cmdName] = fmt.Sprintf("%s/%s", cmdName, version)
 
 	if cmd.options.Version {
 		fmt.Fprintf(cmd.Out, "%s (%.7s) (%s)\n", userAgents[cmdName], commit, runtime.Version())
 		fmt.Fprintf(cmd.Out, "Project home: %s\n", projectHome)
 		return nil
 	}
+
+	cmd.logger = setupLogger(cmd.Out, "[INFO] ", cmd.options.Quiet)
+	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
