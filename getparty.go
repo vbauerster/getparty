@@ -153,7 +153,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	cmd.options = new(Options)
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
-	cmd.parser.Name = cmdName
 	cmd.parser.Usage = "[OPTIONS] url"
 	args, err = cmd.parser.ParseArgs(args)
 	if err != nil {
