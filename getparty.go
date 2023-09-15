@@ -375,7 +375,7 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 				}
 				fallthrough
 			case scratch != nil:
-				err = restored.checkSums(*scratch)
+				err = restored.checkContentSums(*scratch)
 				if err != nil {
 					return nil, err
 				}

@@ -190,17 +190,17 @@ func (s Session) isOutputFileExist() (bool, error) {
 	return true, nil
 }
 
-func (s Session) checkSums(other Session) error {
-	if s.ContentMD5 != other.ContentMD5 {
-		return fmt.Errorf(
-			"%s mismatch: expected %q got %q",
-			hContentMD5, s.ContentMD5, other.ContentMD5,
-		)
-	}
+func (s Session) checkContentSums(other Session) error {
 	if s.ContentLength != other.ContentLength {
 		return fmt.Errorf(
 			"ContentLength mismatch: expected %d got %d",
 			s.ContentLength, other.ContentLength,
+		)
+	}
+	if s.ContentMD5 != other.ContentMD5 {
+		return fmt.Errorf(
+			"%s mismatch: expected %q got %q",
+			hContentMD5, s.ContentMD5, other.ContentMD5,
 		)
 	}
 	return nil
