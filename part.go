@@ -38,7 +38,6 @@ type Part struct {
 	maxTry      uint
 	quiet       bool
 	totalWriter io.Writer
-	totalCancel func(bool)
 	progress    *mpb.Progress
 	dlogger     *log.Logger
 }
@@ -247,7 +246,6 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					p.Stop = resp.ContentLength - 1
 				}
 				statusOK = true
-				p.totalCancel(true) // single bar doesn't need total bar
 			default:
 				if attempt == 0 {
 					if e := p.initBar(&bar, &curTry); e != nil {

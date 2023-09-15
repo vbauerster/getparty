@@ -264,7 +264,6 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 		p.quiet = cmd.options.Quiet
 		p.maxTry = cmd.options.MaxRetry
 		p.totalWriter = totalWriter
-		p.totalCancel = totalCancel
 		p.progress = progress
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, session.location, nil)
@@ -281,8 +280,12 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 					stateSave()
 					panic(fmt.Sprintf("%s panic: %v", p.name, e))
 				}
-				if p.Skip || p.isDone() {
+				switch {
+				case p.isDone():
 					atomic.AddUint32(&partsDone, 1)
+				case p.Skip:
+					p.dlogger.Print("Total cancel")
+					totalCancel(true)
 				}
 			}()
 			return p.download(&http.Client{
