@@ -55,7 +55,7 @@ func (b flashBar) flash(msg string, final bool) {
 	b.msgHandler(message{msg, final})
 }
 
-func (p Part) initBar(fb *flashBar, curTry *uint32) {
+func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 	var barBuilder mpb.BarFillerBuilder
 	msgCh := make(chan message)
 	total := p.total()
@@ -67,7 +67,7 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) {
 		barBuilder = mpb.BarStyle().Lbound(" ").Rbound(" ")
 	}
 	ctx, cancel := context.WithCancel(p.ctx)
-	b := p.progress.New(total, barBuilder, mpb.BarFillerTrim(), mpb.BarPriority(p.order),
+	b, err := p.progress.Add(total, barBuilder.Build(), mpb.BarFillerTrim(), mpb.BarPriority(p.order),
 		mpb.PrependDecorators(
 			newFlashDecorator(
 				newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR),
@@ -97,6 +97,9 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) {
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
 		),
 	)
+	if err != nil {
+		return err
+	}
 	if p.Written != 0 {
 		p.dlogger.Printf("Setting bar current: %d", p.Written)
 		b.SetCurrent(p.Written)
@@ -109,6 +112,7 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) {
 	fb.prefix = p.name
 	fb.msgHandler = makeMsgHandler(ctx, msgCh, p.quiet)
 	atomic.StoreUint32(&fb.initialized, 1)
+	return nil
 }
 
 func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep time.Duration) (err error) {
@@ -204,7 +208,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
 				if attempt == 0 {
-					p.initBar(&bar, &curTry)
+					if e := p.initBar(&bar, &curTry); e != nil {
+						return false, e
+					}
 				}
 				return true, err
 			}
@@ -243,7 +249,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				p.totalCancel(true) // single bar doesn't need total bar
 			default:
 				if attempt == 0 {
-					p.initBar(&bar, &curTry)
+					if e := p.initBar(&bar, &curTry); e != nil {
+						return false, e
+					}
 				}
 				bar.flash(resp.Status, true)
 				go bar.Abort(false)
@@ -251,7 +259,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			}
 
 			if attempt == 0 {
-				p.initBar(&bar, &curTry)
+				if e := p.initBar(&bar, &curTry); e != nil {
+					return false, e
+				}
 			} else if p.Written != 0 {
 				p.dlogger.Printf("Setting bar refill: %d", p.Written)
 				bar.SetRefill(p.Written)
