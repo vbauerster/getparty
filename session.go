@@ -256,5 +256,5 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quie
 		bar.SetRefill(written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
 	}
-	return bar.ProxyWriter(io.Discard), func(drop bool) { bar.Abort(drop) }
+	return bar.ProxyWriter(io.Discard), bar.Abort
 }
