@@ -356,7 +356,7 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 				return nil, err
 			}
 			restored.Parts = filter(restored.Parts, func(p *Part) bool { return !p.Skip })
-			err = restored.checkSize()
+			err = restored.checkSizeOfEachPart()
 			if err != nil {
 				return nil, err
 			}

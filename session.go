@@ -206,7 +206,7 @@ func (s Session) checkContentSums(other Session) error {
 	return nil
 }
 
-func (s Session) checkSize() error {
+func (s Session) checkSizeOfEachPart() error {
 	for _, part := range s.Parts {
 		stat, err := os.Stat(part.FileName)
 		if err != nil {
