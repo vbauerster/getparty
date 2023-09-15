@@ -74,7 +74,7 @@ func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) (e
 	}
 	totalWritten := s.totalWritten()
 	if totalWritten != s.ContentLength {
-		return errors.Errorf("Size mismatch: Expected=%d Got=%d", s.ContentLength, totalWritten)
+		return errors.Errorf("Size mismatch: expected %d got %d", s.ContentLength, totalWritten)
 	}
 	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
