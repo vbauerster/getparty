@@ -29,7 +29,7 @@ func main() {
 		Out: os.Stdout,
 		Err: os.Stderr,
 	}
-	os.Exit(cmd.Exit(cmd.Run(os.Args[1:], version, commit)))
+	os.Exit(cmd.Exit(cmd.Run(version, commit)))
 }
 
 func backgroundContext() (context.Context, func()) {
