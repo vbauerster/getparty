@@ -161,6 +161,10 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 		return err
 	}
 
+	if cmd.options.Quiet {
+		cmd.Out = io.Discard
+	}
+
 	userAgents[cmdName] = fmt.Sprintf("%s/%s", cmdName, version)
 
 	if cmd.options.Version {
@@ -677,7 +681,7 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 		return os.Remove(name)
 	}
 	var answer rune
-	fmt.Fprintf(cmd.Out, "File %q already exists, overwrite? [Y/n] ", name)
+	fmt.Fprintf(cmd.Err, "File %q already exists, overwrite? [Y/n] ", name)
 	if _, err := fmt.Scanf("%c", &answer); err != nil {
 		return err
 	}
