@@ -145,7 +145,7 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 }
 
 func (s *peak) Decor(stat decor.Statistics) (string, int) {
-	if stat.Completed && !s.completed {
+	if (stat.Completed || stat.Aborted) && !s.completed {
 		if s.min == 0 {
 			s.msg = "N/A"
 		} else {
