@@ -219,8 +219,8 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			case http.StatusPartialContent:
 				switch attempt {
 				case 0:
-					if e := p.initBar(&bar, &curTry); e != nil {
-						return false, e
+					if err := p.initBar(&bar, &curTry); err != nil {
+						return false, err
 					}
 					statusPartialContent = true
 				default:
@@ -240,8 +240,8 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 						p.dlogger.Println("Stopping: no partial content")
 						return false, nil
 					}
-					if e := p.initBar(&bar, &curTry); e != nil {
-						return false, e
+					if err := p.initBar(&bar, &curTry); err != nil {
+						return false, err
 					}
 				default:
 					if statusPartialContent {
