@@ -250,13 +250,10 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					p.Stop = resp.ContentLength - 1
 				}
 			default:
-				if attempt == 0 {
-					if e := p.initBar(&bar, &curTry); e != nil {
-						return false, e
-					}
+				if attempt != 0 {
+					bar.flash(resp.Status, true)
+					go bar.Abort(false)
 				}
-				bar.flash(resp.Status, true)
-				go bar.Abort(false)
 				return false, HttpError{resp.StatusCode, resp.Status}
 			}
 
