@@ -217,7 +217,18 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				statusPartialContent = true
+				switch attempt {
+				case 0:
+					if e := p.initBar(&bar, &curTry); e != nil {
+						return false, e
+					}
+					statusPartialContent = true
+				default:
+					if p.Written != 0 {
+						p.dlogger.Printf("Setting bar refill: %d", p.Written)
+						bar.SetRefill(p.Written)
+					}
+				}
 			case http.StatusOK: // no partial content, download with single part
 				switch attempt {
 				case 0:
@@ -228,6 +239,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 						p.Skip = true
 						p.dlogger.Println("Stopping: no partial content")
 						return false, nil
+					}
+					if e := p.initBar(&bar, &curTry); e != nil {
+						return false, e
 					}
 				default:
 					if statusPartialContent {
@@ -255,15 +269,6 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					go bar.Abort(false)
 				}
 				return false, HttpError{resp.StatusCode, resp.Status}
-			}
-
-			if attempt == 0 {
-				if e := p.initBar(&bar, &curTry); e != nil {
-					return false, e
-				}
-			} else if p.Written != 0 {
-				p.dlogger.Printf("Setting bar refill: %d", p.Written)
-				bar.SetRefill(p.Written)
 			}
 
 			body := bar.ProxyReader(resp.Body)
