@@ -132,7 +132,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 
 	var bar flashBar
 	var curTry uint32
-	var statusPartialContent, statusOK bool
+	var statusPartialContent bool
 	resetTimeout := timeout
 	prefix := p.dlogger.Prefix()
 
@@ -159,18 +159,6 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					timeout += 5 * time.Second
 				}
 				if retry && err != nil {
-					if statusOK && p.Written != 0 {
-						e := fpart.Close()
-						if e != nil {
-							panic(e)
-						}
-						fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
-						if e != nil {
-							panic(e)
-						}
-						p.Written = 0
-						bar.SetCurrent(0)
-					}
 					switch attempt {
 					case 0:
 						atomic.StoreUint32(&globTry, 1)
@@ -231,21 +219,36 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			case http.StatusPartialContent:
 				statusPartialContent = true
 			case http.StatusOK: // no partial content, download with single part
-				if statusPartialContent {
-					panic("http.StatusOK after http.StatusPartialContent")
-				}
-				if p.Written != 0 {
-					panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
-				}
-				if p.order != 1 {
-					p.Skip = true
-					p.dlogger.Println("Stopping: no partial content")
-					return false, nil
+				switch attempt {
+				case 0:
+					if p.Written != 0 {
+						panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
+					}
+					if p.order != 1 {
+						p.Skip = true
+						p.dlogger.Println("Stopping: no partial content")
+						return false, nil
+					}
+				default:
+					if statusPartialContent {
+						panic("http.StatusOK after http.StatusPartialContent")
+					}
+					if p.Written != 0 {
+						e := fpart.Close()
+						if e != nil {
+							panic(e)
+						}
+						fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
+						if e != nil {
+							panic(e)
+						}
+						p.Written = 0
+						bar.SetCurrent(0)
+					}
 				}
 				if resp.ContentLength > 0 {
 					p.Stop = resp.ContentLength - 1
 				}
-				statusOK = true
 			default:
 				if attempt == 0 {
 					if e := p.initBar(&bar, &curTry); e != nil {
