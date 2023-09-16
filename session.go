@@ -153,7 +153,7 @@ func (s Session) totalWritten() int64 {
 	return total
 }
 
-func (s Session) logSummary(logger *log.Logger) {
+func (s Session) summary(logger *log.Logger) {
 	format := fmt.Sprintf("Length: %%s [%s]", s.ContentType)
 	if s.ContentLength <= 0 {
 		logger.Printf(format, "unknown")

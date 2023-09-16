@@ -250,7 +250,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10:
 		sleep = time.Duration(l*50) * time.Millisecond
 	}
-	session.logSummary(cmd.logger)
+	session.summary(cmd.logger)
 	stateSave := cmd.trace(session)
 	defer stateSave()
 	defer progress.Wait()
