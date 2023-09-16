@@ -137,15 +137,19 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 
 // EwmaUpdate will not be called by mpb if n == 0
 func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
-	s.mean.Add(float64(dur) / float64(n))
 	durPerByte := s.mean.Value()
 	if s.min == 0 || durPerByte < s.min {
 		s.min = durPerByte
 	}
+	s.mean.Add(float64(dur) / float64(n))
 }
 
 func (s *peak) Decor(stat decor.Statistics) (string, int) {
 	if (stat.Completed || stat.Aborted) && !s.completed {
+		durPerByte := s.mean.Value()
+		if durPerByte < s.min {
+			s.min = durPerByte
+		}
 		if s.min == 0 {
 			s.msg = "N/A"
 		} else {
