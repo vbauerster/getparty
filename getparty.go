@@ -316,7 +316,6 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 			skipped++
 		}
 	}
-
 	if skipped == len(session.Parts)-1 && !session.Parts[0].Skip {
 		session.Parts = session.Parts[:1]
 	}
