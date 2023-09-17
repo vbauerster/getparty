@@ -251,6 +251,9 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 		sleep = time.Duration(l*50) * time.Millisecond
 	}
 	session.summary(cmd.logger)
+	if cmd.options.Parts == 0 {
+		return nil
+	}
 	stateSave := cmd.trace(session)
 	defer stateSave()
 	defer progress.Wait()
@@ -321,9 +324,6 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 }
 
 func (cmd Cmd) trace(session *Session) func() {
-	if cmd.options.Parts == 0 {
-		return func() {}
-	}
 	fmt.Fprintln(cmd.Out)
 	pTotal := session.totalWritten()
 	start := time.Now()
