@@ -326,11 +326,11 @@ func (cmd Cmd) makeSessionHandler(session *Session) func() {
 	pTotal := session.totalWritten()
 	start := time.Now()
 	return func() {
-		session.Elapsed += time.Since(start)
-		session.dropSkipped()
 		total := session.totalWritten()
 		if session.isResumable() && total != session.ContentLength {
 			if total-pTotal != 0 { // if some bytes were written
+				session.Elapsed += time.Since(start)
+				session.dropSkipped()
 				fmt.Fprintln(cmd.Out)
 				cmd.dumpState(session)
 			}
