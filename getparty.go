@@ -334,9 +334,9 @@ func (cmd Cmd) trace(session *Session) func() {
 			if total-pTotal != 0 { // if some bytes were written
 				cmd.dumpState(session)
 			}
-			return
+		} else {
+			cmd.logger.Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
 		}
-		cmd.logger.Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
 	}
 }
 
