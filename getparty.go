@@ -309,6 +309,17 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 		return err
 	}
 
+	var skipped int
+	for _, p := range session.Parts {
+		if p.Skip {
+			skipped++
+		}
+	}
+
+	if skipped == len(session.Parts)-1 && !session.Parts[0].Skip {
+		session.Parts = session.Parts[:1]
+	}
+
 	err = session.concatenateParts(cmd.dlogger, progress)
 	if err != nil {
 		return err
@@ -362,7 +373,6 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 			if err != nil {
 				return nil, err
 			}
-			restored.Parts = filter(restored.Parts, func(p *Part) bool { return !p.Skip })
 			err = restored.checkSizeOfEachPart()
 			if err != nil {
 				return nil, err
@@ -777,15 +787,6 @@ func parseCookies(headers map[string]string) ([]*http.Cookie, error) {
 		}
 	}
 	return cookies, nil
-}
-
-func filter(parts []*Part, predicate func(*Part) bool) (filtered []*Part) {
-	for _, p := range parts {
-		if predicate(p) {
-			filtered = append(filtered, p)
-		}
-	}
-	return
 }
 
 func isRedirect(status int) bool {
