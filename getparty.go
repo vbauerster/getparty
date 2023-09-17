@@ -257,13 +257,9 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 	stateSave := cmd.trace(session)
 	defer stateSave()
 	defer progress.Wait()
-
 	for i, p := range session.Parts {
-		switch {
-		case p.isDone():
+		if p.isDone() {
 			atomic.AddUint32(&partsDone, 1)
-			fallthrough
-		case p.Skip:
 			continue
 		}
 		p.ctx = ctx
@@ -366,6 +362,7 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 			if err != nil {
 				return nil, err
 			}
+			restored.Parts = filter(restored.Parts, func(p *Part) bool { return !p.Skip })
 			err = restored.checkSizeOfEachPart()
 			if err != nil {
 				return nil, err
@@ -780,6 +777,15 @@ func parseCookies(headers map[string]string) ([]*http.Cookie, error) {
 		}
 	}
 	return cookies, nil
+}
+
+func filter(parts []*Part, predicate func(*Part) bool) (filtered []*Part) {
+	for _, p := range parts {
+		if predicate(p) {
+			filtered = append(filtered, p)
+		}
+	}
+	return
 }
 
 func isRedirect(status int) bool {
