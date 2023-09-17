@@ -196,6 +196,11 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
+				if p.Written != 0 && atomic.LoadUint32(&bar.initialized) == 0 {
+					if err := p.initBar(&bar, &curTry); err != nil {
+						return false, err
+					}
+				}
 				return true, err
 			}
 
