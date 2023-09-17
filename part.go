@@ -258,7 +258,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					}
 				}
 			default:
-				if attempt != 0 {
+				if atomic.LoadUint32(&bar.initialized) == 1 {
 					bar.flash(resp.Status, true)
 					go bar.Abort(false)
 				}
