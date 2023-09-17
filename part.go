@@ -102,8 +102,6 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 	if p.Written != 0 {
 		p.dlogger.Printf("Setting bar current: %d", p.Written)
 		b.SetCurrent(p.Written)
-		p.dlogger.Printf("Setting bar refill: %d", p.Written)
-		b.SetRefill(p.Written)
 		p.dlogger.Printf("Setting bar DecoratorAverageAdjust: (now - %s)", p.Elapsed.Truncate(time.Second))
 		b.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
@@ -218,18 +216,16 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				switch atomic.LoadUint32(&bar.initialized) {
-				case 0:
+				if atomic.LoadUint32(&bar.initialized) == 0 {
 					if err := p.initBar(&bar, &curTry); err != nil {
 						return false, err
 					}
-					statusPartialContent = true
-				default:
-					if p.Written != 0 {
-						p.dlogger.Printf("Setting bar refill: %d", p.Written)
-						bar.SetRefill(p.Written)
-					}
 				}
+				if p.Written != 0 {
+					p.dlogger.Printf("Setting bar refill: %d", p.Written)
+					bar.SetRefill(p.Written)
+				}
+				statusPartialContent = true
 			case http.StatusOK: // no partial content, download with single part
 				switch atomic.LoadUint32(&bar.initialized) {
 				case 0:
