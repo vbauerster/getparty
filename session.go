@@ -228,9 +228,7 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quie
 	if len(s.Parts) <= 1 || quiet {
 		return io.Discard, func(bool) {}
 	}
-	bar := progress.New(s.ContentLength,
-		totalBarStyle(),
-		mpb.BarFillerTrim(),
+	bar := progress.New(s.ContentLength, totalBarStyle(), mpb.BarFillerTrim(),
 		mpb.PrependDecorators(
 			decor.Any(func(_ decor.Statistics) string {
 				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
