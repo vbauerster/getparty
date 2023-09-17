@@ -186,20 +186,14 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				p.dlogger.Println(msg)
 				// following check is needed, because this func runs in different goroutine
 				// at first attempt bar may be not initialized by the time this func runs
-				if attempt == 0 && atomic.LoadUint32(&bar.initialized) == 0 {
-					return
+				if atomic.LoadUint32(&bar.initialized) == 1 {
+					bar.flash(msg, false)
 				}
-				bar.flash(msg, false)
 			})
 			defer timer.Stop()
 
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
-				if attempt == 0 {
-					if e := p.initBar(&bar, &curTry); e != nil {
-						return false, e
-					}
-				}
 				return true, err
 			}
 
@@ -217,7 +211,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				switch attempt {
+				switch atomic.LoadUint32(&bar.initialized) {
 				case 0:
 					if err := p.initBar(&bar, &curTry); err != nil {
 						return false, err
@@ -230,7 +224,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					}
 				}
 			case http.StatusOK: // no partial content, download with single part
-				switch attempt {
+				switch atomic.LoadUint32(&bar.initialized) {
 				case 0:
 					if p.Written != 0 {
 						panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
