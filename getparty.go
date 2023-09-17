@@ -254,8 +254,8 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10:
 		sleep = time.Duration(l*50) * time.Millisecond
 	}
-	stateSave := cmd.trace(session)
-	defer stateSave()
+	sessionHandle := cmd.makeSessionHandler(session)
+	defer sessionHandle()
 	defer progress.Wait()
 
 	var once sync.Once
@@ -283,7 +283,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 				if e := recover(); e != nil {
 					cancel()
 					progress.Wait()
-					once.Do(stateSave)
+					once.Do(sessionHandle)
 					panic(fmt.Sprintf("%s panic: %v", p.name, e))
 				}
 				switch {
@@ -321,7 +321,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) trace(session *Session) func() {
+func (cmd Cmd) makeSessionHandler(session *Session) func() {
 	fmt.Fprintln(cmd.Out)
 	pTotal := session.totalWritten()
 	start := time.Now()
