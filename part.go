@@ -234,6 +234,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 						p.dlogger.Println("Stopping: no partial content")
 						return false, nil
 					}
+					if resp.ContentLength > 0 {
+						p.Stop = resp.ContentLength - 1
+					}
 					if err := p.initBar(&bar, &curTry); err != nil {
 						return false, err
 					}
@@ -253,9 +256,6 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 						p.Written = 0
 						bar.SetCurrent(0)
 					}
-				}
-				if resp.ContentLength > 0 {
-					p.Stop = resp.ContentLength - 1
 				}
 			default:
 				if attempt != 0 {
