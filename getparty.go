@@ -311,7 +311,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 		return err
 	}
 
-	err = session.concatenateParts(cmd.dlogger, progress)
+	err = session.concatenateParts(progress, cmd.dlogger)
 	if err != nil {
 		return err
 	}
