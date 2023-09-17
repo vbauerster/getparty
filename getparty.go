@@ -230,6 +230,10 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 	if err = eitherError(err, cmd.Ctx.Err()); err != nil {
 		return err
 	}
+	session.summary(cmd.logger)
+	if cmd.options.Parts == 0 {
+		return nil
+	}
 
 	var partsDone uint32
 	var eg errgroup.Group
@@ -250,13 +254,10 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10:
 		sleep = time.Duration(l*50) * time.Millisecond
 	}
-	session.summary(cmd.logger)
-	if cmd.options.Parts == 0 {
-		return nil
-	}
 	stateSave := cmd.trace(session)
 	defer stateSave()
 	defer progress.Wait()
+
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&partsDone, 1)
