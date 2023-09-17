@@ -163,8 +163,10 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					case 0:
 						atomic.StoreUint32(&globTry, 1)
 					case p.maxTry:
-						bar.flash(ErrMaxRetry.Error(), true)
-						go bar.Abort(false)
+						if atomic.LoadUint32(&bar.initialized) == 1 {
+							bar.flash(ErrMaxRetry.Error(), true)
+							go bar.Abort(false)
+						}
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
 				}
