@@ -258,6 +258,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 	defer stateSave()
 	defer progress.Wait()
 
+	var once sync.Once
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&partsDone, 1)
@@ -282,7 +283,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 				if e := recover(); e != nil {
 					cancel()
 					progress.Wait()
-					stateSave()
+					once.Do(stateSave)
 					panic(fmt.Sprintf("%s panic: %v", p.name, e))
 				}
 				switch {
