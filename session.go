@@ -69,12 +69,28 @@ func (s *Session) calcParts(parts uint) error {
 }
 
 func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) (err error) {
-	if len(s.Parts) == 0 || !s.isResumable() {
+	if len(s.Parts) <= 1 {
 		return nil
 	}
 	totalWritten := s.totalWritten()
 	if totalWritten != s.ContentLength {
 		return errors.Errorf("Size mismatch: expected %d got %d", s.ContentLength, totalWritten)
+	}
+
+	bar, err := progress.Add(int64(len(s.Parts)-1),
+		mpb.BarStyle().Lbound(" ").Rbound(" ").Build(),
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(len(s.Parts)+1),
+		mpb.PrependDecorators(
+			decor.Name("Concatenating", decor.WCSyncWidthR),
+			decor.NewPercentage("%d", decor.WCSyncSpace),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "Done"),
+		),
+	)
+	if err != nil {
+		return err
 	}
 	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -84,42 +100,25 @@ func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) (e
 		if e := fpart0.Close(); err == nil {
 			err = e
 		}
+		bar.Abort(false) // if bar is completed bar.Abort is nop
 	}()
 
-	if len(s.Parts) > 1 {
-		bar, err := progress.Add(int64(len(s.Parts)-1),
-			mpb.BarStyle().Lbound(" ").Rbound(" ").Build(),
-			mpb.BarFillerTrim(),
-			mpb.BarPriority(len(s.Parts)+1),
-			mpb.PrependDecorators(
-				decor.Name("Concatenating", decor.WCSyncWidthR),
-				decor.NewPercentage("%d", decor.WCSyncSpace),
-			),
-			mpb.AppendDecorators(
-				decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS), "Done"),
-			),
-		)
+	for i := 1; i < len(s.Parts); i++ {
+		fparti, err := os.Open(s.Parts[i].FileName)
 		if err != nil {
 			return err
 		}
-		defer bar.Abort(false) // if bar is completed bar.Abort is nop
-		for i := 1; i < len(s.Parts); i++ {
-			fparti, err := os.Open(s.Parts[i].FileName)
-			if err != nil {
-				return err
-			}
-			logger.Printf("concatenating: %s", fparti.Name())
-			_, err = io.Copy(fpart0, fparti)
-			if err != nil {
-				fparti.Close()
-				return err
-			}
-			err = eitherError(fparti.Close(), os.Remove(fparti.Name()))
-			if err != nil {
-				logger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
-			}
-			bar.Increment()
+		logger.Printf("concatenating: %s", fparti.Name())
+		_, err = io.Copy(fpart0, fparti)
+		if err != nil {
+			fparti.Close()
+			return err
 		}
+		err = eitherError(fparti.Close(), os.Remove(fparti.Name()))
+		if err != nil {
+			logger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
+		}
+		bar.Increment()
 	}
 
 	stat, err := fpart0.Stat()
