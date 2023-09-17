@@ -68,7 +68,20 @@ func (s *Session) calcParts(parts uint) error {
 	return nil
 }
 
-func (s Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) (err error) {
+func (s *Session) dropSkipped() {
+	var skipped int
+	for _, p := range s.Parts {
+		if p.Skip {
+			skipped++
+		}
+	}
+	if skipped == len(s.Parts)-1 && !s.Parts[0].Skip {
+		s.Parts = s.Parts[:1]
+	}
+}
+
+func (s *Session) concatenateParts(logger *log.Logger, progress *mpb.Progress) (err error) {
+	s.dropSkipped()
 	if len(s.Parts) <= 1 {
 		return nil
 	}

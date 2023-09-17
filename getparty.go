@@ -311,16 +311,6 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 		return err
 	}
 
-	var skipped int
-	for _, p := range session.Parts {
-		if p.Skip {
-			skipped++
-		}
-	}
-	if skipped == len(session.Parts)-1 && !session.Parts[0].Skip {
-		session.Parts = session.Parts[:1]
-	}
-
 	err = session.concatenateParts(cmd.dlogger, progress)
 	if err != nil {
 		return err
@@ -337,6 +327,7 @@ func (cmd Cmd) trace(session *Session) func() {
 	start := time.Now()
 	return func() {
 		session.Elapsed += time.Since(start)
+		session.dropSkipped()
 		total := session.totalWritten()
 		fmt.Fprintln(cmd.Out)
 		if session.isResumable() && total != session.ContentLength {
