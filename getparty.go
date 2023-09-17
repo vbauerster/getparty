@@ -329,12 +329,13 @@ func (cmd Cmd) trace(session *Session) func() {
 		session.Elapsed += time.Since(start)
 		session.dropSkipped()
 		total := session.totalWritten()
-		fmt.Fprintln(cmd.Out)
 		if session.isResumable() && total != session.ContentLength {
 			if total-pTotal != 0 { // if some bytes were written
+				fmt.Fprintln(cmd.Out)
 				cmd.dumpState(session)
 			}
 		} else {
+			fmt.Fprintln(cmd.Out)
 			cmd.logger.Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
 		}
 	}
