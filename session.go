@@ -121,7 +121,7 @@ func (s *Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (
 		if err != nil {
 			return err
 		}
-		logger.Printf("concatenating: %s", fparti.Name())
+		logger.Printf("concatenating: %q into %q", fparti.Name(), fpart0.Name())
 		_, err = io.Copy(fpart0, fparti)
 		if err != nil {
 			fparti.Close()
