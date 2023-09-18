@@ -311,6 +311,8 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 		return err
 	}
 
+	session.dropSkipped()
+
 	err = session.concatenateParts(progress, cmd.dlogger)
 	if err != nil {
 		return err

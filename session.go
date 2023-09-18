@@ -80,8 +80,7 @@ func (s *Session) dropSkipped() {
 	}
 }
 
-func (s *Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (err error) {
-	s.dropSkipped()
+func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (err error) {
 	if len(s.Parts) <= 1 {
 		return nil
 	}
