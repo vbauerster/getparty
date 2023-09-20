@@ -328,16 +328,15 @@ func (cmd Cmd) makeSessionHandler(session *Session) func() {
 	pTotal := session.totalWritten()
 	start := time.Now()
 	return func() {
+		fmt.Fprintln(cmd.Out)
 		total := session.totalWritten()
 		if session.isResumable() && total != session.ContentLength {
 			if total-pTotal != 0 { // if some bytes were written
 				session.Elapsed += time.Since(start)
 				session.dropSkipped()
-				fmt.Fprintln(cmd.Out)
 				cmd.dumpState(session)
 			}
 		} else {
-			fmt.Fprintln(cmd.Out)
 			cmd.logger.Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
 		}
 	}
