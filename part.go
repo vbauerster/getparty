@@ -54,6 +54,11 @@ func (b flashBar) flash(msg string, final bool) {
 	b.msgHandler(message{msg, final})
 }
 
+func (b flashBar) flashErr(msg string, final bool) {
+	msg = fmt.Sprintf("ERR %s", msg)
+	b.msgHandler(message{msg, final})
+}
+
 func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 	var barBuilder mpb.BarFillerBuilder
 	msgCh := make(chan message)
@@ -162,7 +167,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 						atomic.StoreUint32(&globTry, 1)
 					case p.maxTry:
 						if atomic.LoadUint32(&bar.initialized) == 1 {
-							bar.flash(ErrMaxRetry.Error(), true)
+							bar.flashErr(ErrMaxRetry.Error(), true)
 							go bar.Abort(false)
 						}
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
@@ -262,7 +267,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 			default:
 				if atomic.LoadUint32(&bar.initialized) == 1 {
-					bar.flash(resp.Status, true)
+					bar.flashErr(resp.Status, true)
 					go bar.Abort(false)
 				}
 				return false, HttpError{resp.StatusCode, resp.Status}
