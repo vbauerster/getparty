@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -267,7 +268,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 			case http.StatusServiceUnavailable:
 				if atomic.LoadUint32(&bar.initialized) == 1 {
-					bar.flashErr(resp.Status, false)
+					bar.flashErr(cutCode(resp.Status), false)
 				} else if p.Written != 0 {
 					if err := p.initBar(&bar, &curTry); err != nil {
 						return false, err
@@ -276,7 +277,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				return true, HttpError{resp.StatusCode, resp.Status}
 			default:
 				if atomic.LoadUint32(&bar.initialized) == 1 {
-					bar.flashErr(resp.Status, true)
+					bar.flashErr(cutCode(resp.Status), true)
 					go bar.Abort(false)
 				}
 				return false, HttpError{resp.StatusCode, resp.Status}
@@ -355,4 +356,12 @@ func (p Part) total() int64 {
 
 func (p Part) isDone() bool {
 	return p.Written != 0 && p.Written == p.total()
+}
+
+func cutCode(err string) string {
+	_, remainder, found := strings.Cut(err, " ")
+	if found {
+		return remainder
+	}
+	return err
 }
