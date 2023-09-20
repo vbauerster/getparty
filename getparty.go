@@ -134,9 +134,11 @@ func (cmd Cmd) Exit(err error) int {
 		cmd.parser.WriteHelp(cmd.Err)
 		return 2
 	case ExpectedError:
+		fmt.Fprintln(cmd.Out)
 		cmd.logError(e)
 		return 1
 	default:
+		fmt.Fprintln(cmd.Out)
 		cmd.logError(err)
 		return 3
 	}
