@@ -265,6 +265,15 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 						bar.SetCurrent(0)
 					}
 				}
+			case http.StatusServiceUnavailable:
+				if atomic.LoadUint32(&bar.initialized) == 1 {
+					bar.flashErr(resp.Status, false)
+				} else if p.Written != 0 {
+					if err := p.initBar(&bar, &curTry); err != nil {
+						return false, err
+					}
+				}
+				return true, HttpError{resp.StatusCode, resp.Status}
 			default:
 				if atomic.LoadUint32(&bar.initialized) == 1 {
 					bar.flashErr(resp.Status, true)
