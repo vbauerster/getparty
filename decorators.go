@@ -24,11 +24,6 @@ type message struct {
 	final bool
 }
 
-type flashMessage struct {
-	message
-	count uint
-}
-
 func makeMsgHandler(ctx context.Context, msgCh chan<- message, quiet bool) func(message) {
 	if quiet {
 		return func(message) {}
@@ -64,10 +59,11 @@ func newFlashDecorator(decorator decor.Decorator, msgCh <-chan message, cancel f
 
 type flashDecorator struct {
 	decor.Decorator
-	msgCh   <-chan message
-	cancel  func()
-	limit   uint
-	current flashMessage
+	msgCh  <-chan message
+	cancel func()
+	limit  uint
+	count  uint
+	msg    message
 }
 
 func (d *flashDecorator) Unwrap() decor.Decorator {
@@ -75,21 +71,21 @@ func (d *flashDecorator) Unwrap() decor.Decorator {
 }
 
 func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
-	if d.current.count == 0 {
+	if d.count == 0 {
 		select {
 		case msg := <-d.msgCh:
 			if msg.final {
 				d.cancel()
 			} else {
-				d.current.count = d.limit
+				d.count = d.limit
 			}
-			d.current.message = msg
+			d.msg = msg
 		default:
 			return d.Decorator.Decor(stat)
 		}
 	}
-	d.current.count--
-	return d.Format(d.current.message.msg)
+	d.count--
+	return d.Format(d.msg.msg)
 }
 
 type mainDecorator struct {
