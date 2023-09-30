@@ -22,6 +22,7 @@ var (
 type message struct {
 	msg   string
 	final bool
+	error bool
 }
 
 func makeMsgHandler(ctx context.Context, msgCh chan<- message, quiet bool) func(message) {
@@ -85,6 +86,10 @@ func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 		}
 	}
 	d.count--
+	if d.msg.error {
+		_, _ = d.Format("")
+		return d.msg.msg, math.MaxInt
+	}
 	return d.Format(d.msg.msg)
 }
 
