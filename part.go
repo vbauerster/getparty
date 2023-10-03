@@ -186,7 +186,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 
 			req.Header.Set(hRange, p.getRange())
 
-			p.dlogger.SetPrefix(fmt.Sprintf("%s[R%02d] ", prefix, attempt))
+			p.dlogger.SetPrefix(fmt.Sprintf(prefix, attempt))
 			p.dlogger.Printf("GET %q", req.URL)
 			for k, v := range req.Header {
 				p.dlogger.Printf("%s: %v", k, v)

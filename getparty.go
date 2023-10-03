@@ -271,7 +271,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 		p.maxTry = cmd.options.MaxRetry
 		p.totalWriter = totalWriter
 		p.progress = progress
-		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", p.name), !cmd.options.Debug)
+		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, session.location, nil)
 		if err != nil {
 			cmd.logger.Fatalf("%s: %s", p.name, err.Error())
