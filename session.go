@@ -116,19 +116,21 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 	}()
 
 	for i := 1; i < len(s.Parts); i++ {
-		fparti, err := os.Open(s.Parts[i].FileName)
-		if err != nil {
-			return err
-		}
-		logger.Printf("concatenating: %q into %q", fparti.Name(), fpart0.Name())
-		_, err = io.Copy(fpart0, fparti)
-		if err != nil {
-			fparti.Close()
-			return err
-		}
-		err = eitherError(fparti.Close(), os.Remove(fparti.Name()))
-		if err != nil {
-			logger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
+		if !s.Parts[i].Skip {
+			fparti, err := os.Open(s.Parts[i].FileName)
+			if err != nil {
+				return err
+			}
+			logger.Printf("concatenating: %q into %q", fparti.Name(), fpart0.Name())
+			_, err = io.Copy(fpart0, fparti)
+			if err != nil {
+				fparti.Close()
+				return err
+			}
+			err = eitherError(fparti.Close(), os.Remove(fparti.Name()))
+			if err != nil {
+				logger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
+			}
 		}
 		bar.Increment()
 	}
