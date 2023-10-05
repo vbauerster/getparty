@@ -38,6 +38,7 @@ type Part struct {
 	order       int
 	maxTry      uint
 	quiet       bool
+	single      bool
 	totalWriter io.Writer
 	progress    *mpb.Progress
 	dlogger     *log.Logger
@@ -81,6 +82,13 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 	}
 	ctx, cancel := context.WithCancel(p.ctx)
 	b, err := p.progress.Add(total, barBuilder.Build(), mpb.BarFillerTrim(), mpb.BarPriority(p.order),
+		mpb.BarOptional(
+			mpb.BarExtender(mpb.BarFillerFunc(
+				func(w io.Writer, _ decor.Statistics) error {
+					_, err := fmt.Fprintln(w)
+					return err
+				}), true),
+			p.single),
 		mpb.PrependDecorators(
 			newFlashDecorator(
 				newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR),
@@ -253,6 +261,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 						p.dlogger.Println("Stopping: no partial content")
 						return false, nil
 					}
+					p.single = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}

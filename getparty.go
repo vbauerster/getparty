@@ -268,8 +268,9 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 		p.ctx = ctx
 		p.order = i + 1
 		p.name = fmt.Sprintf("P%02d", p.order)
-		p.quiet = cmd.options.Quiet
 		p.maxTry = cmd.options.MaxRetry
+		p.quiet = cmd.options.Quiet
+		p.single = len(session.Parts) == 1
 		p.totalWriter = totalWriter
 		p.progress = progress
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), !cmd.options.Debug)
@@ -293,7 +294,6 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 				case p.Skip:
 					onceTotalCancel.Do(func() {
 						totalCancel(true)
-						fmt.Fprintln(progress)
 						cmd.dlogger.Print("Total cancel")
 					})
 				}
