@@ -286,7 +286,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 					cancel()
 					progress.Wait()
 					onceSessionHandle.Do(sessionHandle)
-					panic(fmt.Sprintf("%s panic: %v", p.name, e))
+					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
 				}
 				switch {
 				case p.isDone():
