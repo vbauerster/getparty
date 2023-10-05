@@ -324,7 +324,6 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 }
 
 func (cmd Cmd) makeSessionHandler(session *Session) func() {
-	fmt.Fprintln(cmd.Out)
 	pTotal := session.totalWritten()
 	start := time.Now()
 	return func() {
