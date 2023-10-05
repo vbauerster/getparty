@@ -258,7 +258,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 	defer sessionHandle()
 	defer progress.Wait()
 
-	var once sync.Once
+	var onceSessionHandle sync.Once
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&partsDone, 1)
@@ -283,7 +283,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 				if e := recover(); e != nil {
 					cancel()
 					progress.Wait()
-					once.Do(sessionHandle)
+					onceSessionHandle.Do(sessionHandle)
 					panic(fmt.Sprintf("%s panic: %v", p.name, e))
 				}
 				switch {
