@@ -243,10 +243,11 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quie
 		return io.Discard, func(bool) {}
 	}
 	bar := progress.New(s.ContentLength, totalBarStyle(), mpb.BarFillerTrim(),
-		mpb.BarExtender(mpb.BarFillerFunc(func(w io.Writer, _ decor.Statistics) error {
-			_, err := fmt.Fprintln(w)
-			return err
-		}), true),
+		mpb.BarExtender(mpb.BarFillerFunc(
+			func(w io.Writer, _ decor.Statistics) error {
+				_, err := fmt.Fprintln(w)
+				return err
+			}), true),
 		mpb.PrependDecorators(
 			decor.Any(func(_ decor.Statistics) string {
 				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))

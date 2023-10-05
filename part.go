@@ -94,18 +94,14 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 				newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR),
 				msgCh,
 				cancel,
-				16,
-			),
-			decor.Conditional(
-				total == 0,
+				16),
+			decor.Conditional(total == 0,
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WCSyncSpace), "100% "),
-				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
-			),
+				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%")),
 		),
 		mpb.AppendDecorators(
 			decor.OnCompleteOrOnAbort(
-				decor.Conditional(
-					total == 0,
+				decor.Conditional(total == 0,
 					decor.Name(""),
 					decor.NewAverageETA(
 						decor.ET_STYLE_MMSS,
