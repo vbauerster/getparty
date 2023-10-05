@@ -77,9 +77,9 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 		total = 0
 		barBuilder = mpb.NopStyle()
 	} else {
-		p.dlogger.Printf("Setting bar total: %d", total)
 		barBuilder = mpb.BarStyle().Lbound(" ").Rbound(" ")
 	}
+	p.dlogger.Printf("Setting bar total: %d", total)
 	ctx, cancel := context.WithCancel(p.ctx)
 	b, err := p.progress.Add(total, barBuilder.Build(), mpb.BarFillerTrim(), mpb.BarPriority(p.order),
 		mpb.BarOptional(
