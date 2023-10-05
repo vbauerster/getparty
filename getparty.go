@@ -259,6 +259,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 	defer progress.Wait()
 
 	var onceSessionHandle sync.Once
+	var onceTotalCancel sync.Once
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&partsDone, 1)
@@ -290,8 +291,11 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 				case p.isDone():
 					atomic.AddUint32(&partsDone, 1)
 				case p.Skip:
-					p.dlogger.Print("Total cancel")
-					totalCancel(true)
+					onceTotalCancel.Do(func() {
+						totalCancel(true)
+						fmt.Fprintln(progress)
+						cmd.dlogger.Print("Total cancel")
+					})
 				}
 			}()
 			return p.download(&http.Client{
