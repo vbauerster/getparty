@@ -100,7 +100,7 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%")),
 		),
 		mpb.AppendDecorators(
-			decor.OnCompleteOrOnAbort(
+			decor.OnComplete(
 				decor.Conditional(total == 0,
 					decor.Name(""),
 					decor.NewAverageETA(
@@ -110,7 +110,7 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 						decor.WCSyncWidth,
 					)), "Avg:"),
 			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
-			decor.OnCompleteOrOnAbort(decor.Name("", decor.WCSyncSpace), "Peak:"),
+			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
 		),
 	)
