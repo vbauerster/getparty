@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -149,6 +150,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 	var bar flashBar
 	var curTry uint32
 	var statusPartialContent bool
+	var onceIncGlobTry sync.Once
 	resetTimeout := timeout
 	prefix := p.dlogger.Prefix()
 
@@ -175,15 +177,15 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					timeout += 5 * time.Second
 				}
 				if retry && err != nil {
-					switch attempt {
-					case 0:
-						atomic.StoreUint32(&globTry, 1)
-					case p.maxTry:
+					if attempt == p.maxTry {
 						if atomic.LoadUint32(&bar.initialized) == 1 {
 							go bar.Abort(true)
+							atomic.AddUint32(&globTry, ^uint32(0))
 							fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), ErrMaxRetry)
 						}
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
+					} else if atomic.LoadUint32(&bar.initialized) == 1 {
+						onceIncGlobTry.Do(func() { atomic.AddUint32(&globTry, 1) })
 					}
 				}
 			}()
