@@ -111,9 +111,11 @@ func newMainDecorator(curTry *uint32, name, format string, wc decor.WC) decor.De
 }
 
 func (d *mainDecorator) Decor(stat decor.Statistics) (string, int) {
-	name := d.name
+	var name string
 	if atomic.LoadUint32(&globTry) != 0 {
-		name = fmt.Sprintf("%s:R%02d", name, atomic.LoadUint32(d.curTry))
+		name = fmt.Sprintf("%s:R%02d", d.name, atomic.LoadUint32(d.curTry))
+	} else {
+		name = d.name
 	}
 	return d.Format(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
 }
