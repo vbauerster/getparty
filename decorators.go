@@ -133,7 +133,7 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	d := &peak{
 		WC:     wc.Init(),
 		format: format,
-		mean:   ewma.NewMovingAverage(15),
+		mean:   ewma.NewMovingAverage(16),
 	}
 	return d
 }
