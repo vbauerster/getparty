@@ -147,7 +147,7 @@ func (cmd Cmd) logError(err error) {
 	cmd.logger.Println(err.Error())
 }
 
-func (cmd *Cmd) Run(version, commit string) (err error) {
+func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	defer func() {
 		// just add method name, without stack trace at the point
 		err = errors.WithMessage(err, "run")
@@ -156,7 +156,7 @@ func (cmd *Cmd) Run(version, commit string) (err error) {
 	cmd.options = new(Options)
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
 	cmd.parser.Usage = "[OPTIONS] url"
-	args, err := cmd.parser.ParseArgs(os.Args[1:])
+	args, err = cmd.parser.ParseArgs(args)
 	if err != nil {
 		return err
 	}
