@@ -294,8 +294,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				return true, HttpError{resp.StatusCode, resp.Status}
 			default:
 				if atomic.LoadUint32(&bar.initialized) == 1 {
-					bar.flashErr(cutCode(resp.Status), true)
-					go bar.Abort(false)
+					atomic.AddUint32(&globTry, ^uint32(0))
+					bar.Abort(true)
+					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), cutCode(resp.Status))
 				}
 				return false, HttpError{resp.StatusCode, resp.Status}
 			}
