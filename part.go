@@ -177,10 +177,10 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 				if retry && err != nil {
 					if attempt == p.maxTry {
+						fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), ErrMaxRetry)
 						if atomic.LoadUint32(&bar.initialized) == 1 {
+							go bar.Abort(true)
 							atomic.AddUint32(&globTry, ^uint32(0))
-							bar.Abort(true)
-							fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), ErrMaxRetry)
 						}
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 					} else if !globTryIncremented && atomic.LoadUint32(&bar.initialized) == 1 {
@@ -293,10 +293,10 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 				return true, HttpError{resp.StatusCode, resp.Status}
 			default:
+				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), cutCode(resp.Status))
 				if atomic.LoadUint32(&bar.initialized) == 1 {
+					go bar.Abort(true)
 					atomic.AddUint32(&globTry, ^uint32(0))
-					bar.Abort(true)
-					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), cutCode(resp.Status))
 				}
 				return false, HttpError{resp.StatusCode, resp.Status}
 			}
