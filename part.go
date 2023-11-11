@@ -70,6 +70,12 @@ func (b flashBar) flashErr(msg string, final bool) {
 }
 
 func (p Part) initBar(fb *flashBar, curTry *uint32) error {
+	if fb == nil {
+		return errors.Errorf("expected non nil %T value", fb)
+	}
+	if atomic.LoadUint32(&fb.initialized) == 1 {
+		return nil
+	}
 	var barBuilder mpb.BarFillerBuilder
 	msgCh := make(chan message)
 	total := p.total()
@@ -216,8 +222,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			if err != nil {
 				if p.Written == 0 {
 					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
-				} else if atomic.LoadUint32(&bar.initialized) == 0 {
-					if err := p.initBar(&bar, &curTry); err != nil {
+				} else {
+					err := p.initBar(&bar, &curTry)
+					if err != nil {
 						return false, err
 					}
 				}
@@ -238,10 +245,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				if atomic.LoadUint32(&bar.initialized) == 0 {
-					if err := p.initBar(&bar, &curTry); err != nil {
-						return false, err
-					}
+				err := p.initBar(&bar, &curTry)
+				if err != nil {
+					return false, err
 				}
 				if p.Written != 0 {
 					p.dlogger.Printf("Setting bar refill: %d", p.Written)
@@ -249,11 +255,10 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 				statusPartialContent = true
 			case http.StatusOK: // no partial content, download with single part
-				switch atomic.LoadUint32(&bar.initialized) {
-				case 0:
-					if p.Written != 0 {
-						panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
-					}
+				if statusPartialContent {
+					panic("http.StatusOK after http.StatusPartialContent")
+				}
+				if p.Written == 0 {
 					if p.order != 1 {
 						p.Skip = true
 						p.dlogger.Println("Stopping: no partial content")
@@ -263,25 +268,23 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
-					if err := p.initBar(&bar, &curTry); err != nil {
+					err := p.initBar(&bar, &curTry)
+					if err != nil {
 						return false, err
 					}
-				default:
-					if statusPartialContent {
-						panic("http.StatusOK after http.StatusPartialContent")
+				} else if atomic.LoadUint32(&bar.initialized) == 1 {
+					err := fpart.Close()
+					if err != nil {
+						panic(err)
 					}
-					if p.Written != 0 {
-						e := fpart.Close()
-						if e != nil {
-							panic(e)
-						}
-						fpart, e = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
-						if e != nil {
-							panic(e)
-						}
-						p.Written = 0
-						bar.SetCurrent(0)
+					fpart, err = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
+					if err != nil {
+						panic(err)
 					}
+					p.Written = 0
+					bar.SetCurrent(0)
+				} else {
+					panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
 				}
 			case http.StatusServiceUnavailable:
 				if atomic.LoadUint32(&bar.initialized) == 1 {
