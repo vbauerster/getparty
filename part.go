@@ -102,7 +102,7 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 				cancel,
 				16),
 			decor.Conditional(total == 0,
-				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}), "100% "),
+				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WC{W: 2}), "100% "),
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%")),
 		),
 		mpb.AppendDecorators(
