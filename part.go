@@ -155,7 +155,6 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 	var bar flashBar
 	var curTry uint32
 	var statusPartialContent bool
-	var globTryIncremented bool
 	resetTimeout := timeout
 	prefix := p.dlogger.Prefix()
 
@@ -182,16 +181,16 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					timeout += 5 * time.Second
 				}
 				if retry && err != nil {
-					if attempt == p.maxTry {
+					switch attempt {
+					case 0:
+						atomic.AddUint32(&globTry, 1)
+					case p.maxTry:
 						fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), ErrMaxRetry)
 						if atomic.LoadUint32(&bar.initialized) == 1 {
 							go bar.Abort(true)
 							atomic.AddUint32(&globTry, ^uint32(0))
 						}
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
-					} else if !globTryIncremented && atomic.LoadUint32(&bar.initialized) == 1 {
-						atomic.AddUint32(&globTry, 1)
-						globTryIncremented = true
 					}
 				}
 			}()
