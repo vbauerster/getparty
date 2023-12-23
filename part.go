@@ -181,7 +181,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 						atomic.AddUint32(&globTry, 1)
 					case p.maxTry:
 						atomic.AddUint32(&globTry, ^uint32(0))
-						fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), ErrMaxRetry)
+						fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), ErrMaxRetry.Error())
 						if atomic.LoadUint32(&bar.initialized) == 1 {
 							bar.Abort(true)
 						}
