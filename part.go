@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -282,21 +281,23 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
 				}
 			case http.StatusServiceUnavailable:
+				err := HttpError{resp.StatusCode, resp.Status}
 				if atomic.LoadUint32(&bar.initialized) == 1 {
-					bar.flashErr(cutCode(resp.Status))
+					bar.flashErr(err.Error())
 				} else {
-					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), cutCode(resp.Status))
+					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
 				}
-				return true, HttpError{resp.StatusCode, resp.Status}
+				return true, err
 			default:
-				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), cutCode(resp.Status))
+				err := HttpError{resp.StatusCode, resp.Status}
+				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
 				if atomic.LoadUint32(&bar.initialized) == 1 {
 					bar.Abort(true)
 				}
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))
 				}
-				return false, HttpError{resp.StatusCode, resp.Status}
+				return false, err
 			}
 
 			body := bar.ProxyReader(resp.Body)
@@ -372,12 +373,4 @@ func (p Part) total() int64 {
 
 func (p Part) isDone() bool {
 	return p.Written != 0 && p.Written == p.total()
-}
-
-func cutCode(err string) string {
-	_, remainder, found := strings.Cut(err, " ")
-	if found {
-		return remainder
-	}
-	return err
 }
