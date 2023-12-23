@@ -1,7 +1,6 @@
 package getparty
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"sync/atomic"
@@ -24,34 +23,22 @@ type message struct {
 	error bool
 }
 
-func makeMsgHandler(ctx context.Context, msgCh chan<- message, quiet bool) func(message) {
+func makeMsgHandler(msgCh chan<- message, quiet bool) func(message) {
 	if quiet {
 		return func(message) {}
 	}
-	send := func(msg message) {
-		select {
-		case msgCh <- msg:
-		case <-ctx.Done():
-		}
-	}
 	return func(msg message) {
-		if msg.final {
-			send(msg)
-			<-ctx.Done()
-		} else {
-			go send(msg)
-		}
+		msgCh <- msg
 	}
 }
 
-func newFlashDecorator(decorator decor.Decorator, msgCh <-chan message, cancel func(), limit uint) decor.Decorator {
+func newFlashDecorator(decorator decor.Decorator, msgCh <-chan message, limit uint) decor.Decorator {
 	if decorator == nil {
 		return nil
 	}
 	d := &flashDecorator{
 		Decorator: decorator,
 		msgCh:     msgCh,
-		cancel:    cancel,
 		limit:     limit,
 	}
 	return d
@@ -59,11 +46,10 @@ func newFlashDecorator(decorator decor.Decorator, msgCh <-chan message, cancel f
 
 type flashDecorator struct {
 	decor.Decorator
-	msgCh  <-chan message
-	cancel func()
-	limit  uint
-	count  uint
-	msg    message
+	msgCh <-chan message
+	limit uint
+	count uint
+	msg   message
 }
 
 func (d *flashDecorator) Unwrap() decor.Decorator {

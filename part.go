@@ -84,7 +84,6 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 		barBuilder = mpb.BarStyle().Lbound(" ").Rbound(" ")
 	}
 	p.dlogger.Printf("Setting bar total: %d", total)
-	ctx, cancel := context.WithCancel(p.ctx)
 	b, err := p.progress.Add(total, barBuilder.Build(), mpb.BarFillerTrim(), mpb.BarPriority(p.order),
 		mpb.BarOptional(
 			mpb.BarExtender(mpb.BarFillerFunc(
@@ -97,7 +96,6 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 			newFlashDecorator(
 				newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR),
 				msgCh,
-				cancel,
 				16),
 			decor.Conditional(total == 0,
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WC{C: decor.DextraSpace}), "100% "),
@@ -129,7 +127,7 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 	}
 	fb.Bar = b
 	fb.prefix = p.name
-	fb.msgHandler = makeMsgHandler(ctx, msgCh, p.quiet)
+	fb.msgHandler = makeMsgHandler(msgCh, p.quiet)
 	atomic.StoreUint32(&fb.initialized, 1)
 	return nil
 }
