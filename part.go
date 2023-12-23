@@ -92,10 +92,7 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 				}), true),
 			p.single),
 		mpb.PrependDecorators(
-			newFlashDecorator(
-				newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR),
-				msgCh,
-				16),
+			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msgCh, 15),
 			decor.Conditional(total == 0,
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WC{C: decor.DextraSpace}), "100% "),
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%")),
