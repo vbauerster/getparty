@@ -21,7 +21,6 @@ var (
 
 type message struct {
 	msg   string
-	final bool
 	error bool
 }
 
@@ -75,11 +74,7 @@ func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 	if d.count == 0 {
 		select {
 		case msg := <-d.msgCh:
-			if msg.final {
-				d.cancel()
-			} else {
-				d.count = d.limit
-			}
+			d.count = d.limit
 			d.msg = msg
 		default:
 			return d.Decorator.Decor(stat)

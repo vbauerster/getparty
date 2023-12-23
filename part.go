@@ -51,20 +51,18 @@ type flashBar struct {
 	initialized uint32
 }
 
-func (b flashBar) flash(msg string, final bool) {
+func (b flashBar) flash(msg string) {
 	msg = fmt.Sprintf("%s %s", b.prefix, msg)
 	b.msgHandler(message{
 		msg:   msg,
-		final: final,
 		error: false,
 	})
 }
 
-func (b flashBar) flashErr(msg string, final bool) {
+func (b flashBar) flashErr(msg string) {
 	msg = fmt.Sprintf("%s:ERR %s", b.prefix, msg)
 	b.msgHandler(message{
 		msg:   msg,
-		final: final,
 		error: true,
 	})
 }
@@ -212,7 +210,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				// following check is needed, because this func runs in different goroutine
 				// at first attempt bar may be not initialized by the time this func runs
 				if atomic.LoadUint32(&bar.initialized) == 1 {
-					bar.flash(msg, false)
+					bar.flash(msg)
 				}
 			})
 			defer timer.Stop()
@@ -287,7 +285,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 			case http.StatusServiceUnavailable:
 				if atomic.LoadUint32(&bar.initialized) == 1 {
-					bar.flashErr(cutCode(resp.Status), false)
+					bar.flashErr(cutCode(resp.Status))
 				} else {
 					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), cutCode(resp.Status))
 				}
