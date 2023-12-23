@@ -39,13 +39,10 @@ func (e ExpectedError) Error() string {
 	return string(e)
 }
 
-type HttpError struct {
-	StatusCode int
-	Status     string
-}
+type HttpError int
 
 func (e HttpError) Error() string {
-	return fmt.Sprintf("HTTP error: %s", e.Status)
+	return fmt.Sprintf("HTTP error: %d", int(e))
 }
 
 const (
@@ -534,7 +531,7 @@ func (cmd Cmd) follow(
 					prefix := cmd.logger.Prefix()
 					cmd.logger.SetPrefix("[WARN] ")
 					cmd.logger.Printf("HTTP response: %s", resp.Status)
-					err = HttpError{resp.StatusCode, resp.Status}
+					err = HttpError(resp.StatusCode)
 					if isServerError(resp.StatusCode) { // server error may be temporary
 						cmd.logger.SetPrefix(prefix)
 						return attempt != cmd.options.MaxRetry, err

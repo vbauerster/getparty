@@ -281,23 +281,21 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
 				}
 			case http.StatusServiceUnavailable:
-				err := HttpError{resp.StatusCode, resp.Status}
 				if atomic.LoadUint32(&bar.initialized) == 1 {
-					bar.flashErr(err.Error())
+					bar.flashErr(resp.Status)
 				} else {
-					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
+					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
 				}
-				return true, err
+				return true, HttpError(resp.StatusCode)
 			default:
-				err := HttpError{resp.StatusCode, resp.Status}
-				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
-				if atomic.LoadUint32(&bar.initialized) == 1 {
-					bar.Abort(true)
-				}
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))
 				}
-				return false, err
+				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
+				if atomic.LoadUint32(&bar.initialized) == 1 {
+					bar.Abort(true)
+				}
+				return false, HttpError(resp.StatusCode)
 			}
 
 			body := bar.ProxyReader(resp.Body)
