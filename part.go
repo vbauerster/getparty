@@ -215,7 +215,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
 				if p.Written == 0 {
-					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
+					go fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
 				} else {
 					err := p.initBar(&bar, &curTry)
 					if err != nil {
@@ -282,9 +282,9 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 			case http.StatusServiceUnavailable:
 				if atomic.LoadUint32(&bar.initialized) == 1 {
-					bar.flashErr(resp.Status)
+					go bar.flashErr(resp.Status)
 				} else {
-					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
+					go fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
 				}
 				return true, HttpError(resp.StatusCode)
 			default:
