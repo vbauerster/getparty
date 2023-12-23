@@ -65,8 +65,9 @@ func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 		default:
 			return d.Decorator.Decor(stat)
 		}
+	} else {
+		d.count--
 	}
-	d.count--
 	if d.msg.error {
 		_, _ = d.Format("")
 		return d.msg.msg, math.MaxInt
