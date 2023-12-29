@@ -121,7 +121,6 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	return d
 }
 
-// EwmaUpdate will not be called by mpb if n == 0
 func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 	if n <= 0 {
 		s.zDur += dur
