@@ -128,6 +128,7 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 	} else {
 		durPerByte := float64(s.zDur+dur) / float64(n)
 		if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) {
+			s.zDur += dur
 			return
 		}
 		s.zDur = 0
