@@ -312,7 +312,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				switch err {
 				case io.EOF:
 					if n != 0 {
-						panic("expected no bytes were read at EOF")
+						panic(fmt.Sprintf("%d bytes were read after EOF", n))
 					}
 					continue
 				case io.ErrUnexpectedEOF:
@@ -347,12 +347,12 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					p.dlogger.Println("Part is done")
 					return false, nil
 				} else {
-					panic("expected part to be done after EOF")
+					panic("part isn't done after EOF")
 				}
 			}
 
 			if p.isDone() {
-				panic(fmt.Sprintf("expected EOF after part is done, got: %v", err))
+				panic(fmt.Sprintf("part is done before EOF: %v", err))
 			}
 
 			return p.ctx.Err() == nil, err
