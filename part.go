@@ -134,12 +134,13 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 		return errors.WithMessage(err, p.name)
 	}
 	defer func() {
-		if e := fpart.Close(); err == nil {
-			err = e
-		}
-		if p.Skip && err == nil {
+		if e := fpart.Close(); e != nil {
+			p.dlogger.Printf("Part close error: %s", e.Error())
+		} else if p.Written == 0 {
 			p.dlogger.Printf("Removing: %q", fpart.Name())
-			err = os.Remove(p.FileName)
+			if e = os.Remove(p.FileName); e != nil {
+				p.dlogger.Printf("Part remove error: %s", e.Error())
+			}
 		}
 		err = errors.WithMessage(err, p.name)
 	}()
