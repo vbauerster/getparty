@@ -179,7 +179,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 						atomic.AddUint32(&globTry, 1)
 					case p.maxTry:
 						atomic.AddUint32(&globTry, ^uint32(0))
-						fmt.Fprintf(p.progress, "%s%s: %.1f/%.1f\n",
+						fmt.Fprintf(p.progress, "%s%s: %.1f / %.1f\n",
 							p.dlogger.Prefix(),
 							ErrMaxRetry.Error(),
 							decor.SizeB1024(p.Written),
