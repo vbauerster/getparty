@@ -126,13 +126,13 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 			}
 			logger.Printf("concatenating: %q into %q", fparti.Name(), fpart0.Name())
 			_, err = io.Copy(fpart0, fparti)
+			err = eitherError(err, fparti.Close())
 			if err != nil {
-				fparti.Close()
 				return err
 			}
-			err = eitherError(fparti.Close(), os.Remove(fparti.Name()))
+			err = os.Remove(fparti.Name())
 			if err != nil {
-				logger.Printf("concatenateParts: %q %s", fparti.Name(), err.Error())
+				return err
 			}
 		}
 		bar.Increment()
