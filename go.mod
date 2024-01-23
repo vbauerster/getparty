@@ -7,7 +7,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/vbauerster/backoff v0.2.0
 	github.com/vbauerster/mpb/v8 v8.7.2
-	golang.org/x/net v0.19.0
+	golang.org/x/net v0.20.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/term v0.16.0
 )
