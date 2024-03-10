@@ -47,10 +47,10 @@ type flashBar struct {
 	*mpb.Bar
 	msgHandler  func(message)
 	prefix      string
-	initialized uint32
+	initialized atomic.Bool
 }
 
-func (b flashBar) flash(msg string) {
+func (b *flashBar) flash(msg string) {
 	msg = fmt.Sprintf("%s %s", b.prefix, msg)
 	b.msgHandler(message{
 		msg:   msg,
@@ -58,7 +58,7 @@ func (b flashBar) flash(msg string) {
 	})
 }
 
-func (b flashBar) flashErr(msg string) {
+func (b *flashBar) flashErr(msg string) {
 	msg = fmt.Sprintf("%s:ERR %s", b.prefix, msg)
 	b.msgHandler(message{
 		msg:   msg,
@@ -66,11 +66,8 @@ func (b flashBar) flashErr(msg string) {
 	})
 }
 
-func (p Part) initBar(fb *flashBar, curTry *uint32) error {
-	if fb == nil {
-		return errors.Errorf("expected non nil %T value", fb)
-	}
-	if atomic.LoadUint32(&fb.initialized) == 1 {
+func (b *flashBar) init(p *Part, curTry *uint32) error {
+	if b.initialized.Load() {
 		return nil
 	}
 	var barBuilder mpb.BarFillerBuilder
@@ -83,7 +80,7 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 		barBuilder = mpb.BarStyle().Lbound(" ").Rbound(" ")
 	}
 	p.dlogger.Printf("Setting bar total: %d", total)
-	b, err := p.progress.Add(total, barBuilder.Build(), mpb.BarFillerTrim(), mpb.BarPriority(p.order),
+	bar, err := p.progress.Add(total, barBuilder.Build(), mpb.BarFillerTrim(), mpb.BarPriority(p.order),
 		mpb.BarOptional(
 			mpb.BarExtender(mpb.BarFillerFunc(
 				func(w io.Writer, _ decor.Statistics) error {
@@ -121,10 +118,10 @@ func (p Part) initBar(fb *flashBar, curTry *uint32) error {
 		p.dlogger.Printf("Setting bar DecoratorAverageAdjust: (now - %s)", p.Elapsed.Truncate(time.Second))
 		b.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
-	fb.Bar = b
-	fb.prefix = p.name
-	fb.msgHandler = makeMsgHandler(msgCh, p.quiet)
-	atomic.StoreUint32(&fb.initialized, 1)
+	b.Bar = bar
+	b.prefix = p.name
+	b.msgHandler = makeMsgHandler(msgCh, p.quiet)
+	b.initialized.Store(true)
 	return nil
 }
 
@@ -184,7 +181,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 							ErrMaxRetry.Error(),
 							decor.SizeB1024(p.Written),
 							decor.SizeB1024(p.total()))
-						if atomic.LoadUint32(&bar.initialized) == 1 {
+						if bar.initialized.Load() {
 							bar.Abort(true)
 						}
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
@@ -208,7 +205,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				p.dlogger.Println(msg)
 				// following check is needed, because this func runs in different goroutine
 				// at first attempt bar may be not initialized by the time this func runs
-				if atomic.LoadUint32(&bar.initialized) == 1 {
+				if bar.initialized.Load() {
 					bar.flash(msg)
 				}
 			})
@@ -219,7 +216,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				if p.Written == 0 {
 					go fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
 				} else {
-					err := p.initBar(&bar, &curTry)
+					err := bar.init(p, &curTry)
 					if err != nil {
 						return false, err
 					}
@@ -241,7 +238,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				err := p.initBar(&bar, &curTry)
+				err := bar.init(p, &curTry)
 				if err != nil {
 					return false, err
 				}
@@ -264,11 +261,11 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
-					err := p.initBar(&bar, &curTry)
+					err := bar.init(p, &curTry)
 					if err != nil {
 						return false, err
 					}
-				} else if atomic.LoadUint32(&bar.initialized) == 1 {
+				} else if bar.initialized.Load() {
 					err := fpart.Close()
 					if err != nil {
 						panic(err)
@@ -283,7 +280,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
 				}
 			case http.StatusServiceUnavailable:
-				if atomic.LoadUint32(&bar.initialized) == 1 {
+				if bar.initialized.Load() {
 					go bar.flashErr(resp.Status)
 				} else {
 					go fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
@@ -294,7 +291,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					atomic.AddUint32(&globTry, ^uint32(0))
 				}
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
-				if atomic.LoadUint32(&bar.initialized) == 1 {
+				if bar.initialized.Load() {
 					bar.Abort(true)
 				}
 				return false, HttpError(resp.StatusCode)
