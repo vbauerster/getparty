@@ -32,15 +32,15 @@ type Part struct {
 	Skip     bool
 	Elapsed  time.Duration
 
-	ctx         context.Context
-	name        string
-	order       int
-	maxTry      uint
-	quiet       bool
-	single      bool
-	totalWriter io.Writer
-	progress    *mpb.Progress
-	dlogger     *log.Logger
+	ctx      context.Context
+	name     string
+	order    int
+	maxTry   uint
+	quiet    bool
+	single   bool
+	progress *mpb.Progress
+	totalBar *mpb.Bar
+	dlogger  *log.Logger
 }
 
 type flashBar struct {
@@ -104,7 +104,7 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 						decor.FixedIntervalTimeNormalizer(30),
 						decor.WCSyncWidth,
 					)), "Avg:"),
-			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
+			decor.EwmaSpeed(decor.SizeB1024(0), "%.1f", 30, decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
 		),
@@ -297,16 +297,20 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				return false, HttpError(resp.StatusCode)
 			}
 
-			body := bar.ProxyReader(resp.Body)
-			defer body.Close()
+			defer resp.Body.Close()
 
 			buf := make([]byte, bufSize)
-			dst := io.MultiWriter(fpart, p.totalWriter)
 			sleepCtx, sleepCancel := context.WithCancel(p.ctx)
 			sleepCancel()
 			for n := 0; err == nil; sleepCancel() {
 				timer.Reset(timeout)
-				n, err = io.ReadFull(body, buf)
+				start := time.Now()
+				n, err = io.ReadFull(resp.Body, buf)
+				dur := time.Since(start)
+				if p.totalBar != nil {
+					go p.totalBar.EwmaIncrBy(n, dur)
+				}
+				bar.EwmaIncrBy(n, dur)
 				switch err {
 				case io.EOF:
 					if n != 0 {
@@ -325,7 +329,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 						totalSleep += sleep
 					}
 				}
-				_, e := dst.Write(buf[:n])
+				_, e := fpart.Write(buf[:n])
 				if e != nil {
 					panic(e)
 				}

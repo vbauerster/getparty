@@ -241,9 +241,9 @@ func (s Session) checkSizeOfEachPart() error {
 	return nil
 }
 
-func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quiet bool) (io.Writer, func(bool)) {
+func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quiet bool) *mpb.Bar {
 	if len(s.Parts) <= 1 || quiet {
-		return io.Discard, func(bool) {}
+		return nil
 	}
 	bar := progress.New(s.ContentLength, totalBarStyle(), mpb.BarFillerTrim(),
 		mpb.BarExtender(mpb.BarFillerFunc(
@@ -259,7 +259,7 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quie
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), "Avg:"),
-			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
+			decor.EwmaSpeed(decor.SizeB1024(0), "%.1f", 30, decor.WCSyncSpace),
 			decor.Name("", decor.WCSyncSpace),
 			decor.Name("", decor.WCSyncSpace),
 		),
@@ -269,5 +269,5 @@ func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quie
 		bar.SetRefill(written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
 	}
-	return bar.ProxyWriter(io.Discard), bar.Abort
+	return bar
 }

@@ -243,7 +243,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalWriter, totalCancel := session.makeTotalWriter(progress, &partsDone, cmd.options.Quiet)
+	totalBar := session.makeTotalWriter(progress, &partsDone, cmd.options.Quiet)
 	patcher := makeReqPatcher(session.HeaderMap, true)
 	timeout := time.Duration(cmd.options.Timeout) * time.Second
 	var sleep time.Duration
@@ -268,8 +268,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.maxTry = cmd.options.MaxRetry
 		p.quiet = cmd.options.Quiet
 		p.single = len(session.Parts) == 1
-		p.totalWriter = totalWriter
 		p.progress = progress
+		p.totalBar = totalBar
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, session.location, nil)
 		if err != nil {
@@ -290,8 +290,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&partsDone, 1)
 				case p.Skip:
 					onceTotalCancel.Do(func() {
-						totalCancel(true)
-						cmd.dlogger.Print("Total cancel")
+						if totalBar != nil {
+							totalBar.Abort(true)
+							cmd.dlogger.Print("Cancel total bar")
+						}
 					})
 				}
 			}()
@@ -308,7 +310,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	err = eitherError(eg.Wait(), cmd.Ctx.Err())
 	if err != nil {
-		totalCancel(false)
+		if totalBar != nil {
+			totalBar.Abort(false)
+		}
 		return err
 	}
 
