@@ -103,7 +103,7 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 						time.Now(),
 						decor.FixedIntervalTimeNormalizer(30),
 						decor.WCSyncWidth,
-					)), "Avg:"),
+					)), ":"),
 			decor.EwmaSpeed(decor.SizeB1024(0), "%.1f", 30, decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
