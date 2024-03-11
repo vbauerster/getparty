@@ -95,15 +95,15 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%")),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(
-				decor.Conditional(total == 0,
-					decor.Name(""),
-					decor.NewAverageETA(
-						decor.ET_STYLE_MMSS,
-						time.Now(),
-						decor.FixedIntervalTimeNormalizer(30),
-						decor.WCSyncWidth,
-					)), ":"),
+			decor.Conditional(total == 0,
+				decor.Name(""),
+				decor.OnComplete(decor.NewAverageETA(
+					decor.ET_STYLE_MMSS,
+					time.Now(),
+					decor.FixedIntervalTimeNormalizer(30),
+					decor.WCSyncWidth,
+				), ":"),
+			),
 			decor.EwmaSpeed(decor.SizeB1024(0), "%.1f", 30, decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
 			newSpeedPeak("%.1f", decor.WCSyncSpace),
