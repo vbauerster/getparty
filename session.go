@@ -265,9 +265,9 @@ func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32, quiet b
 		),
 	)
 	if written := s.totalWritten(); written != 0 {
-		bar.SetCurrent(written)
-		bar.SetRefill(written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
+		bar.SetCurrent(written)
+		go bar.SetRefill(written)
 	}
 	return bar
 }
