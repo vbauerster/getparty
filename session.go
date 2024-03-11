@@ -241,7 +241,7 @@ func (s Session) checkSizeOfEachPart() error {
 	return nil
 }
 
-func (s Session) makeTotalWriter(progress *mpb.Progress, partsDone *uint32, quiet bool) *mpb.Bar {
+func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32, quiet bool) *mpb.Bar {
 	if len(s.Parts) <= 1 || quiet {
 		return nil
 	}
