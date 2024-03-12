@@ -114,9 +114,8 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 	}
 	if p.Written != 0 {
 		p.dlogger.Printf("Setting bar current: %d", p.Written)
-		b.SetCurrent(p.Written)
-		p.dlogger.Printf("Setting bar DecoratorAverageAdjust: (now - %s)", p.Elapsed.Truncate(time.Second))
-		b.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
+		bar.SetCurrent(p.Written)
+		bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
 	b.Bar = bar
 	b.prefix = p.name
