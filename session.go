@@ -245,7 +245,7 @@ func (s Session) checkSizeOfEachPart() error {
 func (s Session) makeTotalBar(
 	ctx context.Context,
 	progress *mpb.Progress,
-	partsDone *uint32,
+	doneCount *uint32,
 	quiet bool,
 ) (func(int, time.Duration), func()) {
 	if len(s.Parts) <= 1 || quiet {
@@ -259,7 +259,7 @@ func (s Session) makeTotalBar(
 			}), true),
 		mpb.PrependDecorators(
 			decor.Any(func(_ decor.Statistics) string {
-				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(partsDone), len(s.Parts))
+				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(doneCount), len(s.Parts))
 			}, decor.WCSyncWidthR),
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 		),
@@ -279,7 +279,7 @@ func (s Session) makeTotalBar(
 		n int
 		d time.Duration
 	}
-	ch := make(chan ewmaPayload, len(s.Parts)-int(atomic.LoadUint32(partsDone)))
+	ch := make(chan ewmaPayload, len(s.Parts)-int(atomic.LoadUint32(doneCount)))
 	dropCtx, cancel := context.WithCancel(context.Background())
 	go func() {
 		for {

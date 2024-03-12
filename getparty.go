@@ -232,7 +232,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return nil
 	}
 
-	var partsDone uint32
+	var doneCount uint32
 	var eg errgroup.Group
 	ctx, cancel := context.WithCancel(cmd.Ctx)
 	defer cancel()
@@ -243,7 +243,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalEwmaInc, totalDrop := session.makeTotalBar(ctx, progress, &partsDone, cmd.options.Quiet)
+	totalEwmaInc, totalDrop := session.makeTotalBar(ctx, progress, &doneCount, cmd.options.Quiet)
 	defer totalDrop()
 	patcher := makeReqPatcher(session.HeaderMap, true)
 	timeout := time.Duration(cmd.options.Timeout) * time.Second
@@ -259,7 +259,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var onceSessionHandle sync.Once
 	for i, p := range session.Parts {
 		if p.isDone() {
-			atomic.AddUint32(&partsDone, 1)
+			atomic.AddUint32(&doneCount, 1)
 			continue
 		}
 		p.ctx = ctx
@@ -287,7 +287,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 				switch {
 				case p.isDone():
-					atomic.AddUint32(&partsDone, 1)
+					atomic.AddUint32(&doneCount, 1)
 				case p.Skip:
 					cmd.dlogger.Print("Dropping total bar")
 					totalDrop()
