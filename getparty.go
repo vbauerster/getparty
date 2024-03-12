@@ -257,6 +257,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	defer progress.Wait()
 
 	var onceSessionHandle sync.Once
+	client := &http.Client{
+		Transport: transport,
+		Jar:       jar,
+	}
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
@@ -293,10 +297,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					totalDrop()
 				}
 			}()
-			return p.download(&http.Client{
-				Transport: transport,
-				Jar:       jar,
-			}, req, timeout, sleep)
+			return p.download(client, req, timeout, sleep)
 		})
 	}
 
