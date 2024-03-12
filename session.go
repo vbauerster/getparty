@@ -2,6 +2,7 @@ package getparty
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -241,9 +242,14 @@ func (s Session) checkSizeOfEachPart() error {
 	return nil
 }
 
-func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32, quiet bool) *mpb.Bar {
+func (s Session) makeTotalBar(
+	ctx context.Context,
+	progress *mpb.Progress,
+	partsDone *uint32,
+	quiet bool,
+) (func(int, time.Duration), func()) {
 	if len(s.Parts) <= 1 || quiet {
-		return nil
+		return func(int, time.Duration) {}, func() {}
 	}
 	bar := progress.New(s.ContentLength, totalBarStyle(), mpb.BarFillerTrim(),
 		mpb.BarExtender(mpb.BarFillerFunc(
@@ -265,9 +271,31 @@ func (s Session) makeTotalBar(progress *mpb.Progress, partsDone *uint32, quiet b
 		),
 	)
 	if written := s.totalWritten(); written != 0 {
-		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
 		bar.SetCurrent(written)
-		go bar.SetRefill(written)
+		bar.SetRefill(written)
+		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
 	}
-	return bar
+	type ewmaPayload struct {
+		n int
+		d time.Duration
+	}
+	ch := make(chan ewmaPayload, len(s.Parts)-int(atomic.LoadUint32(partsDone)))
+	dropCtx, cancel := context.WithCancel(context.Background())
+	go func() {
+		for {
+			select {
+			case p := <-ch:
+				bar.EwmaIncrBy(p.n, p.d)
+			case <-dropCtx.Done():
+				bar.Abort(true)
+				return
+			case <-ctx.Done():
+				bar.Abort(false)
+				return
+			}
+		}
+	}()
+	return func(n int, dur time.Duration) {
+		ch <- ewmaPayload{n, dur}
+	}, cancel
 }

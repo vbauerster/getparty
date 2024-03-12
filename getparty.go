@@ -243,7 +243,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalBar := session.makeTotalBar(progress, &partsDone, cmd.options.Quiet)
+	totalEwmaInc, totalDrop := session.makeTotalBar(ctx, progress, &partsDone, cmd.options.Quiet)
+	defer totalDrop()
 	patcher := makeReqPatcher(session.HeaderMap, true)
 	timeout := time.Duration(cmd.options.Timeout) * time.Second
 	var sleep time.Duration
@@ -256,7 +257,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	defer progress.Wait()
 
 	var onceSessionHandle sync.Once
-	var onceTotalCancel sync.Once
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&partsDone, 1)
@@ -269,7 +269,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.quiet = cmd.options.Quiet
 		p.single = len(session.Parts) == 1
 		p.progress = progress
-		p.totalBar = totalBar
+		p.totalEwmaInc = totalEwmaInc
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, session.location, nil)
 		if err != nil {
@@ -289,12 +289,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				case p.isDone():
 					atomic.AddUint32(&partsDone, 1)
 				case p.Skip:
-					onceTotalCancel.Do(func() {
-						if totalBar != nil {
-							totalBar.Abort(true)
-							cmd.dlogger.Print("Cancel total bar")
-						}
-					})
+					cmd.dlogger.Print("Dropping total bar")
+					totalDrop()
 				}
 			}()
 			return p.download(&http.Client{
@@ -310,9 +306,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	err = eitherError(eg.Wait(), cmd.Ctx.Err())
 	if err != nil {
-		if totalBar != nil {
-			totalBar.Abort(false)
-		}
 		return err
 	}
 
