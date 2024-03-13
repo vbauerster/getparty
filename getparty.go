@@ -305,7 +305,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.tlsConfig = nil
 	cmd.parser = nil
 
-	err = eitherError(eg.Wait(), cmd.Ctx.Err())
+	err = eitherError(eg.Wait(), ctx.Err())
 	if err != nil {
 		return err
 	}
