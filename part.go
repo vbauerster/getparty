@@ -343,9 +343,8 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				if p.isDone() {
 					p.dlogger.Println("Part is done")
 					return false, nil
-				} else {
-					panic("part isn't done after EOF")
 				}
+				panic("part isn't done after EOF")
 			}
 
 			if p.isDone() {
