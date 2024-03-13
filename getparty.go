@@ -235,6 +235,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var doneCount uint32
 	var eg errgroup.Group
 	ctx, cancel := context.WithCancel(cmd.Ctx)
+	defer cancel()
 	progress := mpb.NewWithContext(ctx,
 		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
 		mpb.ContainerOptional(mpb.WithOutput(nil), cmd.options.Quiet),
@@ -250,10 +251,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10:
 		sleep = time.Duration(l*50) * time.Millisecond
 	}
-	sessionHandle := cmd.makeSessionHandler(session)
-	defer cancel()
+	sessionHandle := cmd.makeSessionHandler(session, progress)
 	defer sessionHandle()
-	defer progress.Wait()
 
 	var onceSessionHandle sync.Once
 	client := &http.Client{
@@ -284,7 +283,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			defer func() {
 				if e := recover(); e != nil {
 					cancel()
-					progress.Wait()
 					onceSessionHandle.Do(sessionHandle)
 					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
 				}
@@ -320,19 +318,28 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeSessionHandler(session *Session) func() {
+func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func() {
 	pTotal := session.totalWritten()
 	start := time.Now()
 	return func() {
-		fmt.Fprintln(cmd.Out)
 		total := session.totalWritten()
 		if session.isResumable() && total != session.ContentLength {
 			if total-pTotal != 0 { // if some bytes were written
 				session.Elapsed += time.Since(start)
 				session.dropSkipped()
-				cmd.dumpState(session)
+				name := session.OutputFileName + ".json"
+				err := cmd.dumpState(name, session)
+				progress.Wait()
+				fmt.Fprintln(cmd.Out)
+				if err != nil {
+					cmd.logError(err)
+				} else {
+					cmd.logger.Printf("Session state saved to %q", name)
+				}
 			}
 		} else {
+			progress.Wait()
+			fmt.Fprintln(cmd.Out)
 			cmd.logger.Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
 		}
 	}
@@ -693,27 +700,12 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	return nil
 }
 
-func (cmd Cmd) dumpState(session *Session) {
-	var media io.Writer
-	name := session.OutputFileName + ".json"
+func (cmd Cmd) dumpState(name string, session *Session) error {
 	f, err := os.Create(name)
 	if err != nil {
-		media = cmd.Err
-		name = "stderr"
-	} else {
-		defer func() {
-			if err := f.Close(); err != nil {
-				cmd.logError(err)
-			}
-		}()
-		media = f
+		return err
 	}
-	err = json.NewEncoder(media).Encode(session)
-	if err != nil {
-		cmd.logError(err)
-	} else {
-		cmd.logger.Printf("Session state saved to %q", name)
-	}
+	return eitherError(json.NewEncoder(f).Encode(session), f.Close())
 }
 
 func eitherError(errors ...error) error {
