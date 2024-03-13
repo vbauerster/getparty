@@ -312,9 +312,6 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				bar.EwmaIncrBy(n, dur)
 				switch err {
 				case io.EOF:
-					if n != 0 {
-						panic(fmt.Sprintf("%d bytes were read after EOF", n))
-					}
 					continue
 				case io.ErrUnexpectedEOF:
 					if n != 0 {
