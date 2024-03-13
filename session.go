@@ -299,7 +299,10 @@ func (s Session) makeTotalBar(
 		}
 	}()
 	return func(n int, dur time.Duration) {
-			ch <- ewmaPayload{n, dur}
+			select {
+			case ch <- ewmaPayload{n, dur}:
+			case <-ctx.Done():
+			}
 		}, func(drop bool) {
 			if drop {
 				dropCancel()
