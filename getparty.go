@@ -235,7 +235,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var doneCount uint32
 	var eg errgroup.Group
 	ctx, cancel := context.WithCancel(cmd.Ctx)
-	defer cancel()
 	progress := mpb.NewWithContext(ctx,
 		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
 		mpb.ContainerOptional(mpb.WithOutput(nil), cmd.options.Quiet),
@@ -243,8 +242,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalEwmaInc, totalDrop := session.makeTotalBar(ctx, progress, &doneCount, cmd.options.Quiet)
-	defer totalDrop()
+	totalEwmaInc, totalCancel := session.makeTotalBar(ctx, progress, &doneCount, cmd.options.Quiet)
 	patcher := makeReqPatcher(session.HeaderMap, true)
 	timeout := time.Duration(cmd.options.Timeout) * time.Second
 	var sleep time.Duration
@@ -253,6 +251,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		sleep = time.Duration(l*50) * time.Millisecond
 	}
 	sessionHandle := cmd.makeSessionHandler(session)
+	defer cancel()
 	defer sessionHandle()
 	defer progress.Wait()
 
@@ -294,7 +293,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				case p.Skip:
 					cmd.dlogger.Print("Dropping total bar")
-					totalDrop()
+					totalCancel(true)
 				}
 			}()
 			return p.download(client, req, timeout, sleep)
@@ -307,6 +306,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	err = eitherError(eg.Wait(), ctx.Err())
 	if err != nil {
+		totalCancel(false)
 		return err
 	}
 

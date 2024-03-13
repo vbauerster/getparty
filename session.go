@@ -247,9 +247,9 @@ func (s Session) makeTotalBar(
 	progress *mpb.Progress,
 	doneCount *uint32,
 	quiet bool,
-) (func(int, time.Duration), func()) {
+) (func(int, time.Duration), func(bool)) {
 	if len(s.Parts) <= 1 || quiet {
-		return func(int, time.Duration) {}, func() {}
+		return func(int, time.Duration) {}, func(bool) {}
 	}
 	bar := progress.New(s.ContentLength, totalBarStyle(), mpb.BarFillerTrim(),
 		mpb.BarExtender(mpb.BarFillerFunc(
@@ -280,22 +280,31 @@ func (s Session) makeTotalBar(
 		d time.Duration
 	}
 	ch := make(chan ewmaPayload, len(s.Parts)-int(atomic.LoadUint32(doneCount)))
-	dropCtx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
+	dropCtx, dropCancel := context.WithCancel(context.Background())
 	go func() {
 		for {
 			select {
 			case p := <-ch:
 				bar.EwmaIncrBy(p.n, p.d)
 			case <-dropCtx.Done():
+				cancel()
 				bar.Abort(true)
 				return
 			case <-ctx.Done():
+				dropCancel()
 				bar.Abort(false)
 				return
 			}
 		}
 	}()
 	return func(n int, dur time.Duration) {
-		ch <- ewmaPayload{n, dur}
-	}, cancel
+			ch <- ewmaPayload{n, dur}
+		}, func(drop bool) {
+			if drop {
+				dropCancel()
+			} else {
+				cancel()
+			}
+		}
 }
