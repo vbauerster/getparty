@@ -307,23 +307,19 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				timer.Reset(timeout)
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buf)
-				dur := time.Since(start)
-				p.totalEwmaInc(n, dur)
-				bar.EwmaIncrBy(n, dur)
+				dur := time.Since(start) + sleep
+				if timer.Stop() && sleep != 0 {
+					sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
+					totalSleep += sleep
+				}
 				switch err {
 				case io.EOF:
 					continue
 				case io.ErrUnexpectedEOF:
-					if n != 0 {
-						err = nil
-					} else {
+					if n == 0 {
 						continue
 					}
-				default:
-					if timer.Stop() && sleep != 0 {
-						sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
-						totalSleep += sleep
-					}
+					err = nil
 				}
 				_, e := fpart.Write(buf[:n])
 				if e != nil {
@@ -332,7 +328,10 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				p.Written += int64(n)
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
+				} else if !p.single {
+					p.totalEwmaInc(n, dur)
 				}
+				bar.EwmaIncrBy(n, dur)
 				<-sleepCtx.Done()
 			}
 
