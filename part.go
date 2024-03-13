@@ -341,7 +341,6 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					bar.EnableTriggerComplete()
 				}
 				if p.isDone() {
-					p.dlogger.Println("Part is done")
 					return false, nil
 				}
 				panic("part isn't done after EOF")

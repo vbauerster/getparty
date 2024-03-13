@@ -290,7 +290,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				case p.isDone():
 					atomic.AddUint32(&doneCount, 1)
 				case p.Skip:
-					cmd.dlogger.Print("Dropping total bar")
 					totalCancel(true) // totalCancel is idempotent
 				}
 			}()
