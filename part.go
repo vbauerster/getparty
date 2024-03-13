@@ -301,7 +301,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			defer resp.Body.Close()
 
 			buf := make([]byte, bufSize)
-			sleepCtx, sleepCancel := context.WithCancel(p.ctx)
+			sleepCtx, sleepCancel := context.WithCancel(context.Background())
 			sleepCancel()
 			for n := 0; err == nil; sleepCancel() {
 				timer.Reset(timeout)
