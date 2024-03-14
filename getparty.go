@@ -234,6 +234,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	var doneCount uint32
 	var eg errgroup.Group
+	var onceSessionHandle sync.Once
+	var sleep time.Duration
+	if l := cmd.options.SpeedLimit; l <= 10 {
+		sleep = time.Duration(l*50) * time.Millisecond
+	}
+	timeout := time.Duration(cmd.options.Timeout) * time.Second
 	ctx, cancel := context.WithCancel(cmd.Ctx)
 	defer cancel()
 	progress := mpb.NewWithContext(ctx,
@@ -243,18 +249,15 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalEwmaIncr, totalCancel := session.makeTotalBar(ctx, progress, &doneCount, cmd.options.Quiet)
+	totalEwmaIncr, totalCancel := session.makeTotalBar(ctx,
+		progress,
+		&doneCount,
+		cmd.options.Quiet,
+	)
 	patcher := makeReqPatcher(session.HeaderMap, true)
-	timeout := time.Duration(cmd.options.Timeout) * time.Second
-	var sleep time.Duration
-	switch l := cmd.options.SpeedLimit; l {
-	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10:
-		sleep = time.Duration(l*50) * time.Millisecond
-	}
 	sessionHandle := cmd.makeSessionHandler(session, progress)
 	defer sessionHandle()
 
-	var onceSessionHandle sync.Once
 	client := &http.Client{
 		Transport: transport,
 		Jar:       jar,
