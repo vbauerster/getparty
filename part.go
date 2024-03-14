@@ -213,7 +213,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
 				if p.Written == 0 {
-					go fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
+					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
 				} else {
 					err := bar.init(p, &curTry)
 					if err != nil {
@@ -284,7 +284,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				if bar.initialized.Load() {
 					go bar.flashErr(resp.Status)
 				} else {
-					go fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
+					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
 				}
 				return true, HttpError(resp.StatusCode)
 			default:
