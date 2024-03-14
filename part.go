@@ -319,7 +319,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 					if n == 0 {
 						continue
 					}
-					err = nil
+					err = nil // let io.ReadFull return io.EOF
 				}
 				_, e := fpart.Write(buf[:n])
 				if e != nil {
