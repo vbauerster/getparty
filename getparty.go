@@ -243,7 +243,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalEwmaInc, totalCancel := session.makeTotalBar(ctx, progress, &doneCount, cmd.options.Quiet)
+	totalEwmaIncr, totalCancel := session.makeTotalBar(ctx, progress, &doneCount, cmd.options.Quiet)
 	patcher := makeReqPatcher(session.HeaderMap, true)
 	timeout := time.Duration(cmd.options.Timeout) * time.Second
 	var sleep time.Duration
@@ -271,7 +271,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.quiet = cmd.options.Quiet
 		p.single = len(session.Parts) == 1
 		p.progress = progress
-		p.totalEwmaInc = totalEwmaInc
+		p.totalEwmaIncr = totalEwmaIncr
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, session.location, nil)
 		if err != nil {

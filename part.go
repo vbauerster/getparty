@@ -32,15 +32,15 @@ type Part struct {
 	Skip     bool
 	Elapsed  time.Duration
 
-	ctx          context.Context
-	name         string
-	order        int
-	maxTry       uint
-	quiet        bool
-	single       bool
-	progress     *mpb.Progress
-	dlogger      *log.Logger
-	totalEwmaInc func(int, time.Duration)
+	ctx           context.Context
+	name          string
+	order         int
+	maxTry        uint
+	quiet         bool
+	single        bool
+	progress      *mpb.Progress
+	dlogger       *log.Logger
+	totalEwmaIncr func(int, time.Duration)
 }
 
 type flashBar struct {
@@ -328,8 +328,8 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				p.Written += int64(n)
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
-				} else if p.totalEwmaInc != nil {
-					p.totalEwmaInc(n, dur)
+				} else if p.totalEwmaIncr != nil {
+					p.totalEwmaIncr(n, dur)
 				}
 				bar.EwmaIncrBy(n, dur)
 				<-sleepCtx.Done()
