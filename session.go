@@ -249,9 +249,9 @@ func (s Session) makeTotalBar(
 	quiet bool,
 ) (func(int, time.Duration), func(bool)) {
 	if len(s.Parts) <= 1 || quiet {
-		return func(int, time.Duration) {}, func(bool) {}
+		return nil, func(bool) {}
 	}
-	bar := progress.New(s.ContentLength, totalBarStyle(), mpb.BarFillerTrim(),
+	bar, err := progress.Add(s.ContentLength, totalBarStyle().Build(), mpb.BarFillerTrim(),
 		mpb.BarExtender(mpb.BarFillerFunc(
 			func(w io.Writer, _ decor.Statistics) error {
 				_, err := fmt.Fprintln(w)
@@ -270,6 +270,9 @@ func (s Session) makeTotalBar(
 			decor.Name("", decor.WCSyncSpace),
 		),
 	)
+	if err != nil {
+		return nil, func(bool) {}
+	}
 	if written := s.totalWritten(); written != 0 {
 		bar.SetCurrent(written)
 		bar.SetRefill(written)
