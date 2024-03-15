@@ -174,10 +174,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
-			err = firstNonNil(cmd.readPassword(), cmd.Ctx.Err())
-			if err != nil {
+			fmt.Fprint(cmd.Out, "Enter Password: ")
+			pass, err := term.ReadPassword(0)
+			if firstNonNil(err, cmd.Ctx.Err()) != nil {
 				return err
 			}
+			cmd.options.AuthPass = string(pass)
 			fmt.Fprintln(cmd.Out)
 		}
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
@@ -670,16 +672,6 @@ func (cmd Cmd) bestMirror(
 	}
 	cmd.dlogger.Printf("best mirror: %q", best)
 	return best, nil
-}
-
-func (cmd *Cmd) readPassword() error {
-	fmt.Fprint(cmd.Out, "Enter Password: ")
-	bytePassword, err := term.ReadPassword(0)
-	if err != nil {
-		return err
-	}
-	cmd.options.AuthPass = string(bytePassword)
-	return nil
 }
 
 func (cmd Cmd) overwriteIfConfirmed(name string) error {
