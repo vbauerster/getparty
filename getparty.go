@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -330,7 +329,7 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 				session.Elapsed += time.Since(start)
 				session.dropSkipped()
 				name := session.OutputFileName + ".json"
-				err := cmd.dumpState(name, session)
+				err := session.dumpState(name)
 				progress.Wait()
 				fmt.Fprintln(cmd.Out)
 				if err != nil {
@@ -700,14 +699,6 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 		return ErrCanceledByUser
 	}
 	return nil
-}
-
-func (cmd Cmd) dumpState(name string, session *Session) error {
-	f, err := os.Create(name)
-	if err != nil {
-		return err
-	}
-	return eitherError(json.NewEncoder(f).Encode(session), f.Close())
 }
 
 func eitherError(errors ...error) error {

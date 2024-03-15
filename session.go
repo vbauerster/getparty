@@ -156,6 +156,14 @@ func (s *Session) loadState(name string) error {
 	return eitherError(json.NewDecoder(f).Decode(s), f.Close())
 }
 
+func (s *Session) dumpState(name string) error {
+	f, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+	return eitherError(json.NewEncoder(f).Encode(s), f.Close())
+}
+
 func (s Session) totalWritten() int64 {
 	var total int64
 	for _, p := range s.Parts {
