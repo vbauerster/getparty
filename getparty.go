@@ -150,11 +150,16 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		err = errors.WithMessage(err, "run")
 	}()
 
+	err = cmd.invariantCheck()
+	if err != nil {
+		return err
+	}
+
 	cmd.options = new(Options)
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
 	cmd.parser.Usage = "[OPTIONS] url"
 	args, err = cmd.parser.ParseArgs(args)
-	if firstNonNil(err, cmd.invariantCheck()) != nil {
+	if err != nil {
 		return err
 	}
 
