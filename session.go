@@ -80,74 +80,6 @@ func (s *Session) dropSkipped() {
 	}
 }
 
-func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (err error) {
-	if len(s.Parts) <= 1 {
-		return nil
-	}
-	totalWritten := s.totalWritten()
-	if totalWritten != s.ContentLength {
-		return errors.Errorf("Size mismatch: expected %d got %d", s.ContentLength, totalWritten)
-	}
-
-	bar, err := progress.Add(int64(len(s.Parts)-1),
-		mpb.BarStyle().Lbound(" ").Rbound(" ").Build(),
-		mpb.BarFillerTrim(),
-		mpb.BarPriority(len(s.Parts)+1),
-		mpb.PrependDecorators(
-			decor.Name("Concatenating", decor.WCSyncWidthR),
-			decor.NewPercentage("%d", decor.WCSyncSpace),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-		),
-	)
-	if err != nil {
-		return err
-	}
-	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if e := fpart0.Close(); err == nil {
-			err = e
-		}
-		bar.Abort(false) // if bar is completed bar.Abort is nop
-	}()
-
-	for i := 1; i < len(s.Parts); i++ {
-		if !s.Parts[i].Skip {
-			fparti, err := os.Open(s.Parts[i].FileName)
-			if err != nil {
-				return err
-			}
-			logger.Printf("concatenating: %q into %q", fparti.Name(), fpart0.Name())
-			_, err = io.Copy(fpart0, fparti)
-			err = eitherError(err, fparti.Close())
-			if err != nil {
-				return err
-			}
-			err = os.Remove(fparti.Name())
-			if err != nil {
-				return err
-			}
-		}
-		bar.Increment()
-	}
-
-	stat, err := fpart0.Stat()
-	if err != nil {
-		return err
-	}
-	if totalWritten != stat.Size() {
-		panic("totalWritten != stat.Size()")
-	}
-	return nil
-}
-
 func (s *Session) loadState(name string) error {
 	f, err := os.Open(name)
 	if err != nil {
@@ -315,4 +247,72 @@ func (s Session) makeTotalBar(
 				cancel()
 			}
 		}
+}
+
+func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (err error) {
+	if len(s.Parts) <= 1 {
+		return nil
+	}
+	totalWritten := s.totalWritten()
+	if totalWritten != s.ContentLength {
+		return errors.Errorf("Size mismatch: expected %d got %d", s.ContentLength, totalWritten)
+	}
+
+	bar, err := progress.Add(int64(len(s.Parts)-1),
+		mpb.BarStyle().Lbound(" ").Rbound(" ").Build(),
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(len(s.Parts)+1),
+		mpb.PrependDecorators(
+			decor.Name("Concatenating", decor.WCSyncWidthR),
+			decor.NewPercentage("%d", decor.WCSyncSpace),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+		),
+	)
+	if err != nil {
+		return err
+	}
+	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if e := fpart0.Close(); err == nil {
+			err = e
+		}
+		bar.Abort(false) // if bar is completed bar.Abort is nop
+	}()
+
+	for i := 1; i < len(s.Parts); i++ {
+		if !s.Parts[i].Skip {
+			fparti, err := os.Open(s.Parts[i].FileName)
+			if err != nil {
+				return err
+			}
+			logger.Printf("concatenating: %q into %q", fparti.Name(), fpart0.Name())
+			_, err = io.Copy(fpart0, fparti)
+			err = eitherError(err, fparti.Close())
+			if err != nil {
+				return err
+			}
+			err = os.Remove(fparti.Name())
+			if err != nil {
+				return err
+			}
+		}
+		bar.Increment()
+	}
+
+	stat, err := fpart0.Stat()
+	if err != nil {
+		return err
+	}
+	if totalWritten != stat.Size() {
+		panic("totalWritten != stat.Size()")
+	}
+	return nil
 }
