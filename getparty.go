@@ -678,10 +678,10 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 		if cmd.Ctx.Err() == nil {
 			return os.Remove(name)
 		}
+		fallthrough
 	default:
 		return ErrCanceledByUser
 	}
-	return nil
 }
 
 func (cmd Cmd) getTimeout() time.Duration {
