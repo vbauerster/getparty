@@ -185,10 +185,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	if cmd.options.Timeout == 0 {
-		cmd.options.Timeout = 15
-	}
-
 	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
 		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	}
@@ -236,11 +232,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var doneCount uint32
 	var eg errgroup.Group
 	var onceSessionHandle sync.Once
-	var sleep time.Duration
-	if l := cmd.options.SpeedLimit; l <= 10 {
-		sleep = time.Duration(l*50) * time.Millisecond
-	}
-	timeout := time.Duration(cmd.options.Timeout) * time.Second
 	ctx, cancel := context.WithCancel(cmd.Ctx)
 	defer cancel()
 	progress := mpb.NewWithContext(ctx,
@@ -259,6 +250,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	sessionHandle := cmd.makeSessionHandler(session, progress)
 	defer sessionHandle()
 
+	timeout := cmd.getTimeout()
+	sleep := cmd.getSleep()
 	client := &http.Client{
 		Transport: transport,
 		Jar:       jar,
@@ -470,7 +463,7 @@ func (cmd Cmd) follow(
 	}()
 
 	location := rawURL
-	timeout := time.Duration(cmd.options.Timeout) * time.Second
+	timeout := cmd.getTimeout()
 
 	err = backoff.RetryWithContext(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (retry bool, err error) {
@@ -624,6 +617,7 @@ func (cmd Cmd) bestMirror(
 	var wg1, wg2 sync.WaitGroup
 	start := make(chan struct{})
 	first := make(chan string, 1)
+	timeout := cmd.getTimeout()
 	client := &http.Client{
 		Transport: cmd.getTransport(false),
 	}
@@ -643,7 +637,7 @@ func (cmd Cmd) bestMirror(
 			defer wg2.Done()
 			wg1.Done()
 			<-start
-			ctx, cancel := context.WithTimeout(cmd.Ctx, time.Duration(cmd.options.Timeout)*time.Second)
+			ctx, cancel := context.WithTimeout(cmd.Ctx, timeout)
 			defer cancel()
 			resp, err := client.Do(req.WithContext(ctx))
 			if err != nil {
@@ -692,6 +686,22 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 		return ErrCanceledByUser
 	}
 	return nil
+}
+
+func (cmd Cmd) getTimeout() time.Duration {
+	if cmd.options.Timeout == 0 {
+		return 15 * time.Second
+	}
+	return time.Duration(cmd.options.Timeout) * time.Second
+}
+
+func (cmd Cmd) getSleep() time.Duration {
+	switch l := cmd.options.SpeedLimit; l {
+	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10:
+		return time.Duration(l*50) * time.Millisecond
+	default:
+		return 0
+	}
 }
 
 func firstNonNil(errors ...error) error {
