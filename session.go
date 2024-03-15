@@ -1,7 +1,6 @@
 package getparty
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -149,17 +148,12 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 	return nil
 }
 
-func (s *Session) loadState(fileName string) error {
-	src, err := os.Open(fileName)
+func (s *Session) loadState(name string) error {
+	f, err := os.Open(name)
 	if err != nil {
 		return err
 	}
-
-	err = json.NewDecoder(bufio.NewReader(src)).Decode(s)
-	if e := src.Close(); err == nil {
-		err = e
-	}
-	return err
+	return eitherError(json.NewDecoder(f).Decode(s), f.Close())
 }
 
 func (s Session) totalWritten() int64 {
