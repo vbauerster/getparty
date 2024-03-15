@@ -131,7 +131,11 @@ func (cmd Cmd) Exit(err error) int {
 		cmd.parser.WriteHelp(cmd.Err)
 		return 2
 	case ExpectedError:
-		cmd.logError(cause)
+		if cause == ErrBadInvariant {
+			log.Default().Println(cause)
+		} else {
+			cmd.logError(cause)
+		}
 		return 1
 	default:
 		cmd.logError(err)
