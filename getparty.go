@@ -45,6 +45,7 @@ func (e HttpError) Error() string {
 }
 
 const (
+	ErrBadInvariant   = ExpectedError("Bad invariant")
 	ErrCanceledByUser = ExpectedError("Canceled by user")
 	ErrMaxRedirect    = ExpectedError("Max redirects")
 	ErrMaxRetry       = ExpectedError("Max retries")
@@ -153,7 +154,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
 	cmd.parser.Usage = "[OPTIONS] url"
 	args, err = cmd.parser.ParseArgs(args)
-	if err != nil {
+	if firstNonNil(err, cmd.invariantCheck()) != nil {
 		return err
 	}
 
@@ -702,6 +703,13 @@ func (cmd Cmd) getSleep() time.Duration {
 	default:
 		return 0
 	}
+}
+
+func (cmd Cmd) invariantCheck() error {
+	if cmd.Ctx == nil || cmd.Out == nil || cmd.Err == nil {
+		return ErrBadInvariant
+	}
+	return nil
 }
 
 func firstNonNil(errors ...error) error {
