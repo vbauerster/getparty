@@ -174,7 +174,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
-			err = eitherError(cmd.readPassword(), cmd.Ctx.Err())
+			err = firstNonNil(cmd.readPassword(), cmd.Ctx.Err())
 			if err != nil {
 				return err
 			}
@@ -223,7 +223,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	transport := cmd.getTransport(cmd.options.Parts != 0)
 	session, err := cmd.getState(args, transport, jar)
-	if err = eitherError(err, cmd.Ctx.Err()); err != nil {
+	if err = firstNonNil(err, cmd.Ctx.Err()); err != nil {
 		return err
 	}
 	session.summary(cmd.logger)
@@ -303,7 +303,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.tlsConfig = nil
 	cmd.parser = nil
 
-	err = eitherError(eg.Wait(), ctx.Err())
+	err = firstNonNil(eg.Wait(), ctx.Err())
 	if err != nil {
 		totalCancel(false)
 		return err
@@ -701,7 +701,7 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	return nil
 }
 
-func eitherError(errors ...error) error {
+func firstNonNil(errors ...error) error {
 	for _, err := range errors {
 		if err != nil {
 			return err

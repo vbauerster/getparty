@@ -81,7 +81,7 @@ func (s *Session) loadState(name string) error {
 	if err != nil {
 		return err
 	}
-	return eitherError(json.NewDecoder(f).Decode(s), f.Close())
+	return firstNonNil(json.NewDecoder(f).Decode(s), f.Close())
 }
 
 func (s *Session) dumpState(name string) error {
@@ -89,7 +89,7 @@ func (s *Session) dumpState(name string) error {
 	if err != nil {
 		return err
 	}
-	return eitherError(json.NewEncoder(f).Encode(s), f.Close())
+	return firstNonNil(json.NewEncoder(f).Encode(s), f.Close())
 }
 
 func (s Session) isResumable() bool {
@@ -295,7 +295,7 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 			}
 			logger.Printf("concatenating: %q into %q", fparti.Name(), fpart0.Name())
 			_, err = io.Copy(fpart0, fparti)
-			err = eitherError(err, fparti.Close())
+			err = firstNonNil(err, fparti.Close())
 			if err != nil {
 				return err
 			}
