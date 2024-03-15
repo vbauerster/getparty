@@ -121,17 +121,17 @@ func (cmd Cmd) Exit(err error) int {
 		// if there is stack trace available, +v will include it
 		cmd.dlogger.Printf("Exit error: %+v", err)
 	}
-	switch e := errors.Cause(err).(type) {
+	switch cause := errors.Cause(err).(type) {
 	case nil:
 		return 0
 	case *flags.Error:
-		if e.Type == flags.ErrHelp {
+		if cause.Type == flags.ErrHelp {
 			return 0
 		}
 		cmd.parser.WriteHelp(cmd.Err)
 		return 2
 	case ExpectedError:
-		cmd.logError(e)
+		cmd.logError(cause)
 		return 1
 	default:
 		cmd.logError(err)
