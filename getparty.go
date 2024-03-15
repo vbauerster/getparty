@@ -171,6 +171,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return nil
 	}
 
+	cmd.logger = log.New(cmd.getOut(), "[INFO] ", log.LstdFlags)
+	cmd.dlogger = log.New(cmd.getErr(), fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
+
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
 			fmt.Fprint(cmd.Out, "Enter Password: ")
@@ -183,9 +186,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
-
-	cmd.logger = log.New(cmd.getOut(), "[INFO] ", log.LstdFlags)
-	cmd.dlogger = log.New(cmd.getErr(), fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
 
 	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
 		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
