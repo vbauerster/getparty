@@ -157,10 +157,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	if cmd.options.Quiet {
-		cmd.Out = io.Discard
-	}
-
 	userAgents[cmdName] = fmt.Sprintf("%s/%s", cmdName, version)
 
 	if cmd.options.Version {
@@ -168,9 +164,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		fmt.Fprintf(cmd.Out, "Project home: %s\n", projectHome)
 		return nil
 	}
-
-	cmd.logger = setupLogger(cmd.Out, "[INFO] ", cmd.options.Quiet)
-	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
@@ -184,6 +177,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
+
+	if cmd.options.Quiet {
+		cmd.Out = io.Discard
+	}
+
+	cmd.logger = setupLogger(cmd.Out, "[INFO] ", cmd.options.Quiet)
+	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
 
 	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
 		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
