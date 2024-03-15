@@ -126,6 +126,7 @@ func (cmd Cmd) Exit(err error) int {
 		return 0
 	case *flags.Error:
 		if cause.Type == flags.ErrHelp {
+			// cmd invoked with --help switch
 			return 0
 		}
 		cmd.parser.WriteHelp(cmd.Err)
