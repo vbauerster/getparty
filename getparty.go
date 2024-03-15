@@ -141,7 +141,7 @@ func (cmd Cmd) Exit(err error) int {
 
 func (cmd Cmd) logError(err error) {
 	cmd.logger.SetPrefix("[ERRO] ")
-	cmd.logger.Println(err.Error())
+	cmd.logger.Println(err)
 }
 
 func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
