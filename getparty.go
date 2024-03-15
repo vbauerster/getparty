@@ -242,10 +242,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		&doneCount,
 		cmd.options.Quiet,
 	)
-	patcher := makeReqPatcher(session.HeaderMap, true)
 	sessionHandle := cmd.makeSessionHandler(session, progress)
 	defer sessionHandle()
 
+	patcher := makeReqPatcher(session.HeaderMap, true)
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
 	client := &http.Client{
