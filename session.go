@@ -32,10 +32,6 @@ type Session struct {
 	Parts          []*Part
 }
 
-func (s Session) isResumable() bool {
-	return strings.EqualFold(s.AcceptRanges, "bytes") && s.ContentLength > 0
-}
-
 func (s *Session) calcParts(parts uint) error {
 	if !s.isResumable() {
 		parts = 1
@@ -94,6 +90,10 @@ func (s *Session) dumpState(name string) error {
 		return err
 	}
 	return eitherError(json.NewEncoder(f).Encode(s), f.Close())
+}
+
+func (s Session) isResumable() bool {
+	return strings.EqualFold(s.AcceptRanges, "bytes") && s.ContentLength > 0
 }
 
 func (s Session) totalWritten() int64 {
