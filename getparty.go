@@ -179,12 +179,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	if cmd.options.Quiet {
-		cmd.Out = io.Discard
-	}
-
-	cmd.logger = setupLogger(cmd.Out, "[INFO] ", cmd.options.Quiet)
-	cmd.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s] ", cmdName), !cmd.options.Debug)
+	cmd.logger = log.New(cmd.getOut(), "[INFO] ", log.LstdFlags)
+	cmd.dlogger = log.New(cmd.getErr(), fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
 
 	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
 		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
@@ -236,9 +232,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	ctx, cancel := context.WithCancel(cmd.Ctx)
 	defer cancel()
 	progress := mpb.NewWithContext(ctx,
-		mpb.ContainerOptional(mpb.WithOutput(cmd.Out), !cmd.options.Quiet),
-		mpb.ContainerOptional(mpb.WithOutput(nil), cmd.options.Quiet),
-		mpb.ContainerOptional(mpb.WithDebugOutput(cmd.Err), cmd.options.Debug),
+		mpb.WithOutput(cmd.getOut()),
+		mpb.WithDebugOutput(cmd.getErr()),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
@@ -270,7 +265,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.single = len(session.Parts) == 1
 		p.progress = progress
 		p.totalEwmaIncr = totalEwmaIncr
-		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), !cmd.options.Debug)
+		p.dlogger = log.New(cmd.getErr(), fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
 		req, err := http.NewRequest(http.MethodGet, session.location, nil)
 		if err != nil {
 			cancel()
@@ -328,7 +323,7 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 				name := session.OutputFileName + ".json"
 				err := session.dumpState(name)
 				progress.Wait()
-				fmt.Fprintln(cmd.Out)
+				fmt.Fprintln(cmd.getOut())
 				if err != nil {
 					cmd.logError(err)
 				} else {
@@ -337,7 +332,7 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 			}
 		} else {
 			progress.Wait()
-			fmt.Fprintln(cmd.Out)
+			fmt.Fprintln(cmd.getOut())
 			cmd.logger.Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
 		}
 	}
@@ -705,6 +700,20 @@ func (cmd Cmd) getSleep() time.Duration {
 	}
 }
 
+func (cmd Cmd) getOut() io.Writer {
+	if cmd.options.Quiet {
+		return io.Discard
+	}
+	return cmd.Out
+}
+
+func (cmd Cmd) getErr() io.Writer {
+	if cmd.options.Debug {
+		return cmd.Err
+	}
+	return io.Discard
+}
+
 func (cmd Cmd) invariantCheck() error {
 	if cmd.Ctx == nil || cmd.Out == nil || cmd.Err == nil {
 		return ErrBadInvariant
@@ -797,13 +806,4 @@ func readLines(r io.Reader) ([]string, error) {
 		lines = append(lines, line)
 	}
 	return lines, scanner.Err()
-}
-
-func setupLogger(out io.Writer, prefix string, discard bool) *log.Logger {
-	if discard {
-		// log.Logger optimizes for io.Discard
-		// https://github.com/golang/go/blob/db3045b4be5b91cd42c3387dc550c89bbc2f7fb4/src/log/log_test.go#L183-L192
-		out = io.Discard
-	}
-	return log.New(out, prefix, log.LstdFlags)
 }
