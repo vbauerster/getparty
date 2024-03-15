@@ -277,7 +277,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.dlogger = setupLogger(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), !cmd.options.Debug)
 		req, err := http.NewRequest(http.MethodGet, session.location, nil)
 		if err != nil {
-			cmd.logger.Fatalf("%s: %s", p.name, err.Error())
+			cancel()
+			return err
 		}
 		patcher(req, cmd.userinfo)
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
