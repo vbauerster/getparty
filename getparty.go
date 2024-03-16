@@ -181,7 +181,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
-			fmt.Fprint(cmd.Out, "Enter Password: ")
+			fmt.Fprint(cmd.Out, "Enter password: ")
 			pass, err := term.ReadPassword(0)
 			if firstNonNil(err, cmd.Ctx.Err()) != nil {
 				return err
