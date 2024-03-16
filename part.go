@@ -71,7 +71,7 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 		return nil
 	}
 	var barBuilder mpb.BarFillerBuilder
-	msgCh := make(chan message)
+	msgCh := make(chan message, 1)
 	total := p.total()
 	if total < 0 {
 		total = 0
