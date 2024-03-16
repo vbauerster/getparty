@@ -133,9 +133,9 @@ func (cmd Cmd) Exit(err error) int {
 		return 2
 	case ExpectedError:
 		if cause == ErrBadInvariant {
-			log.Default().Println(cause)
+			log.Default().Println(err)
 		} else {
-			cmd.logError(cause)
+			cmd.logError(err)
 		}
 		return 1
 	default:
