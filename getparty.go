@@ -116,10 +116,15 @@ type Cmd struct {
 	dlogger   *log.Logger
 }
 
-func (cmd Cmd) Exit(err error) int {
+func (cmd Cmd) Exit(err error) (status int) {
 	if cmd.dlogger != nil {
-		// if there is stack trace available, +v will include it
-		cmd.dlogger.Printf("Exit error: %+v", err)
+		defer func() {
+			if status == 0 {
+				return
+			}
+			// if there is stack trace available, +v will include it
+			cmd.dlogger.Printf("Exit error: %+v", err)
+		}()
 	}
 	switch cause := errors.Cause(err).(type) {
 	case nil:
