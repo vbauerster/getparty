@@ -96,7 +96,7 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 		mpb.AppendDecorators(
 			decor.Conditional(total == 0,
 				decor.Name(""),
-				decor.OnComplete(decor.NewAverageETA(
+				decor.OnCompleteOrOnAbort(decor.NewAverageETA(
 					decor.ET_STYLE_MMSS,
 					time.Now(),
 					decor.FixedIntervalTimeNormalizer(30),
