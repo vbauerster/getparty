@@ -198,7 +198,7 @@ func (s Session) makeTotalBar(
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 		),
 		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
+			decor.OnCompleteOrOnAbort(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
 			decor.EwmaSpeed(decor.SizeB1024(0), "%.1f", 30, decor.WCSyncSpace),
 			decor.Name("", decor.WCSyncSpace),
 			decor.Name("", decor.WCSyncSpace),
