@@ -1,7 +1,6 @@
 package getparty
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"sync/atomic"
@@ -22,15 +21,6 @@ var (
 type message struct {
 	msg   string
 	error bool
-}
-
-func makeMsgHandler(ctx context.Context, msgCh chan<- message) func(message) {
-	return func(msg message) {
-		select {
-		case msgCh <- msg:
-		case <-ctx.Done():
-		}
-	}
 }
 
 func newFlashDecorator(decorator decor.Decorator, msgCh <-chan message, limit uint) decor.Decorator {

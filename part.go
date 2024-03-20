@@ -118,7 +118,7 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 	}
 	b.Bar = bar
 	b.prefix = p.name
-	b.msgHandler = makeMsgHandler(p.ctx, msgCh)
+	b.msgHandler = p.makeMsgHandler(msgCh)
 	b.initialized.Store(true)
 	return nil
 }
@@ -364,4 +364,14 @@ func (p Part) total() int64 {
 
 func (p Part) isDone() bool {
 	return p.Written != 0 && p.Written == p.total()
+}
+
+func (p Part) makeMsgHandler(msgCh chan<- message) func(message) {
+	return func(msg message) {
+		select {
+		case msgCh <- msg:
+		default:
+			fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), msg.msg)
+		}
+	}
 }
