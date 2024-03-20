@@ -1,6 +1,7 @@
 package getparty
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync/atomic"
@@ -23,12 +24,12 @@ type message struct {
 	error bool
 }
 
-func makeMsgHandler(msgCh chan<- message, quiet bool) func(message) {
-	if quiet {
-		return func(message) {}
-	}
+func makeMsgHandler(ctx context.Context, msgCh chan<- message) func(message) {
 	return func(msg message) {
-		msgCh <- msg
+		select {
+		case msgCh <- msg:
+		case <-ctx.Done():
+		}
 	}
 }
 

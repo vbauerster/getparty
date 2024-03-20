@@ -276,7 +276,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.order = i + 1
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.maxTry = cmd.options.MaxRetry
-		p.quiet = cmd.options.Quiet
 		p.single = len(session.Parts) == 1
 		p.progress = progress
 		p.totalEwmaIncr = totalEwmaIncr

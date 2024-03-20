@@ -36,7 +36,6 @@ type Part struct {
 	name          string
 	order         int
 	maxTry        uint
-	quiet         bool
 	single        bool
 	progress      *mpb.Progress
 	dlogger       *log.Logger
@@ -119,7 +118,7 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 	}
 	b.Bar = bar
 	b.prefix = p.name
-	b.msgHandler = makeMsgHandler(msgCh, p.quiet)
+	b.msgHandler = makeMsgHandler(p.ctx, msgCh)
 	b.initialized.Store(true)
 	return nil
 }
