@@ -20,7 +20,7 @@ var (
 
 type message struct {
 	msg   string
-	error bool
+	isErr bool
 }
 
 func newFlashDecorator(decorator decor.Decorator, msgCh <-chan message, limit uint) decor.Decorator {
@@ -59,7 +59,7 @@ func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 	} else {
 		d.count--
 	}
-	if d.msg.error {
+	if d.msg.isErr {
 		_, _ = d.Format("")
 		return d.msg.msg, math.MaxInt
 	}

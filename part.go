@@ -53,7 +53,7 @@ func (b *flashBar) flash(msg string) {
 	msg = fmt.Sprintf("%s %s", b.prefix, msg)
 	b.msgHandler(message{
 		msg:   msg,
-		error: false,
+		isErr: false,
 	})
 }
 
@@ -61,7 +61,7 @@ func (b *flashBar) flashErr(msg string) {
 	msg = fmt.Sprintf("%s:ERR %s", b.prefix, msg)
 	b.msgHandler(message{
 		msg:   msg,
-		error: true,
+		isErr: true,
 	})
 }
 
