@@ -279,7 +279,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 			case http.StatusServiceUnavailable:
 				if bar.initialized.Load() {
-					go bar.flashErr(resp.Status)
+					bar.flashErr(resp.Status)
 				} else {
 					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
 				}
