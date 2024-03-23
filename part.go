@@ -285,12 +285,12 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				}
 				return true, HttpError(resp.StatusCode)
 			default:
-				if attempt != 0 {
-					atomic.AddUint32(&globTry, ^uint32(0))
-				}
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
 				if bar.initialized.Load() {
 					bar.Abort(true)
+				}
+				if attempt != 0 {
+					atomic.AddUint32(&globTry, ^uint32(0))
 				}
 				return false, HttpError(resp.StatusCode)
 			}
