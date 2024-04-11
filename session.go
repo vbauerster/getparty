@@ -219,7 +219,9 @@ func (s Session) makeTotalBar(
 	ch := make(chan ewmaPayload, len(s.Parts)-int(atomic.LoadUint32(doneCount)))
 	ctx, cancel := context.WithCancel(ctx)
 	dropCtx, dropCancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		for {
 			select {
 			case p := <-ch:
@@ -238,7 +240,7 @@ func (s Session) makeTotalBar(
 	return func(n int, dur time.Duration) {
 			select {
 			case ch <- ewmaPayload{n, dur}:
-			case <-ctx.Done():
+			case <-done:
 			}
 		}, func(drop bool) {
 			if drop {
