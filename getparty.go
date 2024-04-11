@@ -252,7 +252,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalEwmaIncr, totalCancel, err := session.makeTotalBar(ctx,
+	totalBarIncr, totalCancel, err := session.makeTotalBar(ctx,
 		progress,
 		&doneCount,
 		cmd.options.Quiet,
@@ -281,7 +281,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.maxTry = cmd.options.MaxRetry
 		p.single = len(session.Parts) == 1
 		p.progress = progress
-		p.totalEwmaIncr = totalEwmaIncr
+		p.totalBarIncr = totalBarIncr
 		p.dlogger = log.New(cmd.getErr(), fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
 		req, err := http.NewRequest(http.MethodGet, session.location, nil)
 		if err != nil {
