@@ -252,11 +252,14 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalEwmaIncr, totalCancel := session.makeTotalBar(ctx,
+	totalEwmaIncr, totalCancel, err := session.makeTotalBar(ctx,
 		progress,
 		&doneCount,
 		cmd.options.Quiet,
 	)
+	if err != nil {
+		return err
+	}
 	sessionHandle := cmd.makeSessionHandler(session, progress)
 	defer sessionHandle()
 
