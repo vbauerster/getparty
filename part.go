@@ -325,7 +325,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				p.Written += int64(n)
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
-				} else if p.totalEwmaIncr != nil {
+				} else {
 					p.totalEwmaIncr(n, dur)
 				}
 				bar.EwmaIncrBy(n, dur)
