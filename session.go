@@ -185,7 +185,9 @@ func (s Session) makeTotalBar(
 	if len(s.Parts) <= 1 || quiet {
 		return func(int, time.Duration) {}, func(bool) {}, nil
 	}
-	bar, err := progress.Add(s.ContentLength, totalBarStyle().Build(), mpb.BarFillerTrim(),
+	bar, err := progress.Add(s.ContentLength,
+		distinctRefiller(baseBarStyle()).Build(),
+		mpb.BarFillerTrim(),
 		mpb.BarExtender(mpb.BarFillerFunc(
 			func(w io.Writer, _ decor.Statistics) error {
 				_, err := fmt.Fprintln(w)
@@ -261,7 +263,7 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 	}
 
 	bar, err := progress.Add(int64(len(s.Parts)-1),
-		mpb.BarStyle().Lbound(" ").Rbound(" ").Build(),
+		baseBarStyle().Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(len(s.Parts)+1),
 		mpb.PrependDecorators(
