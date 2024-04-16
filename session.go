@@ -181,9 +181,9 @@ func (s Session) makeTotalBar(
 	progress *mpb.Progress,
 	doneCount *uint32,
 	quiet bool,
-) (func(int, time.Duration), func(bool), error) {
+) (func(int), func(bool), error) {
 	if len(s.Parts) <= 1 || quiet {
-		return func(int, time.Duration) {}, func(bool) {}, nil
+		return func(int) {}, func(bool) {}, nil
 	}
 	bar, err := progress.Add(s.ContentLength,
 		distinctRefiller(baseBarStyle()).Build(),
@@ -201,7 +201,7 @@ func (s Session) makeTotalBar(
 		),
 		mpb.AppendDecorators(
 			decor.OnCompleteOrOnAbort(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
-			decor.EwmaSpeed(decor.SizeB1024(0), "%.1f", 30, decor.WCSyncSpace),
+			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
 			decor.Name("", decor.WCSyncSpace),
 			decor.Name("", decor.WCSyncSpace),
 		),
@@ -214,11 +214,7 @@ func (s Session) makeTotalBar(
 		bar.SetRefill(written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
 	}
-	type ewmaPayload struct {
-		n int
-		d time.Duration
-	}
-	ch := make(chan ewmaPayload, len(s.Parts)-int(atomic.LoadUint32(doneCount)))
+	ch := make(chan int, len(s.Parts)-int(atomic.LoadUint32(doneCount)))
 	ctx, cancel := context.WithCancel(ctx)
 	dropCtx, dropCancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -226,8 +222,8 @@ func (s Session) makeTotalBar(
 		defer close(done)
 		for {
 			select {
-			case p := <-ch:
-				bar.EwmaIncrBy(p.n, p.d)
+			case n := <-ch:
+				bar.IncrBy(n)
 			case <-dropCtx.Done():
 				cancel()
 				bar.Abort(true)
@@ -239,9 +235,9 @@ func (s Session) makeTotalBar(
 			}
 		}
 	}()
-	return func(n int, dur time.Duration) {
+	return func(n int) {
 			select {
-			case ch <- ewmaPayload{n, dur}:
+			case ch <- n:
 			case <-done:
 			}
 		}, func(drop bool) {
