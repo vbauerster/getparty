@@ -1,5 +1,5 @@
 // getparty
-// Copyright (C) 2016-2023 Vladimir Bauer
+// Copyright (C) 2016-2024 Vladimir Bauer
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
