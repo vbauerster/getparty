@@ -186,7 +186,7 @@ func (s Session) makeTotalBar(
 		return func(int) {}, func(bool) {}, nil
 	}
 	bar, err := progress.Add(s.ContentLength,
-		distinctRefiller(baseBarStyle()).Build(),
+		distinctBarRefiller(baseBarStyle()).Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarExtender(mpb.BarFillerFunc(
 			func(w io.Writer, _ decor.Statistics) error {

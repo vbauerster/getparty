@@ -76,7 +76,7 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 		total = 0
 		barBuilder = mpb.NopStyle()
 	} else {
-		barBuilder = distinctRefiller(baseBarStyle())
+		barBuilder = distinctBarRefiller(baseBarStyle())
 	}
 	p.dlogger.Printf("Setting bar total: %d", total)
 	bar, err := p.progress.Add(total, barBuilder.Build(), mpb.BarFillerTrim(), mpb.BarPriority(p.order),
