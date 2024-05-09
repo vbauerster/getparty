@@ -95,18 +95,19 @@ func (d *mainDecorator) Decor(stat decor.Statistics) (string, int) {
 
 type peak struct {
 	decor.WC
-	format string
-	msg    string
-	min    float64
-	zDur   time.Duration
-	mean   ewma.MovingAverage
+	format   string
+	msg      string
+	min      float64
+	updCount uint8
+	zDur     time.Duration
+	mean     ewma.MovingAverage
 }
 
 func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	d := &peak{
 		WC:     wc.Init(),
 		format: format,
-		mean:   ewma.NewMovingAverage(20),
+		mean:   ewma.NewMovingAverage(30),
 	}
 	return d
 }
@@ -122,6 +123,10 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 		}
 		s.zDur = 0
 		s.mean.Add(durPerByte)
+		if s.updCount < ewma.WARMUP_SAMPLES {
+			s.updCount++
+			return
+		}
 		durPerByte = s.mean.Value()
 		if s.min == 0 || durPerByte < s.min {
 			s.min = durPerByte
@@ -131,7 +136,7 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 
 func (s *peak) Decor(stat decor.Statistics) (string, int) {
 	if stat.Completed && s.msg == "" {
-		if s.min == 0 {
+		if s.updCount != ewma.WARMUP_SAMPLES {
 			s.msg = "N/A"
 		} else {
 			s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/s.min))))
