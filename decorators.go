@@ -136,7 +136,7 @@ func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 
 func (s *peak) Decor(stat decor.Statistics) (string, int) {
 	if stat.Completed && s.msg == "" {
-		if s.updCount != ewma.WARMUP_SAMPLES {
+		if s.min == 0 {
 			s.msg = "N/A"
 		} else {
 			s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/s.min))))
