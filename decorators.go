@@ -115,23 +115,23 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
 	if n <= 0 {
 		s.zDur += dur
-	} else {
-		durPerByte := float64(s.zDur+dur) / float64(n)
-		if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) {
-			s.zDur += dur
-			return
+		return
+	}
+	durPerByte := float64(s.zDur+dur) / float64(n)
+	if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) {
+		s.zDur += dur
+		return
+	}
+	s.zDur = 0
+	s.mean.Add(durPerByte)
+	switch s.updCount {
+	case ewma.WARMUP_SAMPLES:
+		durPerByte = s.mean.Value()
+		if s.min == 0 || durPerByte < s.min {
+			s.min = durPerByte
 		}
-		s.zDur = 0
-		s.mean.Add(durPerByte)
-		switch s.updCount {
-		case ewma.WARMUP_SAMPLES:
-			durPerByte = s.mean.Value()
-			if s.min == 0 || durPerByte < s.min {
-				s.min = durPerByte
-			}
-		default:
-			s.updCount++
-		}
+	default:
+		s.updCount++
 	}
 }
 
