@@ -332,6 +332,12 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 	pTotal := session.totalWritten()
 	start := time.Now()
 	return func() {
+		log := func() {}
+		defer func() {
+			progress.Wait()
+			fmt.Fprintln(cmd.getOut())
+			log()
+		}()
 		total := session.totalWritten()
 		if session.isResumable() && total != session.ContentLength {
 			if total-pTotal != 0 { // if some bytes were written
@@ -339,18 +345,20 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 				session.dropSkipped()
 				name := session.OutputFileName + ".json"
 				err := session.dumpState(name)
-				progress.Wait()
-				fmt.Fprintln(cmd.getOut())
 				if err != nil {
-					cmd.logError(err)
+					log = func() {
+						cmd.logError(err)
+					}
 				} else {
-					cmd.logger.Printf("Session state saved to %q", name)
+					log = func() {
+						cmd.logger.Printf("Session state saved to %q", name)
+					}
 				}
 			}
 		} else {
-			progress.Wait()
-			fmt.Fprintln(cmd.getOut())
-			cmd.logger.Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
+			log = func() {
+				cmd.logger.Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
+			}
 		}
 	}
 }
