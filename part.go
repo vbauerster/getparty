@@ -284,7 +284,7 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 				} else {
 					panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
 				}
-			case http.StatusServiceUnavailable:
+			case http.StatusInternalServerError, http.StatusServiceUnavailable:
 				if bar.initialized.Load() {
 					bar.flashErr(resp.Status)
 				} else {
