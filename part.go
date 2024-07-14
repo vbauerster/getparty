@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"sync/atomic"
 	"time"
@@ -207,7 +208,13 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 			})
 			defer timer.Stop()
 
-			resp, err := client.Do(req.WithContext(ctx))
+			trace := &httptrace.ClientTrace{
+				GotConn: func(connInfo httptrace.GotConnInfo) {
+					p.dlogger.Printf("Connection RemoteAddr: %s", connInfo.Conn.RemoteAddr())
+				},
+			}
+
+			resp, err := client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 			if err != nil {
 				if p.Written == 0 {
 					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
