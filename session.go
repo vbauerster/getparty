@@ -253,9 +253,8 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 	if len(s.Parts) <= 1 {
 		return nil
 	}
-	totalWritten := s.totalWritten()
-	if totalWritten != s.ContentLength {
-		return errors.Errorf("Size mismatch: expected %d got %d", s.ContentLength, totalWritten)
+	if tw := s.totalWritten(); tw != s.ContentLength {
+		return errors.Errorf("Written count mismatch: ContentLength %d, written %d", s.ContentLength, tw)
 	}
 
 	bar, err := progress.Add(int64(len(s.Parts)-1),
