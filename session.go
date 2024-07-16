@@ -315,8 +315,8 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 		bar.Increment()
 	}
 
-	if totalWritten != statSum {
-		panic("totalWritten != statSum")
+	if s.ContentLength != statSum {
+		return errors.Errorf("Corrupted file: ContentLength %d, file size %d", s.ContentLength, statSum)
 	}
 	return nil
 }
