@@ -280,6 +280,10 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 	if err != nil {
 		return err
 	}
+	statSum, err := statAndSumSize(fpart0, 0)
+	if err != nil {
+		return err
+	}
 	defer func() {
 		if e := fpart0.Close(); err == nil {
 			err = e
@@ -290,6 +294,10 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 	for i := 1; i < len(s.Parts); i++ {
 		if !s.Parts[i].Skip {
 			fparti, err := os.Open(s.Parts[i].FileName)
+			if err != nil {
+				return err
+			}
+			statSum, err = statAndSumSize(fparti, statSum)
 			if err != nil {
 				return err
 			}
@@ -307,12 +315,16 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 		bar.Increment()
 	}
 
-	stat, err := fpart0.Stat()
-	if err != nil {
-		return err
-	}
-	if totalWritten != stat.Size() {
-		panic("totalWritten != stat.Size()")
+	if totalWritten != statSum {
+		panic("totalWritten != statSum")
 	}
 	return nil
+}
+
+func statAndSumSize(f *os.File, sum int64) (int64, error) {
+	stat, err := f.Stat()
+	if err != nil {
+		return sum, err
+	}
+	return sum + stat.Size(), nil
 }
