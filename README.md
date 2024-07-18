@@ -37,7 +37,7 @@ Application Options:
   -o, --output=filename                                     user defined output
   -s, --session=session.json                                path to saved session file (optional)
   -a, --user-agent=[chrome|firefox|safari|edge|getparty]    User-Agent header (default: chrome)
-  -b, --best-mirror                                         pickup the fastest mirror
+  -b, --best-mirror                                         pickup best mirror, repeat n times to list top n
   -q, --quiet                                               quiet mode, no progress bars
   -f, --force                                               overwrite existing file silently
   -u, --username=                                           basic http auth username
