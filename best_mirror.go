@@ -71,7 +71,7 @@ func (cmd Cmd) bestMirror(args []string, maxGoroutines int) ([]string, error) {
 	for i := 0; i < len(cmd.options.BestMirror) && pq.Len() != 0; i++ {
 		m := heap.Pop(&pq).(*mirror)
 		top = append(top, m.url)
-		cmd.logger.Printf("%s: %q", m.queryDur, m.url)
+		cmd.loggers[INFO].Printf("%s: %q", m.queryDur, m.url)
 	}
 	return top, fdClose()
 }
@@ -97,7 +97,7 @@ func (cmd Cmd) batchMirrors(input io.Reader, maxGoroutines int) mirrorPQ {
 			for m := range mirrors {
 				err := queryMirror(cmd.Ctx, client, m, timeout)
 				if err != nil {
-					cmd.logError(err)
+					cmd.loggers[ERRO].Println(err)
 					continue
 				}
 				result <- m

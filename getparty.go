@@ -110,20 +110,19 @@ type Cmd struct {
 	parser    *flags.Parser
 	userinfo  *url.Userinfo
 	tlsConfig *tls.Config
-	logger    *log.Logger
-	dlogger   *log.Logger
+	loggers   [LEVELS]*log.Logger
 }
 
 func (cmd Cmd) Exit(err error) (status int) {
-	if cmd.dlogger != nil {
-		defer func() {
-			if status == 0 {
-				return
-			}
+	defer func() {
+		if status == 0 {
+			return
+		}
+		if cmd.loggers[DEBUG] != nil {
 			// if there is stack trace available, +v will include it
-			cmd.dlogger.Printf("Exit error: %+v", err)
-		}()
-	}
+			cmd.loggers[DEBUG].Printf("Exit error: %+v", err)
+		}
+	}()
 	switch cause := errors.Cause(err).(type) {
 	case nil:
 		return 0
@@ -138,18 +137,13 @@ func (cmd Cmd) Exit(err error) (status int) {
 		if cause == ErrBadInvariant {
 			log.Default().Println(err)
 		} else {
-			cmd.logError(err)
+			cmd.loggers[ERRO].Println(err)
 		}
 		return 1
 	default:
-		cmd.logError(err)
+		cmd.loggers[ERRO].Println(err)
 		return 3
 	}
-}
-
-func (cmd Cmd) logError(err error) {
-	cmd.logger.SetPrefix("[ERRO] ")
-	cmd.logger.Println(err)
 }
 
 func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
@@ -179,8 +173,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return nil
 	}
 
-	cmd.logger = log.New(cmd.getOut(), "[INFO] ", log.LstdFlags)
-	cmd.dlogger = log.New(cmd.getErr(), fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
+	cmd.initLoggers()
 
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
@@ -238,7 +231,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err = firstNonNil(err, cmd.Ctx.Err()); err != nil {
 		return err
 	}
-	session.summary(cmd.logger)
+	session.summary(cmd.loggers[INFO])
 	if cmd.options.Parts == 0 {
 		return nil
 	}
@@ -320,7 +313,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	err = session.concatenateParts(progress, cmd.dlogger)
+	err = session.concatenateParts(progress, cmd.loggers[DEBUG])
 	if err != nil {
 		return err
 	}
@@ -349,17 +342,17 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 				err := session.dumpState(name)
 				if err != nil {
 					log = func() {
-						cmd.logError(err)
+						cmd.loggers[ERRO].Println(err)
 					}
 				} else {
 					log = func() {
-						cmd.logger.Printf("Session state saved to %q", name)
+						cmd.loggers[INFO].Printf("Session state saved to %q", name)
 					}
 				}
 			}
 		} else {
 			log = func() {
-				cmd.logger.Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
+				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
 			}
 		}
 	}
@@ -506,25 +499,22 @@ func (cmd Cmd) follow(
 				reqPatcher(req, cmd.userinfo)
 
 				for k, v := range req.Header {
-					cmd.dlogger.Printf("%s: %v", k, v)
+					cmd.loggers[DEBUG].Printf("%s: %v", k, v)
 				}
 
 				if attempt == 0 {
-					cmd.logger.Printf("Get %q", location)
+					cmd.loggers[INFO].Printf("Get %q", location)
 				} else {
-					cmd.logger.Printf("Get:R%02d %q", attempt, location)
+					cmd.loggers[INFO].Printf("Get:R%02d %q", attempt, location)
 				}
 
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
-					prefix := cmd.logger.Prefix()
-					cmd.logger.SetPrefix("[WARN] ")
 					if e := errors.Unwrap(err); e != nil {
-						cmd.logger.Println(e.Error())
+						cmd.loggers[WARN].Println(e.Error())
 					} else {
-						cmd.logger.Println(err.Error())
+						cmd.loggers[WARN].Println(err.Error())
 					}
-					cmd.logger.SetPrefix(prefix)
 					if attempt != 0 && attempt == cmd.options.MaxRetry {
 						return false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
@@ -532,14 +522,14 @@ func (cmd Cmd) follow(
 				}
 
 				if cookies := jar.Cookies(req.URL); len(cookies) != 0 {
-					cmd.dlogger.Println("CookieJar:")
+					cmd.loggers[DEBUG].Println("CookieJar:")
 					for _, cookie := range cookies {
-						cmd.dlogger.Printf("  %q", cookie)
+						cmd.loggers[DEBUG].Printf("  %q", cookie)
 					}
 				}
 
 				if isRedirect(resp.StatusCode) {
-					cmd.logger.Printf("HTTP response: %s", resp.Status)
+					cmd.loggers[INFO].Printf("HTTP response: %s", resp.Status)
 					redirected = true
 					loc, err := resp.Location()
 					if err != nil {
@@ -553,18 +543,15 @@ func (cmd Cmd) follow(
 				}
 
 				if resp.StatusCode != http.StatusOK {
-					prefix := cmd.logger.Prefix()
-					cmd.logger.SetPrefix("[WARN] ")
-					cmd.logger.Printf("HTTP response: %s", resp.Status)
+					cmd.loggers[WARN].Printf("HTTP response: %s", resp.Status)
 					err = HttpError(resp.StatusCode)
 					if isServerError(resp.StatusCode) { // server error may be temporary
-						cmd.logger.SetPrefix(prefix)
 						return attempt != cmd.options.MaxRetry, err
 					}
 					return false, err
 				}
 
-				cmd.logger.Printf("HTTP response: %s", resp.Status)
+				cmd.loggers[INFO].Printf("HTTP response: %s", resp.Status)
 
 				name := cmd.options.OutFileName
 				for i := 0; name == ""; i++ {
