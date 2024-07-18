@@ -410,6 +410,7 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 			default:
 				restored.location = restored.URL
 			}
+			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.options.JSONFileName)
 			return restored, nil
 		case len(args) != 0:
 			err := setJarCookies(cmd.options.HeaderMap, args[0])
