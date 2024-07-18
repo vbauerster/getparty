@@ -54,7 +54,23 @@ Help Options:
 
 #### Best mirror example:
 
-`cat` [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt) `| getparty -p 8 -b`
+either pipe to stdin:
+
+```
+cat [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt) | getparty -b
+```
+
+or directly from a file:
+
+```
+getparty -b [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt)
+```
+
+just list top 3 mirrors:
+
+````
+getparty -bbb [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt)
+````
 
 ## License
 
