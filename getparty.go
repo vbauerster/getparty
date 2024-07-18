@@ -1,7 +1,6 @@
 package getparty
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -19,7 +18,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode"
 
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	flags "github.com/jessevdk/go-flags"
@@ -92,7 +90,7 @@ type Options struct {
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName       string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
 	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" description:"User-Agent header (default: chrome)"`
-	BestMirror         bool              `short:"b" long:"best-mirror" description:"pickup the fastest mirror"`
+	BestMirror         []bool            `short:"b" long:"best-mirror" description:"pickup best mirror, repeat n times to list top n"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	ForceOverwrite     bool              `short:"f" long:"force" description:"overwrite existing file silently"`
 	AuthUser           string            `short:"u" long:"username" description:"basic http auth username"`
@@ -218,12 +216,16 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.tlsConfig = &tls.Config{RootCAs: pool}
 	}
 
-	if cmd.options.BestMirror {
-		url, err := cmd.bestMirror(args, makeReqPatcher(cmd.options.HeaderMap, false))
+	if len(cmd.options.BestMirror) != 0 {
+		top, err := cmd.bestMirror(args, 4)
 		if err != nil {
 			return err
 		}
-		args = append(args[:0], url)
+		if len(top) == 1 {
+			args = top
+		} else {
+			return nil
+		}
 	}
 
 	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
@@ -614,81 +616,6 @@ func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport) {
 	return transport
 }
 
-func (cmd Cmd) bestMirror(
-	args []string,
-	reqPatcher func(*http.Request, *url.Userinfo),
-) (best string, err error) {
-	defer func() {
-		err = errors.WithMessage(err, "bestMirror")
-	}()
-
-	input := os.Stdin
-	if len(args) != 0 {
-		fd, err := os.Open(args[0])
-		if err != nil {
-			return "", err
-		}
-		defer fd.Close()
-		input = fd
-	}
-	urls, err := readLines(input)
-	if err != nil {
-		return "", err
-	}
-	var wg1, wg2 sync.WaitGroup
-	start := make(chan struct{})
-	first := make(chan string, 1)
-	timeout := cmd.getTimeout()
-	client := &http.Client{
-		Transport: cmd.getTransport(false),
-	}
-
-	for _, u := range urls {
-		req, err := http.NewRequest(http.MethodGet, u, nil)
-		if err != nil {
-			cmd.dlogger.Printf("skipping %q: %s", u, err.Error())
-			continue
-		}
-		cmd.dlogger.Printf("fetching: %q", u)
-		reqPatcher(req, cmd.userinfo)
-		u := u // https://golang.org/doc/faq#closures_and_goroutines
-		wg1.Add(1)
-		wg2.Add(1)
-		go func() {
-			defer wg2.Done()
-			wg1.Done()
-			<-start
-			ctx, cancel := context.WithTimeout(cmd.Ctx, timeout)
-			defer cancel()
-			resp, err := client.Do(req.WithContext(ctx))
-			if err != nil {
-				cmd.dlogger.Printf("fetch error: %s", err.Error())
-				return
-			}
-			defer resp.Body.Close()
-			switch resp.StatusCode {
-			case http.StatusOK:
-				select {
-				case first <- u:
-				default:
-				}
-			default:
-				cmd.dlogger.Printf("fetch %q unexpected status: %s", u, resp.Status)
-			}
-		}()
-	}
-	wg1.Wait()
-	close(start)
-	wg2.Wait()
-	close(first)
-	best = <-first
-	if best == "" {
-		return "", errors.New("Best mirror not found")
-	}
-	cmd.dlogger.Printf("best mirror: %q", best)
-	return best, nil
-}
-
 func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	if cmd.options.ForceOverwrite {
 		return os.Remove(name)
@@ -815,20 +742,4 @@ func isRedirect(status int) bool {
 
 func isServerError(status int) bool {
 	return status > 499 && status < 600
-}
-
-func readLines(r io.Reader) ([]string, error) {
-	var lines []string
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) == 0 || strings.HasPrefix(line, "#") {
-			continue
-		}
-		line = strings.TrimFunc(line, func(r rune) bool {
-			return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-		})
-		lines = append(lines, line)
-	}
-	return lines, scanner.Err()
 }
