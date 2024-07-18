@@ -57,20 +57,20 @@ Help Options:
 either pipe to stdin:
 
 ```
-cat [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt) | getparty -b
+cat mirrors.txt | getparty -b
 ```
 
 or directly from a file:
 
 ```
-getparty -b [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt)
+getparty -b mirrors.txt
 ```
 
 just list top 3 mirrors:
 
-````
-getparty -bbb [mirrors.txt](https://github.com/vbauerster/getparty/blob/master/mirrors.txt)
-````
+```
+getparty -bbb mirrors.txt
+```
 
 ## License
 
