@@ -182,6 +182,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			fmt.Fprintln(cmd.Out)
 		}
 		userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
+		cmd.options.AuthUser = ""
+		cmd.options.AuthPass = ""
 	}
 
 	tlsConfig, err := cmd.getTLSConfig()
