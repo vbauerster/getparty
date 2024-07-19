@@ -131,9 +131,8 @@ func (p *Part) download(client *http.Client, location string, timeout, sleep tim
 		return errors.WithMessage(err, p.name)
 	}
 	defer func() {
-		if e := fpart.Close(); e != nil {
-			err = firstNonNil(err, e)
-		} else if p.Written == 0 {
+		err = firstNonNil(err, fpart.Close())
+		if p.Written == 0 {
 			p.dlogger.Printf("file %q is empty, removing", fpart.Name())
 			err = firstNonNil(err, os.Remove(fpart.Name()))
 		}
