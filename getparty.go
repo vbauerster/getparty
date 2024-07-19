@@ -250,10 +250,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	patcher := makeReqPatcher(session.HeaderMap, true)
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
-	client := &http.Client{
-		Transport: transport,
-		Jar:       jar,
-	}
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
@@ -288,6 +284,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					totalCancel(true) // totalCancel is idempotent
 				}
 			}()
+			client := &http.Client{
+				Transport: transport,
+				Jar:       jar,
+			}
 			return p.download(client, req, timeout, sleep)
 		})
 	}
