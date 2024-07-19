@@ -537,6 +537,10 @@ func (cmd Cmd) follow(
 					}
 				}
 
+				for k, v := range resp.Header {
+					cmd.loggers[DEBUG].Printf("Response Header: %s: %v", k, v)
+				}
+
 				if isRedirect(resp.StatusCode) {
 					cmd.loggers[INFO].Printf("HTTP response: %s", resp.Status)
 					redirected = true

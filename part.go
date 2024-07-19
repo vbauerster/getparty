@@ -247,6 +247,10 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 				}
 			}
 
+			for k, v := range resp.Header {
+				p.dlogger.Printf("Response Header: %s: %v", k, v)
+			}
+
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
 				err := bar.init(p, &curTry)
