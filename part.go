@@ -125,7 +125,7 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 	return nil
 }
 
-func (p *Part) download(client *http.Client, location string, timeout, sleep time.Duration) (err error) {
+func (p *Part) download(location string, client *http.Client, timeout, sleep time.Duration) (err error) {
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return errors.WithMessage(err, p.name)

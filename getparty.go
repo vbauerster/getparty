@@ -287,7 +287,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					totalCancel(true) // totalCancel is idempotent
 				}
 			}()
-			return p.download(client, session.location, timeout, sleep)
+			return p.download(session.location, client, timeout, sleep)
 		})
 	}
 
