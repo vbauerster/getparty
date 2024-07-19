@@ -89,11 +89,11 @@ func (cmd Cmd) batchMirrors(input io.Reader, rt http.RoundTripper, maxGoroutines
 	}()
 
 	for i := 0; i < maxGoroutines; i++ {
+		client := &http.Client{
+			Transport: rt,
+		}
 		go func() {
 			defer wg.Done()
-			client := &http.Client{
-				Transport: rt,
-			}
 			for m := range mirrors {
 				err := queryMirror(cmd.Ctx, client, m, timeout)
 				if err != nil {
