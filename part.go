@@ -226,6 +226,10 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				}
 			}
 
+			for k, v := range resp.Header {
+				p.dlogger.Printf("Response Header: %s: %v", k, v)
+			}
+
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
 				p.partialOK()

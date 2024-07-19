@@ -551,6 +551,10 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					}
 				}
 
+				for k, v := range resp.Header {
+					cmd.loggers[DEBUG].Printf("Response Header: %s: %v", k, v)
+				}
+
 				if isRedirect(resp.StatusCode) {
 					cmd.loggers[INFO].Printf("HTTP response: %s", resp.Status)
 					redirected = true
