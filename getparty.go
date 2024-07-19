@@ -19,7 +19,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
@@ -214,8 +213,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
-	transport := getHttpTransport(cmd.options.Parts != 0)
-	transport.TLSClientConfig = cmd.tlsConfig
+	transport := newRoundTripperBuilder(cmd.options.Parts != 0).withTLSConfig(cmd.tlsConfig).build()
 	session, err := cmd.getState(args, userinfo, transport, jar)
 	if err = firstNonNil(err, cmd.Ctx.Err()); err != nil {
 		return err
@@ -735,11 +733,4 @@ func isRedirect(status int) bool {
 
 func isServerError(status int) bool {
 	return status > 499 && status < 600
-}
-
-func getHttpTransport(pooled bool) *http.Transport {
-	if pooled {
-		return cleanhttp.DefaultPooledTransport()
-	}
-	return cleanhttp.DefaultTransport()
 }

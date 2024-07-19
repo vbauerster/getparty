@@ -81,10 +81,8 @@ func (cmd Cmd) batchMirrors(input io.Reader, maxGoroutines int) mirrorPQ {
 	result := make(chan *mirror)
 
 	timeout := cmd.getTimeout()
-	transport := getHttpTransport(false)
-	transport.TLSClientConfig = cmd.tlsConfig
 	client := &http.Client{
-		Transport: transport,
+		Transport: newRoundTripperBuilder(false).withTLSConfig(cmd.tlsConfig).build(),
 	}
 
 	var wg sync.WaitGroup
