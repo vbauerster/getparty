@@ -41,6 +41,7 @@ type Part struct {
 	progress     *mpb.Progress
 	dlogger      *log.Logger
 	totalBarIncr func(int)
+	reqPatcher   func(*http.Request)
 }
 
 type flashBar struct {
@@ -124,7 +125,7 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 	return nil
 }
 
-func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep time.Duration) (err error) {
+func (p *Part) download(client *http.Client, location string, timeout, sleep time.Duration) (err error) {
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return errors.WithMessage(err, p.name)
@@ -138,6 +139,14 @@ func (p *Part) download(client *http.Client, req *http.Request, timeout, sleep t
 		}
 		err = errors.WithMessage(err, p.name)
 	}()
+
+	req, err := http.NewRequest(http.MethodGet, location, nil)
+	if err != nil {
+		return err
+	}
+	if p.reqPatcher != nil {
+		p.reqPatcher(req)
+	}
 
 	var bar flashBar
 	var curTry uint32

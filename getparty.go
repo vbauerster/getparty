@@ -263,13 +263,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.progress = progress
 		p.totalBarIncr = totalBarIncr
 		p.dlogger = log.New(errOut, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
-		req, err := http.NewRequest(http.MethodGet, session.location, nil)
-		if err != nil {
-			cancel()
-			return err
-		}
-		patcher(req)
+		p.reqPatcher = patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
+		client := &http.Client{
+			Transport: transport,
+			Jar:       jar,
+		}
 		eg.Go(func() error {
 			defer func() {
 				if e := recover(); e != nil {
@@ -284,11 +283,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					totalCancel(true) // totalCancel is idempotent
 				}
 			}()
-			client := &http.Client{
-				Transport: transport,
-				Jar:       jar,
-			}
-			return p.download(client, req, timeout, sleep)
+			return p.download(client, session.location, timeout, sleep)
 		})
 	}
 
