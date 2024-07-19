@@ -108,7 +108,6 @@ type Cmd struct {
 	Err       io.Writer
 	options   *Options
 	parser    *flags.Parser
-	userinfo  *url.Userinfo
 	tlsConfig *tls.Config
 	loggers   [LEVELS]*log.Logger
 }
@@ -175,6 +174,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	cmd.initLoggers()
 
+	var userinfo *url.Userinfo
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
 			fmt.Fprint(cmd.Out, "Enter password: ")
@@ -185,7 +185,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			cmd.options.AuthPass = string(pass)
 			fmt.Fprintln(cmd.Out)
 		}
-		cmd.userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
+		userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
 	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
@@ -216,7 +216,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	transport := getHttpTransport(cmd.options.Parts != 0)
 	transport.TLSClientConfig = cmd.tlsConfig
-	session, err := cmd.getState(args, transport, jar)
+	session, err := cmd.getState(args, userinfo, transport, jar)
 	if err = firstNonNil(err, cmd.Ctx.Err()); err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	sessionHandle := cmd.makeSessionHandler(session, progress)
 	defer sessionHandle()
 
-	patcher := makeReqPatcher(session.HeaderMap, true)
+	patcher := makeReqPatcher(userinfo, session.HeaderMap, true)
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
 	errOut := cmd.getErr()
@@ -270,7 +270,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			cancel()
 			return err
 		}
-		patcher(req, cmd.userinfo)
+		patcher(req)
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {
@@ -294,7 +294,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
-	cmd.userinfo = nil
 	cmd.tlsConfig = nil
 	cmd.parser = nil
 
@@ -369,7 +368,12 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 	}
 }
 
-func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.CookieJar) (*Session, error) {
+func (cmd Cmd) getState(
+	args []string,
+	userinfo *url.Userinfo,
+	transport http.RoundTripper,
+	jar http.CookieJar,
+) (*Session, error) {
 	setJarCookies := func(headers map[string]string, rawURL string) error {
 		cookies, err := parseCookies(headers)
 		if err != nil {
@@ -407,7 +411,7 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 			}
 			switch {
 			case scratch == nil && restored.Redirected:
-				scratch, err = cmd.follow(restored.URL, transport, jar, makeReqPatcher(restored.HeaderMap, true))
+				scratch, err = cmd.follow(restored.URL, transport, jar, makeReqPatcher(userinfo, restored.HeaderMap, true))
 				if err != nil {
 					return nil, err
 				}
@@ -428,7 +432,7 @@ func (cmd Cmd) getState(args []string, transport http.RoundTripper, jar http.Coo
 			if err != nil {
 				return nil, err
 			}
-			scratch, err = cmd.follow(args[0], transport, jar, makeReqPatcher(cmd.options.HeaderMap, true))
+			scratch, err = cmd.follow(args[0], transport, jar, makeReqPatcher(userinfo, cmd.options.HeaderMap, true))
 			if err != nil {
 				return nil, err
 			}
@@ -467,7 +471,7 @@ func (cmd Cmd) follow(
 	rawURL string,
 	transport http.RoundTripper,
 	jar http.CookieJar,
-	reqPatcher func(*http.Request, *url.Userinfo),
+	reqPatcher func(*http.Request),
 ) (session *Session, err error) {
 	defer func() {
 		err = errors.WithMessage(err, "follow")
@@ -508,7 +512,7 @@ func (cmd Cmd) follow(
 					return false, err
 				}
 
-				reqPatcher(req, cmd.userinfo)
+				reqPatcher(req)
 
 				for k, v := range req.Header {
 					cmd.loggers[DEBUG].Printf("%s: %v", k, v)
@@ -671,8 +675,8 @@ func firstNonNil(errors ...error) error {
 	return nil
 }
 
-func makeReqPatcher(headers map[string]string, skipCookie bool) func(*http.Request, *url.Userinfo) {
-	return func(req *http.Request, userinfo *url.Userinfo) {
+func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string, skipCookie bool) func(*http.Request) {
+	return func(req *http.Request) {
 		if req == nil {
 			return
 		}
