@@ -250,6 +250,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	patcher := makeReqPatcher(session.HeaderMap, true)
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
+	errOut := cmd.getErr()
+
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
@@ -262,7 +264,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.single = len(session.Parts) == 1
 		p.progress = progress
 		p.totalBarIncr = totalBarIncr
-		p.dlogger = log.New(cmd.getErr(), fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
+		p.dlogger = log.New(errOut, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
 		req, err := http.NewRequest(http.MethodGet, session.location, nil)
 		if err != nil {
 			cancel()
