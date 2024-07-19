@@ -385,6 +385,12 @@ func (cmd Cmd) getState(
 		jar.SetCookies(u, cookies)
 		return nil
 	}
+	client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
+		if len(via) > maxRedirects {
+			return errors.WithMessagef(ErrMaxRedirect, "stopped after %d redirects", maxRedirects)
+		}
+		return http.ErrUseLastResponse
+	}
 	var scratch, restored *Session
 	for {
 		switch {
@@ -472,12 +478,6 @@ func (cmd Cmd) follow(
 		err = errors.WithMessage(err, "follow")
 	}()
 
-	client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
-		if len(via) > maxRedirects {
-			return errors.WithMessagef(ErrMaxRedirect, "stopped after %d redirects", maxRedirects)
-		}
-		return http.ErrUseLastResponse
-	}
 	var redirected bool
 	defer func() {
 		if redirected {
