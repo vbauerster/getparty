@@ -192,21 +192,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	}
 
-	if cmd.options.InsecureSkipVerify {
-		cmd.tlsConfig = &tls.Config{InsecureSkipVerify: true}
-	} else if cmd.options.CertsFileName != "" {
-		buf, err := os.ReadFile(cmd.options.CertsFileName)
-		if err != nil {
-			return err
-		}
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			return err
-		}
-		if ok := pool.AppendCertsFromPEM(buf); !ok {
-			return errors.Errorf("bad cert file %q", cmd.options.CertsFileName)
-		}
-		cmd.tlsConfig = &tls.Config{RootCAs: pool}
+	err = cmd.initTLSConfig()
+	if err != nil {
+		return err
 	}
 
 	if len(cmd.options.BestMirror) != 0 {
@@ -226,7 +214,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
-	transport := cmd.getTransport(cmd.options.Parts != 0)
+	transport := getHttpTransport(cmd.options.Parts != 0)
+	transport.TLSClientConfig = cmd.tlsConfig
 	session, err := cmd.getState(args, transport, jar)
 	if err = firstNonNil(err, cmd.Ctx.Err()); err != nil {
 		return err
@@ -319,6 +308,26 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	if cmd.options.JSONFileName != "" {
 		return os.Remove(cmd.options.JSONFileName)
+	}
+	return nil
+}
+
+func (cmd *Cmd) initTLSConfig() error {
+	if cmd.options.InsecureSkipVerify {
+		cmd.tlsConfig = &tls.Config{InsecureSkipVerify: true}
+	} else if cmd.options.CertsFileName != "" {
+		buf, err := os.ReadFile(cmd.options.CertsFileName)
+		if err != nil {
+			return err
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			return err
+		}
+		if ok := pool.AppendCertsFromPEM(buf); !ok {
+			return errors.Errorf("bad cert file %q", cmd.options.CertsFileName)
+		}
+		cmd.tlsConfig = &tls.Config{RootCAs: pool}
 	}
 	return nil
 }
@@ -594,16 +603,6 @@ func (cmd Cmd) follow(
 	return session, err
 }
 
-func (cmd Cmd) getTransport(pooled bool) (transport *http.Transport) {
-	if pooled {
-		transport = cleanhttp.DefaultPooledTransport()
-	} else {
-		transport = cleanhttp.DefaultTransport()
-	}
-	transport.TLSClientConfig = cmd.tlsConfig
-	return transport
-}
-
 func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	if cmd.options.ForceOverwrite {
 		return os.Remove(name)
@@ -730,4 +729,11 @@ func isRedirect(status int) bool {
 
 func isServerError(status int) bool {
 	return status > 499 && status < 600
+}
+
+func getHttpTransport(pooled bool) *http.Transport {
+	if pooled {
+		return cleanhttp.DefaultPooledTransport()
+	}
+	return cleanhttp.DefaultTransport()
 }
