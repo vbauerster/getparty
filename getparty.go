@@ -170,8 +170,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return nil
 	}
 
-	cmd.initLoggers()
-
 	var userinfo *url.Userinfo
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
@@ -194,6 +192,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
+
+	cmd.Out = cmd.getOut()
+	cmd.Err = cmd.getErr()
+	cmd.initLoggers()
 
 	if len(cmd.options.BestMirror) != 0 {
 		transport := newRoundTripperBuilder(false).withTLSConfig(tlsConfig).build()
@@ -233,8 +235,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	ctx, cancel := context.WithCancel(cmd.Ctx)
 	defer cancel()
 	progress := mpb.NewWithContext(ctx,
-		mpb.WithOutput(cmd.getOut()),
-		mpb.WithDebugOutput(cmd.getErr()),
+		mpb.WithDebugOutput(cmd.Err),
+		mpb.WithOutput(cmd.Out),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
@@ -252,7 +254,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	patcher := makeReqPatcher(userinfo, session.HeaderMap, true)
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
-	errOut := cmd.getErr()
 
 	for i, p := range session.Parts {
 		if p.isDone() {
@@ -266,7 +267,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.single = len(session.Parts) == 1
 		p.progress = progress
 		p.totalBarIncr = totalBarIncr
-		p.dlogger = log.New(errOut, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
+		p.dlogger = log.New(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
 		p.reqPatcher = patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		client := &http.Client{
@@ -337,7 +338,7 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 		log := func() {}
 		defer func() {
 			progress.Wait()
-			fmt.Fprintln(cmd.getOut())
+			fmt.Fprintln(cmd.Out)
 			log()
 		}()
 		total := session.totalWritten()
@@ -605,7 +606,7 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 		return os.Remove(name)
 	}
 	var answer rune
-	fmt.Fprintf(cmd.Err, "File %q already exists, overwrite? [Y/n] ", name)
+	fmt.Fprintf(os.Stderr, "File %q already exists, overwrite? [Y/n] ", name)
 	if _, err := fmt.Scanf("%c", &answer); err != nil {
 		return err
 	}
