@@ -184,10 +184,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
 	}
 
-	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
-		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
-	}
-
 	tlsConfig, err := cmd.getTLSConfig()
 	if err != nil {
 		return err
@@ -214,6 +210,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		return err
+	}
+	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
+		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	}
 	transport := newRoundTripperBuilder(cmd.options.Parts != 0).withTLSConfig(tlsConfig).build()
 	client := &http.Client{
