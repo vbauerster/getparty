@@ -102,13 +102,12 @@ type Options struct {
 }
 
 type Cmd struct {
-	Ctx       context.Context
-	Out       io.Writer
-	Err       io.Writer
-	options   *Options
-	parser    *flags.Parser
-	tlsConfig *tls.Config
-	loggers   [LEVELS]*log.Logger
+	Ctx     context.Context
+	Out     io.Writer
+	Err     io.Writer
+	options *Options
+	parser  *flags.Parser
+	loggers [LEVELS]*log.Logger
 }
 
 func (cmd Cmd) Exit(err error) (status int) {
@@ -191,13 +190,14 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	}
 
-	err = cmd.initTLSConfig()
+	tlsConfig, err := cmd.getTLSConfig()
 	if err != nil {
 		return err
 	}
 
 	if len(cmd.options.BestMirror) != 0 {
-		top, err := cmd.bestMirror(args, 4)
+		transport := newRoundTripperBuilder(false).withTLSConfig(tlsConfig).build()
+		top, err := cmd.bestMirror(4, transport, args)
 		if err != nil {
 			return err
 		}
@@ -213,7 +213,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
-	transport := newRoundTripperBuilder(cmd.options.Parts != 0).withTLSConfig(cmd.tlsConfig).build()
+	transport := newRoundTripperBuilder(cmd.options.Parts != 0).withTLSConfig(tlsConfig).build()
 	session, err := cmd.getState(args, userinfo, transport, jar)
 	if err = firstNonNil(err, cmd.Ctx.Err()); err != nil {
 		return err
@@ -292,7 +292,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
-	cmd.tlsConfig = nil
 	cmd.parser = nil
 
 	err = firstNonNil(eg.Wait(), ctx.Err())
@@ -311,24 +310,25 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd *Cmd) initTLSConfig() error {
+func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
+	var config *tls.Config
 	if cmd.options.InsecureSkipVerify {
-		cmd.tlsConfig = &tls.Config{InsecureSkipVerify: true}
+		config = &tls.Config{InsecureSkipVerify: true}
 	} else if cmd.options.CertsFileName != "" {
 		buf, err := os.ReadFile(cmd.options.CertsFileName)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		pool, err := x509.SystemCertPool()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if ok := pool.AppendCertsFromPEM(buf); !ok {
-			return errors.Errorf("bad cert file %q", cmd.options.CertsFileName)
+			return nil, errors.Errorf("bad cert file %q", cmd.options.CertsFileName)
 		}
-		cmd.tlsConfig = &tls.Config{RootCAs: pool}
+		config = &tls.Config{RootCAs: pool}
 	}
-	return nil
+	return config, nil
 }
 
 func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func() {
