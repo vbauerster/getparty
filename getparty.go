@@ -214,7 +214,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	transport := newRoundTripperBuilder(cmd.options.Parts != 0).withTLSConfig(tlsConfig).build()
-	session, err := cmd.getState(userinfo, transport, jar, args)
+	client := &http.Client{
+		Transport: transport,
+		Jar:       jar,
+	}
+	session, err := cmd.getState(userinfo, client, args)
 	if err = firstNonNil(err, cmd.Ctx.Err()); err != nil {
 		return err
 	}
@@ -363,11 +367,10 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 
 func (cmd Cmd) getState(
 	userinfo *url.Userinfo,
-	transport http.RoundTripper,
-	jar http.CookieJar,
+	client *http.Client,
 	args []string,
 ) (*Session, error) {
-	setJarCookies := func(headers map[string]string, rawURL string) error {
+	setJarCookies := func(rawURL string, headers map[string]string, jar http.CookieJar) error {
 		cookies, err := parseCookies(headers)
 		if err != nil {
 			return err
@@ -395,7 +398,7 @@ func (cmd Cmd) getState(
 			if err != nil {
 				return nil, err
 			}
-			err = setJarCookies(restored.HeaderMap, restored.URL)
+			err = setJarCookies(restored.URL, restored.HeaderMap, client.Jar)
 			if err != nil {
 				return nil, err
 			}
@@ -404,7 +407,7 @@ func (cmd Cmd) getState(
 			}
 			switch {
 			case scratch == nil && restored.Redirected:
-				scratch, err = cmd.follow(restored.URL, transport, jar, makeReqPatcher(userinfo, restored.HeaderMap, true))
+				scratch, err = cmd.follow(restored.URL, client, makeReqPatcher(userinfo, restored.HeaderMap, true))
 				if err != nil {
 					return nil, err
 				}
@@ -421,11 +424,11 @@ func (cmd Cmd) getState(
 			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.options.JSONFileName)
 			return restored, nil
 		case len(args) != 0:
-			err := setJarCookies(cmd.options.HeaderMap, args[0])
+			err := setJarCookies(args[0], cmd.options.HeaderMap, client.Jar)
 			if err != nil {
 				return nil, err
 			}
-			scratch, err = cmd.follow(args[0], transport, jar, makeReqPatcher(userinfo, cmd.options.HeaderMap, true))
+			scratch, err = cmd.follow(args[0], client, makeReqPatcher(userinfo, cmd.options.HeaderMap, true))
 			if err != nil {
 				return nil, err
 			}
@@ -462,23 +465,18 @@ func (cmd Cmd) getState(
 
 func (cmd Cmd) follow(
 	rawURL string,
-	transport http.RoundTripper,
-	jar http.CookieJar,
+	client *http.Client,
 	reqPatcher func(*http.Request),
 ) (session *Session, err error) {
 	defer func() {
 		err = errors.WithMessage(err, "follow")
 	}()
 
-	client := &http.Client{
-		Transport: transport,
-		Jar:       jar,
-		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-			if len(via) > maxRedirects {
-				return errors.WithMessagef(ErrMaxRedirect, "stopped after %d redirects", maxRedirects)
-			}
-			return http.ErrUseLastResponse
-		},
+	client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
+		if len(via) > maxRedirects {
+			return errors.WithMessagef(ErrMaxRedirect, "stopped after %d redirects", maxRedirects)
+		}
+		return http.ErrUseLastResponse
 	}
 	var redirected bool
 	defer func() {
@@ -530,7 +528,7 @@ func (cmd Cmd) follow(
 					return true, err
 				}
 
-				if cookies := jar.Cookies(req.URL); len(cookies) != 0 {
+				if cookies := client.Jar.Cookies(req.URL); len(cookies) != 0 {
 					cmd.loggers[DEBUG].Println("CookieJar:")
 					for _, cookie := range cookies {
 						cmd.loggers[DEBUG].Printf("  %q", cookie)
