@@ -52,7 +52,7 @@ func (pq *mirrorPQ) Pop() interface{} {
 	return link
 }
 
-func (cmd Cmd) bestMirror(maxGoroutines int, rt http.RoundTripper, args []string) ([]string, error) {
+func (cmd Cmd) bestMirror(maxGoroutines int, transport http.RoundTripper, args []string) ([]string, error) {
 	var top []string
 	var input io.Reader
 	var fdClose func() error
@@ -67,7 +67,7 @@ func (cmd Cmd) bestMirror(maxGoroutines int, rt http.RoundTripper, args []string
 		input = os.Stdin
 		fdClose = func() error { return nil }
 	}
-	pq := cmd.batchMirrors(input, rt, maxGoroutines)
+	pq := cmd.batchMirrors(input, transport, maxGoroutines)
 	for i := 0; i < len(cmd.options.BestMirror) && pq.Len() != 0; i++ {
 		m := heap.Pop(&pq).(*mirror)
 		top = append(top, m.url)
@@ -76,7 +76,7 @@ func (cmd Cmd) bestMirror(maxGoroutines int, rt http.RoundTripper, args []string
 	return top, fdClose()
 }
 
-func (cmd Cmd) batchMirrors(input io.Reader, rt http.RoundTripper, maxGoroutines int) mirrorPQ {
+func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, maxGoroutines int) mirrorPQ {
 	mirrors := readLines(input)
 	result := make(chan *mirror)
 
@@ -90,7 +90,7 @@ func (cmd Cmd) batchMirrors(input io.Reader, rt http.RoundTripper, maxGoroutines
 
 	for i := 0; i < maxGoroutines; i++ {
 		client := &http.Client{
-			Transport: rt,
+			Transport: transport,
 		}
 		go func() {
 			defer wg.Done()
