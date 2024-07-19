@@ -386,7 +386,7 @@ func (cmd Cmd) getState(
 		return nil
 	}
 	client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
-		if len(via) > maxRedirects {
+		if len(via) >= maxRedirects {
 			return errors.WithMessagef(ErrMaxRedirect, "stopped after %d redirects", maxRedirects)
 		}
 		return http.ErrUseLastResponse
