@@ -214,7 +214,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	transport := newRoundTripperBuilder(cmd.options.Parts != 0).withTLSConfig(tlsConfig).build()
-	session, err := cmd.getState(args, userinfo, transport, jar)
+	session, err := cmd.getState(userinfo, transport, jar, args)
 	if err = firstNonNil(err, cmd.Ctx.Err()); err != nil {
 		return err
 	}
@@ -367,10 +367,10 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 }
 
 func (cmd Cmd) getState(
-	args []string,
 	userinfo *url.Userinfo,
 	transport http.RoundTripper,
 	jar http.CookieJar,
+	args []string,
 ) (*Session, error) {
 	setJarCookies := func(headers map[string]string, rawURL string) error {
 		cookies, err := parseCookies(headers)
