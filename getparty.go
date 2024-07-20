@@ -197,7 +197,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.initLoggers()
 
 	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
-	cmd.patcher = makeReqPatcher(userinfo, cmd.options.HeaderMap, true)
+	cmd.patcher = makeReqPatcher(userinfo, cmd.options.HeaderMap)
 
 	if len(cmd.options.BestMirror) != 0 {
 		transport := newRoundTripperBuilder(false).withTLSConfig(tlsConfig).build()
@@ -411,7 +411,7 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []str
 			}
 			switch {
 			case scratch == nil && restored.Redirected:
-				cmd.patcher = makeReqPatcher(userinfo, restored.HeaderMap, true)
+				cmd.patcher = makeReqPatcher(userinfo, restored.HeaderMap)
 				scratch, err = cmd.follow(client, restored.URL)
 				if err != nil {
 					return nil, err
@@ -663,7 +663,7 @@ func firstNonNil(errors ...error) error {
 	return nil
 }
 
-func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string, skipCookie bool) func(*http.Request) {
+func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*http.Request) {
 	return func(req *http.Request) {
 		if req == nil {
 			return
@@ -672,7 +672,7 @@ func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string, skipCooki
 			req.URL.User = userinfo
 		}
 		for k, v := range headers {
-			if skipCookie && k == hCookie {
+			if k == hCookie {
 				continue
 			}
 			switch k {
