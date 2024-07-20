@@ -72,7 +72,6 @@ var (
 
 func init() {
 	userAgents = map[string]string{
-		"":        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
 		"chrome":  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
 		"firefox": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/112.0",
 		"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
@@ -88,7 +87,7 @@ type Options struct {
 	SpeedLimit         uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName       string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
-	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" description:"User-Agent header (default: chrome)"`
+	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
 	BestMirror         []bool            `short:"b" long:"best-mirror" description:"pickup best mirror, repeat n times to list top n"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	ForceOverwrite     bool              `short:"f" long:"force" description:"overwrite existing file silently"`
