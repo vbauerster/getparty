@@ -195,6 +195,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.Err = cmd.getErr()
 	cmd.initLoggers()
 
+	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
+
 	if len(cmd.options.BestMirror) != 0 {
 		transport := newRoundTripperBuilder(false).withTLSConfig(tlsConfig).build()
 		top, err := cmd.bestMirror(4, transport, args)
@@ -212,9 +214,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		return err
-	}
-	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
-		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	}
 	transport := newRoundTripperBuilder(cmd.options.Parts != 0).withTLSConfig(tlsConfig).build()
 	client := &http.Client{
