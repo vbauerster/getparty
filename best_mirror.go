@@ -97,7 +97,7 @@ func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, maxGor
 			for m := range mirrors {
 				err := queryMirror(cmd.Ctx, client, m, timeout)
 				if err != nil {
-					cmd.loggers[ERRO].Println(err)
+					cmd.loggers[WARN].Println(err)
 					continue
 				}
 				result <- m
