@@ -107,6 +107,7 @@ type Cmd struct {
 	Err     io.Writer
 	options *Options
 	parser  *flags.Parser
+	patcher func(*http.Request)
 	loggers [LEVELS]*log.Logger
 }
 
@@ -196,6 +197,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.initLoggers()
 
 	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
+	cmd.patcher = makeReqPatcher(userinfo, cmd.options.HeaderMap, true)
 
 	if len(cmd.options.BestMirror) != 0 {
 		transport := newRoundTripperBuilder(false).withTLSConfig(tlsConfig).build()

@@ -87,7 +87,6 @@ func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, maxGor
 		close(result)
 	}()
 
-	userAgent := cmd.options.HeaderMap[hUserAgentKey]
 	timeout := cmd.getTimeout()
 
 	for i := 0; i < maxGoroutines; i++ {
@@ -97,7 +96,7 @@ func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, maxGor
 		go func() {
 			defer wg.Done()
 			for m := range mirrors {
-				err := queryMirror(cmd.Ctx, m, client, userAgent, timeout)
+				err := queryMirror(cmd.Ctx, m, client, timeout, cmd.patcher)
 				if err != nil {
 					cmd.loggers[WARN].Println(err)
 					continue
@@ -119,14 +118,16 @@ func queryMirror(
 	ctx context.Context,
 	mirror *mirror,
 	client *http.Client,
-	userAgent string,
 	timeout time.Duration,
+	patcher func(*http.Request),
 ) error {
 	req, err := http.NewRequest(http.MethodGet, mirror.url, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Set(hUserAgentKey, userAgent)
+	if patcher != nil {
+		patcher(req)
+	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	start := time.Now()
