@@ -19,12 +19,11 @@ $ brew install getparty
 
 https://aur.archlinux.org/packages/getparty
 
-#### Manual
+#### From source
 
 ```
-$ go get -u github.com/vbauerster/getparty
-$ cd $GOPATH/src/github.com/vbauerster/getparty/cmd/getparty
-$ go install
+$ git clone --depth 1 https://github.com/vbauerster/getparty.git
+$ cd getparty/cmd/getparty && go build
 ```
 
 ## Usage
