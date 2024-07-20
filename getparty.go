@@ -368,7 +368,7 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 }
 
 func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []string) (*Session, error) {
-	setJarCookies := func(rawURL string, headers map[string]string, jar http.CookieJar) error {
+	setJarCookies := func(jar http.CookieJar, headers map[string]string, rawURL string) error {
 		cookies, err := parseCookies(headers)
 		if err != nil {
 			return err
@@ -402,7 +402,7 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []str
 			if err != nil {
 				return nil, err
 			}
-			err = setJarCookies(restored.URL, restored.HeaderMap, client.Jar)
+			err = setJarCookies(client.Jar, restored.HeaderMap, restored.URL)
 			if err != nil {
 				return nil, err
 			}
@@ -429,7 +429,7 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []str
 			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.options.JSONFileName)
 			return restored, nil
 		case len(args) != 0:
-			err := setJarCookies(args[0], cmd.options.HeaderMap, client.Jar)
+			err := setJarCookies(client.Jar, cmd.options.HeaderMap, args[0])
 			if err != nil {
 				return nil, err
 			}
