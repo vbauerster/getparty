@@ -15,10 +15,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'
-      - uses: goreleaser/goreleaser-action@v5
+      - uses: goreleaser/goreleaser-action@v6
         with:
           workdir: cmd/getparty
-          version: latest
+          version: '~> v2'
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
