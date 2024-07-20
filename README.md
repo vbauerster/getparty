@@ -17,7 +17,9 @@ $ brew install getparty
 
 #### Aur
 
-https://aur.archlinux.org/packages/getparty
+```
+$ paru -S getparty
+```
 
 #### From source
 
