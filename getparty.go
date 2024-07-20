@@ -253,7 +253,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	sessionHandle := cmd.makeSessionHandler(session, progress)
 	defer sessionHandle()
 
-	patcher := makeReqPatcher(userinfo, session.HeaderMap, true)
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
 
@@ -270,7 +269,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.progress = progress
 		p.totalBarIncr = totalBarIncr
 		p.dlogger = log.New(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
-		p.reqPatcher = patcher
+		p.reqPatcher = cmd.patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		client := &http.Client{
 			Transport: transport,
@@ -368,11 +367,7 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 	}
 }
 
-func (cmd Cmd) getState(
-	userinfo *url.Userinfo,
-	client *http.Client,
-	args []string,
-) (*Session, error) {
+func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []string) (*Session, error) {
 	setJarCookies := func(rawURL string, headers map[string]string, jar http.CookieJar) error {
 		cookies, err := parseCookies(headers)
 		if err != nil {
@@ -416,7 +411,8 @@ func (cmd Cmd) getState(
 			}
 			switch {
 			case scratch == nil && restored.Redirected:
-				scratch, err = cmd.follow(restored.URL, client, makeReqPatcher(userinfo, restored.HeaderMap, true))
+				cmd.patcher = makeReqPatcher(userinfo, restored.HeaderMap, true)
+				scratch, err = cmd.follow(client, restored.URL)
 				if err != nil {
 					return nil, err
 				}
@@ -437,7 +433,7 @@ func (cmd Cmd) getState(
 			if err != nil {
 				return nil, err
 			}
-			scratch, err = cmd.follow(args[0], client, makeReqPatcher(userinfo, cmd.options.HeaderMap, true))
+			scratch, err = cmd.follow(client, args[0])
 			if err != nil {
 				return nil, err
 			}
@@ -472,11 +468,7 @@ func (cmd Cmd) getState(
 	}
 }
 
-func (cmd Cmd) follow(
-	rawURL string,
-	client *http.Client,
-	reqPatcher func(*http.Request),
-) (session *Session, err error) {
+func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err error) {
 	defer func() {
 		err = errors.WithMessage(err, "follow")
 	}()
@@ -506,7 +498,9 @@ func (cmd Cmd) follow(
 					return false, err
 				}
 
-				reqPatcher(req)
+				if cmd.patcher != nil {
+					cmd.patcher(req)
+				}
 
 				for k, v := range req.Header {
 					cmd.loggers[DEBUG].Printf("%s: %v", k, v)
