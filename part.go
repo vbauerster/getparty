@@ -153,10 +153,10 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 			pWritten := p.Written
 			start := time.Now()
 			defer func() {
-				p.dlogger.Printf("Retry: %v, Error: %v", retry, err)
 				if p.Skip {
 					return
 				}
+				p.dlogger.Printf("Retry: %v, Error: %v", retry, err)
 				if n := p.Written - pWritten; n != 0 {
 					if n >= bufSize {
 						reset()
