@@ -226,14 +226,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 
 			resp, err := client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 			if err != nil {
-				if p.Written == 0 {
-					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
-				} else {
-					err := bar.init(p, &curTry, single)
-					if err != nil {
-						return false, err
-					}
-				}
+				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
 				return true, err
 			}
 
