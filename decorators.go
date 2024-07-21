@@ -18,12 +18,7 @@ var (
 	_ decor.EwmaDecorator = (*peak)(nil)
 )
 
-type message struct {
-	msg   string
-	isErr bool
-}
-
-func newFlashDecorator(decorator decor.Decorator, msgCh <-chan message, limit uint) decor.Decorator {
+func newFlashDecorator(decorator decor.Decorator, msgCh <-chan string, limit uint) decor.Decorator {
 	if decorator == nil {
 		return nil
 	}
@@ -37,10 +32,10 @@ func newFlashDecorator(decorator decor.Decorator, msgCh <-chan message, limit ui
 
 type flashDecorator struct {
 	decor.Decorator
-	msgCh <-chan message
+	msgCh <-chan string
 	limit uint
 	count uint
-	msg   message
+	msg   string
 }
 
 func (d *flashDecorator) Unwrap() decor.Decorator {
@@ -59,11 +54,7 @@ func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 	} else {
 		d.count--
 	}
-	if d.msg.isErr {
-		_, _ = d.Format("")
-		return d.msg.msg, math.MaxInt
-	}
-	return d.Format(d.msg.msg)
+	return d.Format(d.msg)
 }
 
 type mainDecorator struct {

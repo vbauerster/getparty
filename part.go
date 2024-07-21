@@ -45,25 +45,16 @@ type Part struct {
 
 type flashBar struct {
 	*mpb.Bar
-	msgHandler  func(message)
-	prefix      string
 	initialized atomic.Bool
+	prefix      string
+	msgHandler  func(string)
 }
 
 func (b *flashBar) flash(msg string) {
-	msg = fmt.Sprintf("%s %s", b.prefix, msg)
-	b.msgHandler(message{
-		msg:   msg,
-		isErr: false,
-	})
-}
-
-func (b *flashBar) flashErr(msg string) {
-	msg = fmt.Sprintf("%s:ERR %s", b.prefix, msg)
-	b.msgHandler(message{
-		msg:   msg,
-		isErr: true,
-	})
+	if !b.initialized.Load() {
+		return
+	}
+	b.msgHandler(fmt.Sprintf("%s %s", b.prefix, msg))
 }
 
 func (b *flashBar) init(p *Part, curTry *uint32, single bool) error {
@@ -86,7 +77,7 @@ func (b *flashBar) init(p *Part, curTry *uint32, single bool) error {
 		})
 	}
 	p.dlogger.Printf("Setting bar total: %d", total)
-	msgCh := make(chan message, 1)
+	msgCh := make(chan string, 1)
 	bar, err := p.progress.Add(total, barBuilder.Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
@@ -288,11 +279,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 					panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
 				}
 			case http.StatusInternalServerError, http.StatusServiceUnavailable:
-				if bar.initialized.Load() {
-					bar.flashErr(resp.Status)
-				} else {
-					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
-				}
+				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
 				return true, HttpError(resp.StatusCode)
 			default:
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
@@ -376,12 +363,12 @@ func (p Part) isDone() bool {
 	return p.Written != 0 && p.Written == p.total()
 }
 
-func (p Part) makeMsgHandler(msgCh chan<- message) func(message) {
-	return func(msg message) {
+func (p Part) makeMsgHandler(msgCh chan<- string) func(string) {
+	return func(msg string) {
 		select {
 		case msgCh <- msg:
 		default:
-			fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), msg.msg)
+			fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), msg)
 		}
 	}
 }
