@@ -268,7 +268,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.progress = progress
 		p.totalBarIncr = totalBarIncr
 		p.dlogger = log.New(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
-		p.reqPatcher = cmd.patcher
+		p.patcher = cmd.patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		client := &http.Client{
 			Transport: transport,

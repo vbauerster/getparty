@@ -41,7 +41,7 @@ type Part struct {
 	progress     *mpb.Progress
 	dlogger      *log.Logger
 	totalBarIncr func(int)
-	reqPatcher   func(*http.Request)
+	patcher      func(*http.Request)
 }
 
 type flashBar struct {
@@ -143,8 +143,8 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 	if err != nil {
 		return err
 	}
-	if p.reqPatcher != nil {
-		p.reqPatcher(req)
+	if p.patcher != nil {
+		p.patcher(req)
 	}
 
 	var bar flashBar
