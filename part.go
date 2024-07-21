@@ -181,7 +181,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				select {
 				case msgCh <- msg:
 				case <-msgCh:
-					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), msg)
+					p.dlogger.Println("Houston msg dropped, is bar initialized?")
 				}
 			})
 			defer timer.Stop()
