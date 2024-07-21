@@ -253,11 +253,11 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 				if err != nil {
 					return false, err
 				}
-				if p.Written != 0 {
-					go func(written int64) {
+				if written := p.Written; written != 0 {
+					go func() {
 						p.dlogger.Printf("Setting bar refill: %d", written)
 						bar.SetRefill(written)
-					}(p.Written)
+					}()
 				}
 				statusPartialContent = true
 			case http.StatusOK: // no partial content, download with single part
