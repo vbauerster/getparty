@@ -259,7 +259,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				} else {
 					bar.SetCurrent(0)
 				}
-			case http.StatusInternalServerError, http.StatusServiceUnavailable:
+			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
 				return true, HttpError(resp.StatusCode)
 			default:
