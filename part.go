@@ -43,33 +43,14 @@ type Part struct {
 	patcher      func(*http.Request)
 }
 
-type flashBar struct {
-	*mpb.Bar
-	initialized atomic.Bool
-	prefix      string
-	msgHandler  func(string)
-}
-
-func (b *flashBar) flash(msg string) {
-	if !b.initialized.Load() {
-		return
-	}
-	b.msgHandler(fmt.Sprintf("%s %s", b.prefix, msg))
-}
-
-func (b *flashBar) init(p *Part, curTry *uint32, single bool) error {
-	if b.initialized.Load() {
-		return nil
-	}
-	var barBuilder mpb.BarFillerBuilder
+func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, error) {
+	var filler, extender mpb.BarFiller
 	total := p.total()
 	if total < 0 {
 		total = 0
-		barBuilder = mpb.NopStyle()
 	} else {
-		barBuilder = distinctBarRefiller(baseBarStyle())
+		filler = distinctBarRefiller(baseBarStyle()).Build()
 	}
-	extender := mpb.BarFillerFunc(nil)
 	if single {
 		extender = mpb.BarFillerFunc(func(w io.Writer, _ decor.Statistics) error {
 			_, err := fmt.Fprintln(w)
@@ -77,8 +58,7 @@ func (b *flashBar) init(p *Part, curTry *uint32, single bool) error {
 		})
 	}
 	p.dlogger.Printf("Setting bar total: %d", total)
-	msgCh := make(chan string, 1)
-	bar, err := p.progress.Add(total, barBuilder.Build(),
+	bar, err := p.progress.Add(total, filler,
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
 		mpb.BarExtender(extender, true),
@@ -104,18 +84,14 @@ func (b *flashBar) init(p *Part, curTry *uint32, single bool) error {
 		),
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if p.Written != 0 {
 		p.dlogger.Printf("Setting bar current: %d", p.Written)
 		bar.SetCurrent(p.Written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
-	b.Bar = bar
-	b.prefix = p.name
-	b.msgHandler = p.makeMsgHandler(msgCh)
-	b.initialized.Store(true)
-	return nil
+	return bar, nil
 }
 
 func (p *Part) download(client *http.Client, location string, single bool, timeout, sleep time.Duration) (err error) {
@@ -140,9 +116,10 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 		p.patcher(req)
 	}
 
-	var bar flashBar
+	var bar *mpb.Bar
 	var curTry uint32
 	var statusPartialContent bool
+	msgCh := make(chan string, 1)
 	resetTimeout := timeout
 	prefix := p.dlogger.Prefix()
 
@@ -179,7 +156,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 							ErrMaxRetry.Error(),
 							decor.SizeB1024(p.Written),
 							decor.SizeB1024(p.total()))
-						if bar.initialized.Load() {
+						if bar != nil {
 							bar.Abort(true)
 						}
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
@@ -201,10 +178,10 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				cancel()
 				msg := "Timeout..."
 				p.dlogger.Println(msg)
-				// following check is needed, because this func runs in different goroutine
-				// at first attempt bar may be not initialized by the time this func runs
-				if bar.initialized.Load() {
-					bar.flash(msg)
+				select {
+				case msgCh <- msg:
+				case <-msgCh:
+					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), msg)
 				}
 			})
 			defer timer.Stop()
@@ -235,9 +212,11 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				err := bar.init(p, &curTry, single)
-				if err != nil {
-					return false, err
+				if bar == nil {
+					bar, err = p.newBar(&curTry, single, msgCh)
+					if err != nil {
+						return false, err
+					}
 				}
 				if written := p.Written; written != 0 {
 					go func() {
@@ -247,24 +226,21 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				}
 				statusPartialContent = true
 			case http.StatusOK: // no partial content, download with single part
-				if statusPartialContent {
-					panic("http.StatusOK after http.StatusPartialContent")
-				}
-				if p.Written == 0 {
+				if attempt == 0 {
+					if p.Written != 0 {
+						panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
+					}
 					if p.order != 1 {
 						p.Skip = true
 						p.dlogger.Println("Stopping: no partial content")
 						return false, nil
 					}
-					single = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
-					err := bar.init(p, &curTry, single)
-					if err != nil {
-						return false, err
-					}
-				} else if bar.initialized.Load() {
+				} else if statusPartialContent {
+					panic("http.StatusOK after http.StatusPartialContent")
+				} else {
 					err := fpart.Close()
 					if err != nil {
 						panic(err)
@@ -274,20 +250,25 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 						return false, err
 					}
 					p.Written = 0
-					bar.SetCurrent(0)
+				}
+				if bar == nil {
+					bar, err = p.newBar(&curTry, true, msgCh)
+					if err != nil {
+						return false, err
+					}
 				} else {
-					panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
+					bar.SetCurrent(0)
 				}
 			case http.StatusInternalServerError, http.StatusServiceUnavailable:
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
 				return true, HttpError(resp.StatusCode)
 			default:
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
-				if bar.initialized.Load() {
-					bar.Abort(true)
-				}
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))
+				}
+				if bar != nil {
+					bar.Abort(true)
 				}
 				return false, HttpError(resp.StatusCode)
 			}
@@ -361,14 +342,4 @@ func (p Part) total() int64 {
 
 func (p Part) isDone() bool {
 	return p.Written != 0 && p.Written == p.total()
-}
-
-func (p Part) makeMsgHandler(msgCh chan<- string) func(string) {
-	return func(msg string) {
-		select {
-		case msgCh <- msg:
-		default:
-			fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), msg)
-		}
-	}
 }
