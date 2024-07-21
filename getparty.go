@@ -254,6 +254,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
+	single := len(session.Parts) == 1
 
 	for i, p := range session.Parts {
 		if p.isDone() {
@@ -264,7 +265,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.order = i + 1
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.maxTry = cmd.options.MaxRetry
-		p.single = len(session.Parts) == 1
 		p.progress = progress
 		p.totalBarIncr = totalBarIncr
 		p.dlogger = log.New(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
@@ -288,7 +288,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					totalCancel(true) // totalCancel is idempotent
 				}
 			}()
-			return p.download(session.location, client, timeout, sleep)
+			return p.download(client, session.location, single, timeout, sleep)
 		})
 	}
 

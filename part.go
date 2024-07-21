@@ -37,7 +37,6 @@ type Part struct {
 	name         string
 	order        int
 	maxTry       uint
-	single       bool
 	progress     *mpb.Progress
 	dlogger      *log.Logger
 	totalBarIncr func(int)
@@ -67,12 +66,11 @@ func (b *flashBar) flashErr(msg string) {
 	})
 }
 
-func (b *flashBar) init(p *Part, curTry *uint32) error {
+func (b *flashBar) init(p *Part, curTry *uint32, single bool) error {
 	if b.initialized.Load() {
 		return nil
 	}
 	var barBuilder mpb.BarFillerBuilder
-	msgCh := make(chan message, 1)
 	total := p.total()
 	if total < 0 {
 		total = 0
@@ -80,15 +78,19 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 	} else {
 		barBuilder = distinctBarRefiller(baseBarStyle())
 	}
+	extender := mpb.BarFillerFunc(nil)
+	if single {
+		extender = mpb.BarFillerFunc(func(w io.Writer, _ decor.Statistics) error {
+			_, err := fmt.Fprintln(w)
+			return err
+		})
+	}
 	p.dlogger.Printf("Setting bar total: %d", total)
-	bar, err := p.progress.Add(total, barBuilder.Build(), mpb.BarFillerTrim(), mpb.BarPriority(p.order),
-		mpb.BarOptional(
-			mpb.BarExtender(mpb.BarFillerFunc(
-				func(w io.Writer, _ decor.Statistics) error {
-					_, err := fmt.Fprintln(w)
-					return err
-				}), true),
-			p.single),
+	msgCh := make(chan message, 1)
+	bar, err := p.progress.Add(total, barBuilder.Build(),
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(p.order),
+		mpb.BarExtender(extender, true),
 		mpb.PrependDecorators(
 			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msgCh, 15),
 			decor.Conditional(total == 0,
@@ -125,7 +127,7 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 	return nil
 }
 
-func (p *Part) download(location string, client *http.Client, timeout, sleep time.Duration) (err error) {
+func (p *Part) download(client *http.Client, location string, single bool, timeout, sleep time.Duration) (err error) {
 	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return errors.WithMessage(err, p.name)
@@ -227,7 +229,7 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 				if p.Written == 0 {
 					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
 				} else {
-					err := bar.init(p, &curTry)
+					err := bar.init(p, &curTry, single)
 					if err != nil {
 						return false, err
 					}
@@ -249,7 +251,7 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				err := bar.init(p, &curTry)
+				err := bar.init(p, &curTry, single)
 				if err != nil {
 					return false, err
 				}
@@ -270,11 +272,11 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 						p.dlogger.Println("Stopping: no partial content")
 						return false, nil
 					}
-					p.single = true
+					single = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
-					err := bar.init(p, &curTry)
+					err := bar.init(p, &curTry, single)
 					if err != nil {
 						return false, err
 					}
