@@ -243,7 +243,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				} else {
 					err := fpart.Close()
 					if err != nil {
-						panic(err)
+						return false, err
 					}
 					fpart, err = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
 					if err != nil {
