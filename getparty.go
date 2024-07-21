@@ -608,6 +608,7 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	switch answer {
 	case '\n', 'y', 'Y':
 		if cmd.Ctx.Err() == nil {
+			cmd.loggers[DEBUG].Printf("Removing existing: %s", name)
 			return os.Remove(name)
 		}
 		fallthrough
