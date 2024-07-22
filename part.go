@@ -364,9 +364,18 @@ func (p Part) statSizeCmp(stat fs.FileInfo) error {
 	return nil
 }
 
-func (p Part) copy(dst, src *os.File) (err error) {
+func (p Part) writeTo(dst *os.File) (err error) {
+	src, err := os.Open(p.FileName)
+	if err != nil {
+		return err
+	}
 	defer func() {
 		err = firstNonNil(err, src.Close())
+		if err != nil {
+			return
+		}
+		p.dlogger.Printf("Removing: %q", p.FileName)
+		err = os.Remove(p.FileName)
 	}()
 	stat, err := src.Stat()
 	if err != nil {

@@ -213,16 +213,7 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 	}
 
 	for i := 1; i < len(s.Parts); i++ {
-		parti := s.Parts[i]
-		src, err := os.Open(parti.FileName)
-		if err != nil {
-			return err
-		}
-		err = parti.copy(dst, src)
-		if err != nil {
-			return err
-		}
-		err = os.Remove(parti.FileName)
+		err = s.Parts[i].writeTo(dst)
 		if err != nil {
 			return err
 		}
