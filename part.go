@@ -95,7 +95,7 @@ func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, 
 }
 
 func (p *Part) download(client *http.Client, location string, single bool, timeout, sleep time.Duration) (err error) {
-	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	fpart, err := os.OpenFile(p.FileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return errors.WithMessage(err, p.name)
 	}
