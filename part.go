@@ -277,6 +277,10 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 
 			defer resp.Body.Close()
 
+			if bar == nil {
+				panic("expected non nil bar here")
+			}
+
 			buf := make([]byte, bufSize)
 			sleepCtx, sleepCancel := context.WithCancel(context.Background())
 			sleepCancel()
