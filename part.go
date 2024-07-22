@@ -315,7 +315,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 					bar.EnableTriggerComplete()
 				}
 				if p.isDone() {
-					return false, nil
+					return false, fpart.Sync()
 				}
 				panic("part isn't done after EOF")
 			}
