@@ -104,8 +104,8 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 		if e := fpart.Close(); e != nil {
 			err = firstNonNil(err, e)
 		} else if p.Written == 0 {
-			p.dlogger.Printf("file %q is empty, removing", fpart.Name())
-			err = firstNonNil(err, os.Remove(fpart.Name()))
+			p.dlogger.Printf("%q is empty, removing", p.FileName)
+			err = firstNonNil(err, os.Remove(p.FileName))
 		}
 		err = errors.WithMessage(err, p.name)
 	}()
