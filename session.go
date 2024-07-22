@@ -64,18 +64,6 @@ func (s *Session) calcParts(parts uint) error {
 	return nil
 }
 
-func (s *Session) dropSkipped() {
-	var skipped int
-	for _, p := range s.Parts {
-		if p.Skip {
-			skipped++
-		}
-	}
-	if skipped == len(s.Parts)-1 && !s.Parts[0].Skip {
-		s.Parts = s.Parts[:1]
-	}
-}
-
 func (s *Session) loadState(name string) error {
 	f, err := os.Open(name)
 	if err != nil {
@@ -166,11 +154,9 @@ func (s Session) checkSizeOfEachPart() error {
 		if err != nil {
 			return err
 		}
-		if fileSize := stat.Size(); part.Written != fileSize {
-			return fmt.Errorf(
-				"%q size mismatch: expected %d got %d",
-				part.FileName, part.Written, fileSize,
-			)
+		err = part.statSizeCmp(stat)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -249,16 +235,27 @@ func (s Session) makeTotalBar(
 		}, nil
 }
 
-func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (err error) {
+func (s Session) hasSkippedParts() bool {
+	for _, p := range s.Parts {
+		if p.Skip {
+			return true
+		}
+	}
+	return false
+}
+
+func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 	if len(s.Parts) <= 1 {
 		return nil
+	}
+	if s.hasSkippedParts() {
+		return errors.New("Cannot concatenate session with skipped parts")
 	}
 	if tw := s.totalWritten(); tw != s.ContentLength {
 		return errors.Errorf("Written count mismatch: ContentLength %d, written %d", s.ContentLength, tw)
 	}
 
-	bar, err := progress.Add(int64(len(s.Parts)-1),
-		baseBarStyle().Build(),
+	bar, err := progress.Add(int64(len(s.Parts)-1), baseBarStyle().Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(len(s.Parts)+1),
 		mpb.PrependDecorators(
@@ -275,55 +272,41 @@ func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (e
 	if err != nil {
 		return err
 	}
-	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	statSum, err := statAndSumSize(fpart0, 0)
+
+	dst, err := os.OpenFile(s.Parts[0].FileName, os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if e := fpart0.Close(); err == nil {
-			err = e
-		}
+		err = firstNonNil(err, dst.Close())
 		bar.Abort(false) // if bar is completed bar.Abort is nop
 	}()
 
+	stat, err := dst.Stat()
+	if err != nil {
+		return err
+	}
+	s.Parts[0].statSizeCmp(stat)
+	if err != nil {
+		return err
+	}
+
 	for i := 1; i < len(s.Parts); i++ {
-		if !s.Parts[i].Skip {
-			fparti, err := os.Open(s.Parts[i].FileName)
-			if err != nil {
-				return err
-			}
-			statSum, err = statAndSumSize(fparti, statSum)
-			if err != nil {
-				return err
-			}
-			logger.Printf("concatenating: %q into %q", fparti.Name(), fpart0.Name())
-			_, err = io.Copy(fpart0, fparti)
-			err = firstNonNil(err, fparti.Close())
-			if err != nil {
-				return err
-			}
-			err = os.Remove(fparti.Name())
-			if err != nil {
-				return err
-			}
+		parti := s.Parts[i]
+		src, err := os.Open(parti.FileName)
+		if err != nil {
+			return err
+		}
+		err = parti.copy(dst, src)
+		if err != nil {
+			return err
+		}
+		err = os.Remove(parti.FileName)
+		if err != nil {
+			return err
 		}
 		bar.Increment()
 	}
 
-	if s.ContentLength != statSum {
-		return errors.Errorf("Corrupted file: ContentLength %d, file size %d", s.ContentLength, statSum)
-	}
 	return nil
-}
-
-func statAndSumSize(f *os.File, sum int64) (int64, error) {
-	stat, err := f.Stat()
-	if err != nil {
-		return sum, err
-	}
-	return sum + stat.Size(), nil
 }

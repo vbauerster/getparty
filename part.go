@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/http/httptrace"
@@ -339,4 +340,28 @@ func (p Part) total() int64 {
 
 func (p Part) isDone() bool {
 	return p.Written != 0 && p.Written == p.total()
+}
+
+func (p Part) statSizeCmp(stat fs.FileInfo) error {
+	size := stat.Size()
+	if p.Written != size {
+		return errors.Errorf("%q size mismatch: expected %d got %d", p.FileName, p.Written, size)
+	}
+	return nil
+}
+
+func (p Part) copy(dst, src *os.File) (err error) {
+	defer func() {
+		err = firstNonNil(err, src.Close())
+	}()
+	stat, err := src.Stat()
+	if err != nil {
+		return err
+	}
+	p.statSizeCmp(stat)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(dst, src)
+	return err
 }
