@@ -296,10 +296,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 					}
 					err = nil // let io.ReadFull return io.EOF
 				}
-				_, e := fpart.Write(buf[:n])
-				if e != nil {
-					panic(e)
-				}
+				n, err = fpart.Write(buf[:n])
 				p.Written += int64(n)
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
