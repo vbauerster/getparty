@@ -341,7 +341,7 @@ func (p Part) isDone() bool {
 
 func (p Part) statSizeCmp(stat fs.FileInfo) error {
 	size := stat.Size()
-	if p.Written != size {
+	if size != p.Written {
 		return errors.Errorf("%q size mismatch: expected %d got %d", p.FileName, p.Written, size)
 	}
 	return nil
