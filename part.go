@@ -291,8 +291,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				}
 				if err == io.EOF || err == io.ErrUnexpectedEOF {
 					if n == 0 {
-						sleepCancel()
-						break
+						continue
 					}
 					// err is io.ErrUnexpectedEOF here
 					// reset in order to have io.ReadFull return io.EOF
@@ -301,14 +300,14 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				n, e := fpart.Write(buf[:n])
 				if e != nil {
 					err = e
+					continue
+				}
+				p.Written += int64(n)
+				bar.EwmaIncrBy(n, dur)
+				if p.total() <= 0 {
+					bar.SetTotal(p.Written, false)
 				} else {
-					p.Written += int64(n)
-					bar.EwmaIncrBy(n, dur)
-					if p.total() <= 0 {
-						bar.SetTotal(p.Written, false)
-					} else {
-						p.totalBarIncr(n)
-					}
+					p.totalBarIncr(n)
 				}
 				<-sleepCtx.Done()
 			}
