@@ -360,6 +360,6 @@ func (p Part) copy(dst, src *os.File) (err error) {
 		return err
 	}
 	n, err := io.Copy(dst, src)
-	p.dlogger.Printf("Copied %d bytes: src=%q dst=%q", n, src.Name(), dst.Name())
+	p.dlogger.Printf("Copied %d bytes: dst=%q src=%q", n, dst.Name(), src.Name())
 	return err
 }
