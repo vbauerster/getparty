@@ -222,7 +222,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		Jar:       jar,
 	}
 	session, err := cmd.getState(userinfo, client, args)
-	if err = firstNonNil(err, cmd.Ctx.Err()); err != nil {
+	if err != nil {
 		return err
 	}
 	session.summary(cmd.loggers[INFO])
