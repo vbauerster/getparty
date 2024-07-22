@@ -596,8 +596,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					Redirected:     redirected,
 				}
 
-				resp.Body.Close()
-				return false, nil
+				return false, resp.Body.Close()
 			}
 		})
 	return session, err
