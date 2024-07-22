@@ -499,6 +499,16 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 				cancel()
 			}()
 			for {
+				if attempt == 0 {
+					message := fmt.Sprintf("Get %q", location)
+					cmd.loggers[INFO].Println(message)
+					cmd.loggers[DEBUG].Println(message)
+				} else {
+					message := fmt.Sprintf("Get:R%02d %q", attempt, location)
+					cmd.loggers[INFO].Println(message)
+					cmd.loggers[DEBUG].Println(message)
+				}
+
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
 					return false, err
@@ -510,12 +520,6 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				for k, v := range req.Header {
 					cmd.loggers[DEBUG].Printf("%s: %v", k, v)
-				}
-
-				if attempt == 0 {
-					cmd.loggers[INFO].Printf("Get %q", location)
-				} else {
-					cmd.loggers[INFO].Printf("Get:R%02d %q", attempt, location)
 				}
 
 				resp, err := client.Do(req.WithContext(ctx))
