@@ -362,6 +362,7 @@ func (p Part) copy(dst, src *os.File) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(dst, src)
+	n, err := io.Copy(dst, src)
+	p.dlogger.Printf("Copied %d bytes: src=%q dst=%q", n, src.Name(), dst.Name())
 	return err
 }

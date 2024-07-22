@@ -307,7 +307,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	err = session.concatenateParts(progress, cmd.loggers[DEBUG])
+	err = session.concatenateParts(progress)
 	if err != nil {
 		return err
 	}
