@@ -309,7 +309,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				<-sleepCtx.Done()
 			}
 
-			if firstNonNil(err, fpart.Sync()) == io.EOF {
+			if err == io.EOF {
 				if p.total() <= 0 {
 					p.Stop = p.Written - 1 // so p.isDone() retruns true
 					bar.EnableTriggerComplete()
