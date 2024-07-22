@@ -321,7 +321,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				if p.isDone() {
 					return false, fpart.Sync()
 				}
-				panic("part isn't done after EOF")
+				return false, errors.WithMessage(err, "Part isn't done after EOF")
 			}
 
 			if p.isDone() {
