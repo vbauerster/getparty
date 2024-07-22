@@ -329,7 +329,7 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 				session.Elapsed += time.Since(start)
 				var name string
 				if isPanic {
-					name = session.OutputFileName + "_panic.json"
+					name = session.OutputFileName + ".panic"
 				} else {
 					name = session.OutputFileName + ".json"
 				}
