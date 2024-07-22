@@ -250,7 +250,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	sessionHandle := cmd.makeSessionHandler(session, progress)
-	defer sessionHandle()
+	defer func() {
+		sessionHandle(false)
+	}()
 
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
@@ -278,7 +280,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			defer func() {
 				if e := recover(); e != nil {
 					cancel()
-					onceSessionHandle.Do(sessionHandle)
+					onceSessionHandle.Do(func() {
+						sessionHandle(true)
+					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
 				}
 				switch {
@@ -310,6 +314,45 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
+func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func(bool) {
+	pTotal := session.totalWritten()
+	start := time.Now()
+	return func(isPanic bool) {
+		log := func() {}
+		defer func() {
+			progress.Wait()
+			fmt.Fprintln(cmd.Out)
+			log()
+		}()
+		total := session.totalWritten()
+		if session.isResumable() && total != session.ContentLength {
+			if total-pTotal != 0 { // if some bytes were written
+				session.Elapsed += time.Since(start)
+				var name string
+				if isPanic {
+					name = session.OutputFileName + "_panic.json"
+				} else {
+					name = session.OutputFileName + ".json"
+				}
+				err := session.dumpState(name)
+				if err != nil {
+					log = func() {
+						cmd.loggers[ERRO].Println(err)
+					}
+				} else {
+					log = func() {
+						cmd.loggers[INFO].Printf("Session state saved to %q", name)
+					}
+				}
+			}
+		} else {
+			log = func() {
+				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
+			}
+		}
+	}
+}
+
 func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 	var config *tls.Config
 	if cmd.options.InsecureSkipVerify {
@@ -329,41 +372,6 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 		config = &tls.Config{RootCAs: pool}
 	}
 	return config, nil
-}
-
-func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func() {
-	pTotal := session.totalWritten()
-	start := time.Now()
-	return func() {
-		log := func() {}
-		defer func() {
-			progress.Wait()
-			fmt.Fprintln(cmd.Out)
-			log()
-		}()
-		total := session.totalWritten()
-		if session.isResumable() && total != session.ContentLength {
-			if total-pTotal != 0 { // if some bytes were written
-				session.Elapsed += time.Since(start)
-				session.dropSkipped()
-				name := session.OutputFileName + ".json"
-				err := session.dumpState(name)
-				if err != nil {
-					log = func() {
-						cmd.loggers[ERRO].Println(err)
-					}
-				} else {
-					log = func() {
-						cmd.loggers[INFO].Printf("Session state saved to %q", name)
-					}
-				}
-			}
-		} else {
-			log = func() {
-				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
-			}
-		}
-	}
 }
 
 func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []string) (*Session, error) {
