@@ -319,10 +319,6 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				panic("part isn't done after EOF")
 			}
 
-			if p.isDone() {
-				panic(fmt.Sprintf("part is done before EOF: %v", err))
-			}
-
 			return !p.isDone(), err
 		})
 }
