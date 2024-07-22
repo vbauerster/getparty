@@ -128,13 +128,13 @@ func (cmd Cmd) Exit(err error) (status int) {
 		return 2
 	case ExpectedError:
 		if cause == ErrBadInvariant {
-			log.Default().Println(err)
+			log.Default().Println(err.Error())
 		} else {
-			cmd.loggers[ERRO].Println(err)
+			cmd.loggers[ERRO].Println(err.Error())
 		}
 		return 1
 	default:
-		cmd.loggers[ERRO].Println(err)
+		cmd.loggers[ERRO].Println(err.Error())
 		return 3
 	}
 }
@@ -336,7 +336,7 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 				err := session.dumpState(name)
 				if err != nil {
 					log = func() {
-						cmd.loggers[ERRO].Println(err)
+						cmd.loggers[ERRO].Println(err.Error())
 					}
 				} else {
 					log = func() {
