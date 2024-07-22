@@ -289,14 +289,14 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 					sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
 					totalSleep += sleep
 				}
-				switch err {
-				case io.EOF:
-					continue
-				case io.ErrUnexpectedEOF:
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
 					if n == 0 {
-						continue
+						sleepCancel()
+						break
 					}
-					err = nil // let io.ReadFull return io.EOF
+					// err is io.ErrUnexpectedEOF here
+					// reset in order to have io.ReadFull return io.EOF
+					err = nil
 				}
 				n, e := fpart.Write(buf[:n])
 				if e != nil {
