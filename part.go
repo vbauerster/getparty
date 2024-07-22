@@ -355,7 +355,7 @@ func (p Part) copy(dst, src *os.File) (err error) {
 	if err != nil {
 		return err
 	}
-	p.statSizeCmp(stat)
+	err = p.statSizeCmp(stat)
 	if err != nil {
 		return err
 	}

@@ -286,7 +286,7 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 	if err != nil {
 		return err
 	}
-	s.Parts[0].statSizeCmp(stat)
+	err = s.Parts[0].statSizeCmp(stat)
 	if err != nil {
 		return err
 	}
