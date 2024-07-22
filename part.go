@@ -328,7 +328,12 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 			}
 
 			if p.isDone() {
-				return false, errors.WithMessage(err, "Part is done before EOF")
+				message := "Part is done before EOF"
+				err = errors.WithMessage(err, message)
+				if err != nil {
+					return false, err
+				}
+				return false, errors.New(message)
 			}
 
 			// true is ignored if err == nil
