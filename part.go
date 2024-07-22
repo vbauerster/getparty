@@ -389,3 +389,21 @@ func (p Part) writeTo(dst *os.File) (err error) {
 	p.dlogger.Printf("Copied %d bytes: dst=%q src=%q", n, dst.Name(), src.Name())
 	return err
 }
+
+func (p Part) openAsDst() (*os.File, error) {
+	f, err := os.OpenFile(p.FileName, os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	err = p.statSizeCmp(stat)
+	if err != nil {
+		return nil, err
+	}
+	p.dlogger.Printf("%q opened as dst: %d bytes", p.FileName, p.Written)
+	return f, nil
+}

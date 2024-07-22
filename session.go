@@ -194,7 +194,7 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 		return err
 	}
 
-	dst, err := os.OpenFile(s.Parts[0].FileName, os.O_WRONLY|os.O_APPEND, 0644)
+	dst, err := s.Parts[0].openAsDst()
 	if err != nil {
 		return err
 	}
@@ -202,15 +202,6 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 		err = firstNonNil(err, dst.Close())
 		bar.Abort(false) // if bar is completed bar.Abort is nop
 	}()
-
-	stat, err := dst.Stat()
-	if err != nil {
-		return err
-	}
-	err = s.Parts[0].statSizeCmp(stat)
-	if err != nil {
-		return err
-	}
 
 	for i := 1; i < len(s.Parts); i++ {
 		err = s.Parts[i].writeTo(dst)
