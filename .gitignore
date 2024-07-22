@@ -5,5 +5,5 @@
 *.out
 
 tags
-cmd/getparty/dist/
+cmd/getparty/dist
 .envrc
