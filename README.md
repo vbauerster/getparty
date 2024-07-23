@@ -15,12 +15,17 @@ $ brew tap vbauerster/getparty
 $ brew install getparty
 ```
 
-#### Manual
+#### Aur
 
 ```
-$ go get -u github.com/vbauerster/getparty
-$ cd $GOPATH/src/github.com/vbauerster/getparty/cmd/getparty
-$ go install
+$ paru -S getparty
+```
+
+#### From source
+
+```
+$ git clone --depth 1 https://github.com/vbauerster/getparty.git
+$ cd getparty/cmd/getparty && go build
 ```
 
 ## Usage

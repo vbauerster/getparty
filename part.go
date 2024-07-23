@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/http/httptrace"
@@ -37,58 +38,31 @@ type Part struct {
 	name         string
 	order        int
 	maxTry       uint
-	single       bool
 	progress     *mpb.Progress
 	dlogger      *log.Logger
 	totalBarIncr func(int)
-	reqPatcher   func(*http.Request)
+	patcher      func(*http.Request)
 }
 
-type flashBar struct {
-	*mpb.Bar
-	msgHandler  func(message)
-	prefix      string
-	initialized atomic.Bool
-}
-
-func (b *flashBar) flash(msg string) {
-	msg = fmt.Sprintf("%s %s", b.prefix, msg)
-	b.msgHandler(message{
-		msg:   msg,
-		isErr: false,
-	})
-}
-
-func (b *flashBar) flashErr(msg string) {
-	msg = fmt.Sprintf("%s:ERR %s", b.prefix, msg)
-	b.msgHandler(message{
-		msg:   msg,
-		isErr: true,
-	})
-}
-
-func (b *flashBar) init(p *Part, curTry *uint32) error {
-	if b.initialized.Load() {
-		return nil
-	}
-	var barBuilder mpb.BarFillerBuilder
-	msgCh := make(chan message, 1)
+func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, error) {
+	var filler, extender mpb.BarFiller
 	total := p.total()
 	if total < 0 {
 		total = 0
-		barBuilder = mpb.NopStyle()
 	} else {
-		barBuilder = distinctBarRefiller(baseBarStyle())
+		filler = distinctBarRefiller(baseBarStyle()).Build()
+	}
+	if single {
+		extender = mpb.BarFillerFunc(func(w io.Writer, _ decor.Statistics) error {
+			_, err := fmt.Fprintln(w)
+			return err
+		})
 	}
 	p.dlogger.Printf("Setting bar total: %d", total)
-	bar, err := p.progress.Add(total, barBuilder.Build(), mpb.BarFillerTrim(), mpb.BarPriority(p.order),
-		mpb.BarOptional(
-			mpb.BarExtender(mpb.BarFillerFunc(
-				func(w io.Writer, _ decor.Statistics) error {
-					_, err := fmt.Fprintln(w)
-					return err
-				}), true),
-			p.single),
+	bar, err := p.progress.Add(total, filler,
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(p.order),
+		mpb.BarExtender(extender, true),
 		mpb.PrependDecorators(
 			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msgCh, 15),
 			decor.Conditional(total == 0,
@@ -111,30 +85,27 @@ func (b *flashBar) init(p *Part, curTry *uint32) error {
 		),
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if p.Written != 0 {
 		p.dlogger.Printf("Setting bar current: %d", p.Written)
 		bar.SetCurrent(p.Written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
-	b.Bar = bar
-	b.prefix = p.name
-	b.msgHandler = p.makeMsgHandler(msgCh)
-	b.initialized.Store(true)
-	return nil
+	return bar, nil
 }
 
-func (p *Part) download(location string, client *http.Client, timeout, sleep time.Duration) (err error) {
-	fpart, err := os.OpenFile(p.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func (p *Part) download(client *http.Client, location string, single bool, timeout, sleep time.Duration) (err error) {
+	fpart, err := os.OpenFile(p.FileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return errors.WithMessage(err, p.name)
 	}
 	defer func() {
-		err = firstNonNil(err, fpart.Close())
-		if p.Written == 0 {
-			p.dlogger.Printf("file %q is empty, removing", fpart.Name())
-			err = firstNonNil(err, os.Remove(fpart.Name()))
+		if e := fpart.Close(); e != nil {
+			err = firstErr(err, e)
+		} else if p.Written == 0 {
+			p.dlogger.Printf("%q is empty, removing", p.FileName)
+			err = firstErr(err, os.Remove(p.FileName))
 		}
 		err = errors.WithMessage(err, p.name)
 	}()
@@ -143,13 +114,14 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 	if err != nil {
 		return err
 	}
-	if p.reqPatcher != nil {
-		p.reqPatcher(req)
+	if p.patcher != nil {
+		p.patcher(req)
 	}
 
-	var bar flashBar
+	var bar *mpb.Bar
 	var curTry uint32
 	var statusPartialContent bool
+	msgCh := make(chan string, 1)
 	resetTimeout := timeout
 	prefix := p.dlogger.Prefix()
 
@@ -160,10 +132,10 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 			pWritten := p.Written
 			start := time.Now()
 			defer func() {
-				p.dlogger.Printf("Retry: %v, Error: %v", retry, err)
 				if p.Skip {
 					return
 				}
+				p.dlogger.Printf("Retry: %v, Error: %v", retry, err)
 				if n := p.Written - pWritten; n != 0 {
 					if n >= bufSize {
 						reset()
@@ -186,7 +158,7 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 							ErrMaxRetry.Error(),
 							decor.SizeB1024(p.Written),
 							decor.SizeB1024(p.total()))
-						if bar.initialized.Load() {
+						if bar != nil {
 							bar.Abort(true)
 						}
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
@@ -208,10 +180,10 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 				cancel()
 				msg := "Timeout..."
 				p.dlogger.Println(msg)
-				// following check is needed, because this func runs in different goroutine
-				// at first attempt bar may be not initialized by the time this func runs
-				if bar.initialized.Load() {
-					bar.flash(msg)
+				select {
+				case msgCh <- fmt.Sprintf("%s %s", p.name, msg):
+				case <-msgCh:
+					p.dlogger.Println("Houston msg dropped, is bar initialized?")
 				}
 			})
 			defer timer.Stop()
@@ -224,16 +196,14 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 
 			resp, err := client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 			if err != nil {
-				if p.Written == 0 {
-					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
-				} else {
-					err := bar.init(p, &curTry)
-					if err != nil {
-						return false, err
-					}
-				}
+				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), unwrapOrErr(err).Error())
 				return true, err
 			}
+			defer func() {
+				if resp.Body != nil {
+					err = firstErr(err, resp.Body.Close())
+				}
+			}()
 
 			p.dlogger.Printf("HTTP status: %s", resp.Status)
 			p.dlogger.Printf("ContentLength: %d", resp.ContentLength)
@@ -253,68 +223,67 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				err := bar.init(p, &curTry)
-				if err != nil {
-					return false, err
+				if bar == nil {
+					bar, err = p.newBar(&curTry, single, msgCh)
+					if err != nil {
+						return false, err
+					}
 				}
 				if p.Written != 0 {
-					go func(written int64) {
-						p.dlogger.Printf("Setting bar refill: %d", written)
-						bar.SetRefill(written)
-					}(p.Written)
+					go bar.SetRefill(p.Written)
 				}
 				statusPartialContent = true
 			case http.StatusOK: // no partial content, download with single part
-				if statusPartialContent {
-					panic("http.StatusOK after http.StatusPartialContent")
-				}
-				if p.Written == 0 {
+				if attempt == 0 {
+					if p.Written != 0 {
+						panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
+					}
 					if p.order != 1 {
 						p.Skip = true
 						p.dlogger.Println("Stopping: no partial content")
 						return false, nil
 					}
-					p.single = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
-					err := bar.init(p, &curTry)
+				} else if statusPartialContent {
+					panic("http.StatusOK after http.StatusPartialContent")
+				} else {
+					err := fpart.Close()
 					if err != nil {
 						return false, err
 					}
-				} else if bar.initialized.Load() {
-					err := fpart.Close()
-					if err != nil {
-						panic(err)
-					}
 					fpart, err = os.OpenFile(p.FileName, os.O_WRONLY|os.O_TRUNC, 0644)
 					if err != nil {
-						panic(err)
+						return false, err
 					}
 					p.Written = 0
+				}
+				if bar == nil {
+					bar, err = p.newBar(&curTry, true, msgCh)
+					if err != nil {
+						return false, err
+					}
+				} else {
 					bar.SetCurrent(0)
-				} else {
-					panic(fmt.Sprintf("expected 0 bytes got %d", p.Written))
 				}
-			case http.StatusInternalServerError, http.StatusServiceUnavailable:
-				if bar.initialized.Load() {
-					bar.flashErr(resp.Status)
-				} else {
-					fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
-				}
+			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
 				return true, HttpError(resp.StatusCode)
 			default:
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
-				if bar.initialized.Load() {
-					bar.Abort(true)
-				}
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))
+				}
+				if bar != nil {
+					bar.Abort(true)
 				}
 				return false, HttpError(resp.StatusCode)
 			}
 
-			defer resp.Body.Close()
+			if bar == nil {
+				panic("expected non nil bar here")
+			}
 
 			buf := make([]byte, bufSize)
 			sleepCtx, sleepCancel := context.WithCancel(context.Background())
@@ -328,26 +297,26 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 					sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
 					totalSleep += sleep
 				}
-				switch err {
-				case io.EOF:
-					continue
-				case io.ErrUnexpectedEOF:
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
 					if n == 0 {
 						continue
 					}
-					err = nil // let io.ReadFull return io.EOF
+					// err is io.ErrUnexpectedEOF here
+					// reset in order to have io.ReadFull return io.EOF
+					err = nil
 				}
-				_, e := fpart.Write(buf[:n])
+				n, e := fpart.Write(buf[:n])
 				if e != nil {
-					panic(e)
+					err = e
+					continue
 				}
 				p.Written += int64(n)
+				bar.EwmaIncrBy(n, dur)
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
 				} else {
 					p.totalBarIncr(n)
 				}
-				bar.EwmaIncrBy(n, dur)
 				<-sleepCtx.Done()
 			}
 
@@ -357,16 +326,22 @@ func (p *Part) download(location string, client *http.Client, timeout, sleep tim
 					bar.EnableTriggerComplete()
 				}
 				if p.isDone() {
-					return false, nil
+					return false, fpart.Sync()
 				}
-				panic("part isn't done after EOF")
+				return false, errors.WithMessage(err, "Part isn't done after EOF")
 			}
 
 			if p.isDone() {
-				panic(fmt.Sprintf("part is done before EOF: %v", err))
+				message := "Part is done before EOF"
+				err = errors.WithMessage(err, message)
+				if err != nil {
+					return false, err
+				}
+				return false, errors.New(message)
 			}
 
-			return p.ctx.Err() == nil, err
+			// true is ignored if err == nil
+			return true, err
 		})
 }
 
@@ -385,12 +360,54 @@ func (p Part) isDone() bool {
 	return p.Written != 0 && p.Written == p.total()
 }
 
-func (p Part) makeMsgHandler(msgCh chan<- message) func(message) {
-	return func(msg message) {
-		select {
-		case msgCh <- msg:
-		default:
-			fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), msg.msg)
-		}
+func (p Part) sizeCmp(stat fs.FileInfo) error {
+	size := stat.Size()
+	if size != p.Written {
+		return errors.Errorf("%q size mismatch: expected %d got %d", p.FileName, p.Written, size)
 	}
+	return nil
+}
+
+func (p Part) writeTo(dst *os.File) (err error) {
+	src, err := os.Open(p.FileName)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = firstErr(err, src.Close())
+		if err != nil {
+			return
+		}
+		p.dlogger.Printf("Removing: %q", p.FileName)
+		err = os.Remove(p.FileName)
+	}()
+	stat, err := src.Stat()
+	if err != nil {
+		return err
+	}
+	err = p.sizeCmp(stat)
+	if err != nil {
+		return err
+	}
+	n, err := io.Copy(dst, src)
+	p.dlogger.Printf("%d bytes copied src=%q", n, p.FileName)
+	return err
+}
+
+func (p Part) openAsDst() (*os.File, error) {
+	f, err := os.OpenFile(p.FileName, os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	err = p.sizeCmp(stat)
+	if err != nil {
+		return nil, err
+	}
+	p.dlogger.Printf("%d bytes opened dst=%q", p.Written, p.FileName)
+	return f, nil
 }

@@ -64,24 +64,12 @@ func (s *Session) calcParts(parts uint) error {
 	return nil
 }
 
-func (s *Session) dropSkipped() {
-	var skipped int
-	for _, p := range s.Parts {
-		if p.Skip {
-			skipped++
-		}
-	}
-	if skipped == len(s.Parts)-1 && !s.Parts[0].Skip {
-		s.Parts = s.Parts[:1]
-	}
-}
-
 func (s *Session) loadState(name string) error {
 	f, err := os.Open(name)
 	if err != nil {
 		return err
 	}
-	return firstNonNil(json.NewDecoder(f).Decode(s), f.Close())
+	return firstErr(json.NewDecoder(f).Decode(s), f.Close())
 }
 
 func (s *Session) dumpState(name string) error {
@@ -89,7 +77,7 @@ func (s *Session) dumpState(name string) error {
 	if err != nil {
 		return err
 	}
-	return firstNonNil(json.NewEncoder(f).Encode(s), f.Close())
+	return firstErr(json.NewEncoder(f).Encode(s), f.Close())
 }
 
 func (s Session) isResumable() bool {
@@ -143,16 +131,10 @@ func (s Session) isOutputFileExist() (bool, error) {
 
 func (s Session) checkContentSums(other Session) error {
 	if s.ContentLength != other.ContentLength {
-		return fmt.Errorf(
-			"ContentLength mismatch: expected %d got %d",
-			s.ContentLength, other.ContentLength,
-		)
+		return errors.Errorf("ContentLength mismatch: expected %d got %d", s.ContentLength, other.ContentLength)
 	}
 	if s.ContentMD5 != other.ContentMD5 {
-		return fmt.Errorf(
-			"%s mismatch: expected %q got %q",
-			hContentMD5, s.ContentMD5, other.ContentMD5,
-		)
+		return errors.Errorf("%s mismatch: expected %q got %q", hContentMD5, s.ContentMD5, other.ContentMD5)
 	}
 	return nil
 }
@@ -166,13 +148,69 @@ func (s Session) checkSizeOfEachPart() error {
 		if err != nil {
 			return err
 		}
-		if fileSize := stat.Size(); part.Written != fileSize {
-			return fmt.Errorf(
-				"%q size mismatch: expected %d got %d",
-				part.FileName, part.Written, fileSize,
-			)
+		err = part.sizeCmp(stat)
+		if err != nil {
+			return err
 		}
 	}
+	return nil
+}
+
+func (s Session) hasSkippedParts() bool {
+	for _, p := range s.Parts {
+		if p.Skip {
+			return true
+		}
+	}
+	return false
+}
+
+func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
+	if len(s.Parts) <= 1 {
+		return nil
+	}
+	if s.hasSkippedParts() {
+		return errors.New("Cannot concatenate session with skipped parts")
+	}
+	if tw := s.totalWritten(); tw != s.ContentLength {
+		return errors.Errorf("Written count mismatch: ContentLength %d, written %d", s.ContentLength, tw)
+	}
+
+	bar, err := progress.Add(int64(len(s.Parts)-1), baseBarStyle().Build(),
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(len(s.Parts)+1),
+		mpb.PrependDecorators(
+			decor.Name("Concatenating", decor.WCSyncWidthR),
+			decor.NewPercentage("%d", decor.WCSyncSpace),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+		),
+	)
+	if err != nil {
+		return err
+	}
+
+	dst, err := s.Parts[0].openAsDst()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = firstErr(err, dst.Close())
+		bar.Abort(false) // if bar is completed bar.Abort is nop
+	}()
+
+	for i := 1; i < len(s.Parts); i++ {
+		err = s.Parts[i].writeTo(dst)
+		if err != nil {
+			return err
+		}
+		bar.Increment()
+	}
+
 	return nil
 }
 
@@ -185,8 +223,7 @@ func (s Session) makeTotalBar(
 	if len(s.Parts) <= 1 || quiet {
 		return func(int) {}, func(bool) {}, nil
 	}
-	bar, err := progress.Add(s.ContentLength,
-		distinctBarRefiller(baseBarStyle()).Build(),
+	bar, err := progress.Add(s.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarExtender(mpb.BarFillerFunc(
 			func(w io.Writer, _ decor.Statistics) error {
@@ -247,83 +284,4 @@ func (s Session) makeTotalBar(
 				cancel()
 			}
 		}, nil
-}
-
-func (s Session) concatenateParts(progress *mpb.Progress, logger *log.Logger) (err error) {
-	if len(s.Parts) <= 1 {
-		return nil
-	}
-	if tw := s.totalWritten(); tw != s.ContentLength {
-		return errors.Errorf("Written count mismatch: ContentLength %d, written %d", s.ContentLength, tw)
-	}
-
-	bar, err := progress.Add(int64(len(s.Parts)-1),
-		baseBarStyle().Build(),
-		mpb.BarFillerTrim(),
-		mpb.BarPriority(len(s.Parts)+1),
-		mpb.PrependDecorators(
-			decor.Name("Concatenating", decor.WCSyncWidthR),
-			decor.NewPercentage("%d", decor.WCSyncSpace),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-		),
-	)
-	if err != nil {
-		return err
-	}
-	fpart0, err := os.OpenFile(s.Parts[0].FileName, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	statSum, err := statAndSumSize(fpart0, 0)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if e := fpart0.Close(); err == nil {
-			err = e
-		}
-		bar.Abort(false) // if bar is completed bar.Abort is nop
-	}()
-
-	for i := 1; i < len(s.Parts); i++ {
-		if !s.Parts[i].Skip {
-			fparti, err := os.Open(s.Parts[i].FileName)
-			if err != nil {
-				return err
-			}
-			statSum, err = statAndSumSize(fparti, statSum)
-			if err != nil {
-				return err
-			}
-			logger.Printf("concatenating: %q into %q", fparti.Name(), fpart0.Name())
-			_, err = io.Copy(fpart0, fparti)
-			err = firstNonNil(err, fparti.Close())
-			if err != nil {
-				return err
-			}
-			err = os.Remove(fparti.Name())
-			if err != nil {
-				return err
-			}
-		}
-		bar.Increment()
-	}
-
-	if s.ContentLength != statSum {
-		return errors.Errorf("Corrupted file: ContentLength %d, file size %d", s.ContentLength, statSum)
-	}
-	return nil
-}
-
-func statAndSumSize(f *os.File, sum int64) (int64, error) {
-	stat, err := f.Stat()
-	if err != nil {
-		return sum, err
-	}
-	return sum + stat.Size(), nil
 }

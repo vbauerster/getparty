@@ -66,19 +66,14 @@ const (
 )
 
 var (
-	userAgents           map[string]string
 	reContentDisposition = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`) // https://regex101.com/r/N4AovD/3
-)
-
-func init() {
-	userAgents = map[string]string{
+	userAgents           = map[string]string{
 		"chrome":  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
 		"firefox": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/112.0",
 		"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
 		"edge":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
 	}
-	userAgents[""] = userAgents["chrome"]
-}
+)
 
 // Options struct, represents cmd line options
 type Options struct {
@@ -88,7 +83,7 @@ type Options struct {
 	SpeedLimit         uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName       string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
-	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" description:"User-Agent header (default: chrome)"`
+	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
 	BestMirror         []bool            `short:"b" long:"best-mirror" description:"pickup best mirror, repeat n times to list top n"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	ForceOverwrite     bool              `short:"f" long:"force" description:"overwrite existing file silently"`
@@ -107,6 +102,7 @@ type Cmd struct {
 	Err     io.Writer
 	options *Options
 	parser  *flags.Parser
+	patcher func(*http.Request)
 	loggers [LEVELS]*log.Logger
 }
 
@@ -132,13 +128,13 @@ func (cmd Cmd) Exit(err error) (status int) {
 		return 2
 	case ExpectedError:
 		if cause == ErrBadInvariant {
-			log.Default().Println(err)
+			log.Default().Println(err.Error())
 		} else {
-			cmd.loggers[ERRO].Println(err)
+			cmd.loggers[ERRO].Println(err.Error())
 		}
 		return 1
 	default:
-		cmd.loggers[ERRO].Println(err)
+		cmd.loggers[ERRO].Println(err.Error())
 		return 3
 	}
 }
@@ -175,7 +171,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		if cmd.options.AuthPass == "" {
 			fmt.Fprint(cmd.Out, "Enter password: ")
 			pass, err := term.ReadPassword(0)
-			if firstNonNil(err, cmd.Ctx.Err()) != nil {
+			if firstErr(err, cmd.Ctx.Err()) != nil {
 				return err
 			}
 			cmd.options.AuthPass = string(pass)
@@ -195,6 +191,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.Err = cmd.getErr()
 	cmd.initLoggers()
 
+	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
+	cmd.patcher = makeReqPatcher(userinfo, cmd.options.HeaderMap)
+
 	if len(cmd.options.BestMirror) != 0 {
 		transport := newRoundTripperBuilder(false).withTLSConfig(tlsConfig).build()
 		top, err := cmd.bestMirror(4, transport, args)
@@ -213,17 +212,17 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
-	if _, ok := cmd.options.HeaderMap[hUserAgentKey]; !ok {
-		cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
-	}
 	transport := newRoundTripperBuilder(cmd.options.Parts != 0).withTLSConfig(tlsConfig).build()
 	client := &http.Client{
 		Transport: transport,
 		Jar:       jar,
 	}
 	session, err := cmd.getState(userinfo, client, args)
-	if err = firstNonNil(err, cmd.Ctx.Err()); err != nil {
+	if err != nil {
 		return err
+	}
+	if session.hasSkippedParts() {
+		return errors.New("Cannot process session with skipped parts")
 	}
 	session.summary(cmd.loggers[INFO])
 	if cmd.options.Parts == 0 {
@@ -250,11 +249,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	sessionHandle := cmd.makeSessionHandler(session, progress)
-	defer sessionHandle()
+	defer func() {
+		sessionHandle(false)
+	}()
 
-	patcher := makeReqPatcher(userinfo, session.HeaderMap, true)
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
+	single := len(session.Parts) == 1
 
 	for i, p := range session.Parts {
 		if p.isDone() {
@@ -265,11 +266,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.order = i + 1
 		p.name = fmt.Sprintf("P%02d", p.order)
 		p.maxTry = cmd.options.MaxRetry
-		p.single = len(session.Parts) == 1
 		p.progress = progress
 		p.totalBarIncr = totalBarIncr
 		p.dlogger = log.New(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
-		p.reqPatcher = patcher
+		p.patcher = cmd.patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		client := &http.Client{
 			Transport: transport,
@@ -279,7 +279,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			defer func() {
 				if e := recover(); e != nil {
 					cancel()
-					onceSessionHandle.Do(sessionHandle)
+					onceSessionHandle.Do(func() {
+						sessionHandle(true)
+					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
 				}
 				switch {
@@ -289,19 +291,19 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					totalCancel(true) // totalCancel is idempotent
 				}
 			}()
-			return p.download(session.location, client, timeout, sleep)
+			return p.download(client, session.location, single, timeout, sleep)
 		})
 	}
 
 	cmd.parser = nil
 
-	err = firstNonNil(eg.Wait(), ctx.Err())
+	err = firstErr(eg.Wait(), ctx.Err())
 	if err != nil {
 		totalCancel(false)
 		return err
 	}
 
-	err = session.concatenateParts(progress, cmd.loggers[DEBUG])
+	err = session.concatenateParts(progress)
 	if err != nil {
 		return err
 	}
@@ -309,6 +311,45 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return os.Remove(cmd.options.JSONFileName)
 	}
 	return nil
+}
+
+func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func(bool) {
+	pTotal := session.totalWritten()
+	start := time.Now()
+	return func(isPanic bool) {
+		log := func() {}
+		defer func() {
+			progress.Wait()
+			fmt.Fprintln(cmd.Out)
+			log()
+		}()
+		total := session.totalWritten()
+		if session.isResumable() && total != session.ContentLength {
+			if total-pTotal != 0 { // if some bytes were written
+				session.Elapsed += time.Since(start)
+				var name string
+				if isPanic {
+					name = session.OutputFileName + ".panic"
+				} else {
+					name = session.OutputFileName + ".json"
+				}
+				err := session.dumpState(name)
+				if err != nil {
+					log = func() {
+						cmd.loggers[ERRO].Println(err.Error())
+					}
+				} else {
+					log = func() {
+						cmd.loggers[INFO].Printf("Session state saved to %q", name)
+					}
+				}
+			}
+		} else {
+			log = func() {
+				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
+			}
+		}
+	}
 }
 
 func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
@@ -332,47 +373,8 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 	return config, nil
 }
 
-func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func() {
-	pTotal := session.totalWritten()
-	start := time.Now()
-	return func() {
-		log := func() {}
-		defer func() {
-			progress.Wait()
-			fmt.Fprintln(cmd.Out)
-			log()
-		}()
-		total := session.totalWritten()
-		if session.isResumable() && total != session.ContentLength {
-			if total-pTotal != 0 { // if some bytes were written
-				session.Elapsed += time.Since(start)
-				session.dropSkipped()
-				name := session.OutputFileName + ".json"
-				err := session.dumpState(name)
-				if err != nil {
-					log = func() {
-						cmd.loggers[ERRO].Println(err)
-					}
-				} else {
-					log = func() {
-						cmd.loggers[INFO].Printf("Session state saved to %q", name)
-					}
-				}
-			}
-		} else {
-			log = func() {
-				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
-			}
-		}
-	}
-}
-
-func (cmd Cmd) getState(
-	userinfo *url.Userinfo,
-	client *http.Client,
-	args []string,
-) (*Session, error) {
-	setJarCookies := func(rawURL string, headers map[string]string, jar http.CookieJar) error {
+func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []string) (*Session, error) {
+	setCookies := func(jar http.CookieJar, headers map[string]string, rawURL string) error {
 		cookies, err := parseCookies(headers)
 		if err != nil {
 			return err
@@ -406,7 +408,7 @@ func (cmd Cmd) getState(
 			if err != nil {
 				return nil, err
 			}
-			err = setJarCookies(restored.URL, restored.HeaderMap, client.Jar)
+			err = setCookies(client.Jar, restored.HeaderMap, restored.URL)
 			if err != nil {
 				return nil, err
 			}
@@ -415,7 +417,8 @@ func (cmd Cmd) getState(
 			}
 			switch {
 			case scratch == nil && restored.Redirected:
-				scratch, err = cmd.follow(restored.URL, client, makeReqPatcher(userinfo, restored.HeaderMap, true))
+				cmd.patcher = makeReqPatcher(userinfo, restored.HeaderMap)
+				scratch, err = cmd.follow(client, restored.URL)
 				if err != nil {
 					return nil, err
 				}
@@ -432,11 +435,11 @@ func (cmd Cmd) getState(
 			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.options.JSONFileName)
 			return restored, nil
 		case len(args) != 0:
-			err := setJarCookies(args[0], cmd.options.HeaderMap, client.Jar)
+			err := setCookies(client.Jar, cmd.options.HeaderMap, args[0])
 			if err != nil {
 				return nil, err
 			}
-			scratch, err = cmd.follow(args[0], client, makeReqPatcher(userinfo, cmd.options.HeaderMap, true))
+			scratch, err = cmd.follow(client, args[0])
 			if err != nil {
 				return nil, err
 			}
@@ -471,11 +474,7 @@ func (cmd Cmd) getState(
 	}
 }
 
-func (cmd Cmd) follow(
-	rawURL string,
-	client *http.Client,
-	reqPatcher func(*http.Request),
-) (session *Session, err error) {
+func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err error) {
 	defer func() {
 		err = errors.WithMessage(err, "follow")
 	}()
@@ -500,30 +499,32 @@ func (cmd Cmd) follow(
 				cancel()
 			}()
 			for {
+				if attempt == 0 {
+					message := fmt.Sprintf("Get %q", location)
+					cmd.loggers[INFO].Println(message)
+					cmd.loggers[DEBUG].Println(message)
+				} else {
+					message := fmt.Sprintf("Get:R%02d %q", attempt, location)
+					cmd.loggers[INFO].Println(message)
+					cmd.loggers[DEBUG].Println(message)
+				}
+
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
 					return false, err
 				}
 
-				reqPatcher(req)
+				if cmd.patcher != nil {
+					cmd.patcher(req)
+				}
 
 				for k, v := range req.Header {
 					cmd.loggers[DEBUG].Printf("%s: %v", k, v)
 				}
 
-				if attempt == 0 {
-					cmd.loggers[INFO].Printf("Get %q", location)
-				} else {
-					cmd.loggers[INFO].Printf("Get:R%02d %q", attempt, location)
-				}
-
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
-					if e := errors.Unwrap(err); e != nil {
-						cmd.loggers[WARN].Println(e.Error())
-					} else {
-						cmd.loggers[WARN].Println(err.Error())
-					}
+					cmd.loggers[WARN].Println(unwrapOrErr(err).Error())
 					if attempt != 0 && attempt == cmd.options.MaxRetry {
 						return false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
@@ -599,8 +600,7 @@ func (cmd Cmd) follow(
 					Redirected:     redirected,
 				}
 
-				resp.Body.Close()
-				return false, nil
+				return false, resp.Body.Close()
 			}
 		})
 	return session, err
@@ -618,6 +618,7 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	switch answer {
 	case '\n', 'y', 'Y':
 		if cmd.Ctx.Err() == nil {
+			cmd.loggers[DEBUG].Printf("Removing existing: %s", name)
 			return os.Remove(name)
 		}
 		fallthrough
@@ -663,7 +664,14 @@ func (cmd Cmd) invariantCheck() error {
 	return nil
 }
 
-func firstNonNil(errors ...error) error {
+func unwrapOrErr(err error) error {
+	if e := errors.Unwrap(err); e != nil {
+		return e
+	}
+	return err
+}
+
+func firstErr(errors ...error) error {
 	for _, err := range errors {
 		if err != nil {
 			return err
@@ -672,7 +680,7 @@ func firstNonNil(errors ...error) error {
 	return nil
 }
 
-func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string, skipCookie bool) func(*http.Request) {
+func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*http.Request) {
 	return func(req *http.Request) {
 		if req == nil {
 			return
@@ -681,7 +689,7 @@ func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string, skipCooki
 			req.URL.User = userinfo
 		}
 		for k, v := range headers {
-			if skipCookie && k == hCookie {
+			if k == hCookie {
 				continue
 			}
 			switch k {

@@ -80,13 +80,14 @@ func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, maxGor
 	mirrors := readLines(input)
 	result := make(chan *mirror)
 
-	timeout := cmd.getTimeout()
 	var wg sync.WaitGroup
 	wg.Add(maxGoroutines)
 	go func() {
 		wg.Wait()
 		close(result)
 	}()
+
+	timeout := cmd.getTimeout()
 
 	for i := 0; i < maxGoroutines; i++ {
 		client := &http.Client{
@@ -95,9 +96,9 @@ func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, maxGor
 		go func() {
 			defer wg.Done()
 			for m := range mirrors {
-				err := queryMirror(cmd.Ctx, client, m, timeout)
+				err := queryMirror(cmd.Ctx, m, client, timeout, cmd.patcher)
 				if err != nil {
-					cmd.loggers[ERRO].Println(err)
+					cmd.loggers[WARN].Println(err.Error())
 					continue
 				}
 				result <- m
@@ -115,13 +116,17 @@ func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, maxGor
 
 func queryMirror(
 	ctx context.Context,
-	client *http.Client,
 	mirror *mirror,
+	client *http.Client,
 	timeout time.Duration,
+	patcher func(*http.Request),
 ) error {
 	req, err := http.NewRequest(http.MethodGet, mirror.url, nil)
 	if err != nil {
 		return err
+	}
+	if patcher != nil {
+		patcher(req)
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
