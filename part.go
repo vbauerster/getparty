@@ -199,6 +199,11 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), err.Error())
 				return true, err
 			}
+			defer func() {
+				if resp.Body != nil {
+					err = firstNonNil(err, resp.Body.Close())
+				}
+			}()
 
 			p.dlogger.Printf("HTTP status: %s", resp.Status)
 			p.dlogger.Printf("ContentLength: %d", resp.ContentLength)
@@ -271,8 +276,6 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				}
 				return false, HttpError(resp.StatusCode)
 			}
-
-			defer resp.Body.Close()
 
 			if bar == nil {
 				panic("expected non nil bar here")
