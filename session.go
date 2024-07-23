@@ -148,7 +148,7 @@ func (s Session) checkSizeOfEachPart() error {
 		if err != nil {
 			return err
 		}
-		err = part.statSizeCmp(stat)
+		err = part.sizeCmp(stat)
 		if err != nil {
 			return err
 		}
