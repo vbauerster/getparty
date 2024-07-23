@@ -227,8 +227,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	var doneCount uint32
-	var eg errgroup.Group
-	var onceSessionHandle sync.Once
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.WithDebugOutput(cmd.Err),
 		mpb.WithOutput(cmd.Out),
@@ -248,6 +246,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		sessionHandle(false)
 	}()
 
+	var eg errgroup.Group
+	var recoverHandler sync.Once
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
 	single := len(session.Parts) == 1
@@ -282,7 +282,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		eg.Go(func() error {
 			defer func() {
 				if e := recover(); e != nil {
-					onceSessionHandle.Do(func() {
+					recoverHandler.Do(func() {
 						for _, p := range session.Parts {
 							p.cancel()
 						}
