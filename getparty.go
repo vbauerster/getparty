@@ -224,7 +224,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if session.hasSkippedParts() {
 		return errors.New("Cannot process session with skipped parts")
 	}
-	session.summary(cmd.loggers[INFO])
+	session.summary(cmd.loggers)
 	if cmd.options.Parts == 0 {
 		return nil
 	}
