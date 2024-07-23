@@ -227,18 +227,14 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return nil
 	}
 
-	var doneCount uint32
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.WithDebugOutput(cmd.Err),
 		mpb.WithOutput(cmd.Out),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	incrTotalBar, cancelTotalBar, err := session.makeTotalBar(cmd.Ctx,
-		progress,
-		&doneCount,
-		cmd.options.Quiet,
-	)
+	var doneCount uint32
+	incrTotalBar, cancelTotalBar, err := cmd.runTotalBar(&doneCount, session, progress)
 	if err != nil {
 		return err
 	}
@@ -617,6 +613,14 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 			}
 		})
 	return session, err
+}
+
+func (cmd Cmd) runTotalBar(
+	doneCount *uint32,
+	session *Session,
+	progress *mpb.Progress,
+) (func(int), func(bool), error) {
+	return session.runTotalBar(cmd.Ctx, doneCount, progress, cmd.options.Quiet)
 }
 
 func (cmd Cmd) overwriteIfConfirmed(name string) error {

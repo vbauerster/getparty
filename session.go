@@ -210,10 +210,10 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 	return nil
 }
 
-func (s Session) makeTotalBar(
+func (s Session) runTotalBar(
 	ctx context.Context,
-	progress *mpb.Progress,
 	doneCount *uint32,
+	progress *mpb.Progress,
 	quiet bool,
 ) (func(int), func(bool), error) {
 	if len(s.Parts) <= 1 || quiet {
