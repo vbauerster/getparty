@@ -27,21 +27,24 @@ var globTry uint32
 
 // Part represents state of each download part
 type Part struct {
-	FileName string
-	Start    int64
-	Stop     int64
-	Written  int64
-	Skip     bool
-	Elapsed  time.Duration
+	Start   int64
+	Stop    int64
+	Written int64
+	Elapsed time.Duration
 
-	ctx          context.Context
-	name         string
-	order        int
-	maxTry       uint
-	progress     *mpb.Progress
-	dlogger      *log.Logger
-	totalBarIncr func(int)
-	patcher      func(*http.Request)
+	ctx               context.Context
+	sessionOutputName string
+	name              string
+	order             int
+	maxTry            uint
+	progress          *mpb.Progress
+	dlogger           *log.Logger
+	totalBarIncr      func(int)
+	patcher           func(*http.Request)
+	cancel            func()
+	partialOK         func()
+	firstHttp200      chan int
+	httpStatusOK      bool
 }
 
 func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, error) {
