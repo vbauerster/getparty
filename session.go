@@ -18,18 +18,18 @@ import (
 
 // Session represents download session state
 type Session struct {
-	location       string
-	URL            string
-	OutputFileName string
-	ContentMD5     string
-	AcceptRanges   string
-	ContentType    string
-	StatusCode     int
-	ContentLength  int64
-	Redirected     bool
-	Elapsed        time.Duration
-	HeaderMap      map[string]string
-	Parts          []*Part
+	location      string
+	URL           string
+	OutputName    string
+	ContentMD5    string
+	AcceptRanges  string
+	ContentType   string
+	StatusCode    int
+	ContentLength int64
+	Redirected    bool
+	Elapsed       time.Duration
+	HeaderMap     map[string]string
+	Parts         []*Part
 }
 
 func (s *Session) calcParts(parts uint) error {
@@ -102,7 +102,7 @@ func (s Session) summary(loggers [LEVELS]*log.Logger) {
 		}
 	}
 	if len(s.Parts) != 0 {
-		loggers[INFO].Printf("Saving to: %q", s.OutputFileName)
+		loggers[INFO].Printf("Saving to: %q", s.OutputName)
 	}
 	if !s.isResumable() {
 		loggers[WARN].Println("Session is not resumable")
@@ -110,7 +110,7 @@ func (s Session) summary(loggers [LEVELS]*log.Logger) {
 }
 
 func (s Session) isOutputFileExist() (bool, error) {
-	stat, err := os.Stat(s.OutputFileName)
+	stat, err := os.Stat(s.OutputName)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
@@ -118,7 +118,7 @@ func (s Session) isOutputFileExist() (bool, error) {
 		return false, err
 	}
 	if stat.IsDir() {
-		return true, errors.Wrapf(os.ErrInvalid, "%q is a directory", s.OutputFileName)
+		return true, errors.Wrapf(os.ErrInvalid, "%q is a directory", s.OutputName)
 	}
 	return true, nil
 }
@@ -139,7 +139,7 @@ func (s Session) checkSizeOfEachPart() error {
 			continue
 		}
 		p.order = i + 1
-		p.sessionOutputName = s.OutputFileName
+		p.sessionOutputName = s.OutputName
 		stat, err := os.Stat(p.fileName())
 		if err != nil {
 			return err
@@ -190,7 +190,7 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 		return err
 	}
 
-	dst, err := os.OpenFile(s.OutputFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	dst, err := os.OpenFile(s.OutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}

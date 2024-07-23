@@ -33,8 +33,6 @@ type Part struct {
 	Elapsed time.Duration
 
 	ctx               context.Context
-	sessionOutputName string
-	name              string
 	order             int
 	maxTry            uint
 	progress          *mpb.Progress
@@ -45,6 +43,8 @@ type Part struct {
 	partialOK         func()
 	firstHttp200      chan int
 	httpStatusOK      bool
+	sessionOutputName string
+	name              string
 }
 
 func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, error) {

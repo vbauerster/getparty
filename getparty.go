@@ -263,12 +263,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		ctx, cancel := context.WithCancel(cmd.Ctx)
 		p.ctx = ctx
+		p.order = i + 1
 		p.cancel = cancel
 		p.firstHttp200 = firstHttp200
 		p.partialOK = partialOK
-		p.order = i + 1
-		p.name = fmt.Sprintf("P%02d", p.order)
-		p.sessionOutputName = session.OutputFileName
+		p.sessionOutputName = session.OutputName
+		p.name = fmt.Sprintf("P%02d", i+1)
 		p.maxTry = cmd.options.MaxRetry
 		p.progress = progress
 		p.totalBarIncr = totalBarIncr
@@ -344,9 +344,9 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 				session.Elapsed += time.Since(start)
 				var name string
 				if isPanic {
-					name = session.OutputFileName + ".panic"
+					name = session.OutputName + ".panic"
 				} else {
-					name = session.OutputFileName + ".json"
+					name = session.OutputName + ".json"
 				}
 				err := session.dumpState(name)
 				if err != nil {
@@ -361,7 +361,7 @@ func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func
 			}
 		} else {
 			log = func() {
-				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputFileName, session.ContentLength, total)
+				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, total)
 			}
 		}
 	}
@@ -458,7 +458,7 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []str
 			if err != nil {
 				return nil, err
 			}
-			state := scratch.OutputFileName + ".json"
+			state := scratch.OutputName + ".json"
 			if _, err := os.Stat(state); err == nil {
 				cmd.options.JSONFileName = state
 			} else if errors.Is(err, os.ErrNotExist) {
@@ -468,7 +468,7 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []str
 						return nil, err
 					}
 					if exist {
-						err = cmd.overwriteIfConfirmed(scratch.OutputFileName)
+						err = cmd.overwriteIfConfirmed(scratch.OutputName)
 						if err != nil {
 							return nil, err
 						}
@@ -600,15 +600,15 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 				}
 
 				session = &Session{
-					location:       location,
-					URL:            rawURL,
-					OutputFileName: name,
-					ContentMD5:     resp.Header.Get(hContentMD5),
-					AcceptRanges:   resp.Header.Get(hAcceptRanges),
-					ContentType:    resp.Header.Get(hContentType),
-					StatusCode:     resp.StatusCode,
-					ContentLength:  resp.ContentLength,
-					Redirected:     redirected,
+					location:      location,
+					URL:           rawURL,
+					OutputName:    name,
+					ContentMD5:    resp.Header.Get(hContentMD5),
+					AcceptRanges:  resp.Header.Get(hAcceptRanges),
+					ContentType:   resp.Header.Get(hContentType),
+					StatusCode:    resp.StatusCode,
+					ContentLength: resp.ContentLength,
+					Redirected:    redirected,
 				}
 
 				return false, resp.Body.Close()
