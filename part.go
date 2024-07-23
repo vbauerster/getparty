@@ -386,7 +386,7 @@ func (p Part) writeTo(dst *os.File) (err error) {
 		return err
 	}
 	n, err := io.Copy(dst, src)
-	p.dlogger.Printf("Copied %d bytes: dst=%q src=%q", n, dst.Name(), src.Name())
+	p.dlogger.Printf("%d bytes copied src=%q", n, p.FileName)
 	return err
 }
 
@@ -404,6 +404,6 @@ func (p Part) openAsDst() (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.dlogger.Printf("%q opened as dst: %d bytes", p.FileName, p.Written)
+	p.dlogger.Printf("%d bytes opened dst=%q", p.Written, p.FileName)
 	return f, nil
 }
