@@ -181,7 +181,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				msg := "Timeout..."
 				p.dlogger.Println(msg)
 				select {
-				case msgCh <- msg:
+				case msgCh <- fmt.Sprintf("%s %s", p.name, msg):
 				case <-msgCh:
 					p.dlogger.Println("Houston msg dropped, is bar initialized?")
 				}
