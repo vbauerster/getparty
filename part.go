@@ -153,21 +153,23 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
 				}
-				if retry && err != nil {
-					switch attempt {
-					case 0:
+				if err != nil {
+					switch {
+					case attempt == 0:
 						atomic.AddUint32(&globTry, 1)
-					case p.maxTry:
-						atomic.AddUint32(&globTry, ^uint32(0))
+					case attempt == p.maxTry:
 						fmt.Fprintf(p.progress, "%s%s: %.1f / %.1f\n",
 							p.dlogger.Prefix(),
 							ErrMaxRetry.Error(),
 							decor.SizeB1024(p.Written),
 							decor.SizeB1024(p.total()))
+						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
+						fallthrough
+					case !retry:
+						atomic.AddUint32(&globTry, ^uint32(0))
 						if bar != nil {
 							bar.Abort(true)
 						}
-						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
 				}
 				p.dlogger.Printf("Retry: %v, Error: %v", retry, err)
@@ -275,12 +277,6 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				return true, HttpError(resp.StatusCode)
 			default:
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
-				if attempt != 0 {
-					atomic.AddUint32(&globTry, ^uint32(0))
-				}
-				if bar != nil {
-					bar.Abort(true)
-				}
 				return false, HttpError(resp.StatusCode)
 			}
 
