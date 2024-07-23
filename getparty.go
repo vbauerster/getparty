@@ -233,7 +233,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalBarIncr, totalCancel, err := session.makeTotalBar(cmd.Ctx,
+	totalBarIncr, totalBarCancel, err := session.makeTotalBar(cmd.Ctx,
 		progress,
 		&doneCount,
 		cmd.options.Quiet,
@@ -286,7 +286,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						for _, p := range session.Parts {
 							p.cancel()
 						}
-						totalCancel(false)
+						totalBarCancel(false)
 						sessionHandle(true)
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
@@ -306,7 +306,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				p.cancel()
 			}
 		}
-		totalCancel(true)
+		totalBarCancel(true)
 	case <-http200Ctx.Done():
 	}
 
@@ -314,7 +314,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	err = firstErr(eg.Wait(), cmd.Ctx.Err())
 	if err != nil {
-		totalCancel(false)
+		totalBarCancel(false)
 		return err
 	}
 
