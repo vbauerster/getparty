@@ -524,11 +524,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
-					if e := errors.Unwrap(err); e != nil {
-						cmd.loggers[WARN].Println(e.Error())
-					} else {
-						cmd.loggers[WARN].Println(err.Error())
-					}
+					cmd.loggers[WARN].Println(unwrapOrErr(err).Error())
 					if attempt != 0 && attempt == cmd.options.MaxRetry {
 						return false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
@@ -662,6 +658,13 @@ func (cmd Cmd) invariantCheck() error {
 		return ErrBadInvariant
 	}
 	return nil
+}
+
+func unwrapOrErr(err error) error {
+	if e := errors.Unwrap(err); e != nil {
+		return e
+	}
+	return err
 }
 
 func firstNonNil(errors ...error) error {
