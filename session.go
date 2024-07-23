@@ -69,7 +69,7 @@ func (s *Session) loadState(name string) error {
 	if err != nil {
 		return err
 	}
-	return firstNonNil(json.NewDecoder(f).Decode(s), f.Close())
+	return firstErr(json.NewDecoder(f).Decode(s), f.Close())
 }
 
 func (s *Session) dumpState(name string) error {
@@ -77,7 +77,7 @@ func (s *Session) dumpState(name string) error {
 	if err != nil {
 		return err
 	}
-	return firstNonNil(json.NewEncoder(f).Encode(s), f.Close())
+	return firstErr(json.NewEncoder(f).Encode(s), f.Close())
 }
 
 func (s Session) isResumable() bool {
@@ -199,7 +199,7 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 		return err
 	}
 	defer func() {
-		err = firstNonNil(err, dst.Close())
+		err = firstErr(err, dst.Close())
 		bar.Abort(false) // if bar is completed bar.Abort is nop
 	}()
 

@@ -102,10 +102,10 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 	}
 	defer func() {
 		if e := fpart.Close(); e != nil {
-			err = firstNonNil(err, e)
+			err = firstErr(err, e)
 		} else if p.Written == 0 {
 			p.dlogger.Printf("%q is empty, removing", p.FileName)
-			err = firstNonNil(err, os.Remove(p.FileName))
+			err = firstErr(err, os.Remove(p.FileName))
 		}
 		err = errors.WithMessage(err, p.name)
 	}()
@@ -201,7 +201,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 			}
 			defer func() {
 				if resp.Body != nil {
-					err = firstNonNil(err, resp.Body.Close())
+					err = firstErr(err, resp.Body.Close())
 				}
 			}()
 
@@ -370,7 +370,7 @@ func (p Part) writeTo(dst *os.File) (err error) {
 		return err
 	}
 	defer func() {
-		err = firstNonNil(err, src.Close())
+		err = firstErr(err, src.Close())
 		if err != nil {
 			return
 		}

@@ -171,7 +171,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		if cmd.options.AuthPass == "" {
 			fmt.Fprint(cmd.Out, "Enter password: ")
 			pass, err := term.ReadPassword(0)
-			if firstNonNil(err, cmd.Ctx.Err()) != nil {
+			if firstErr(err, cmd.Ctx.Err()) != nil {
 				return err
 			}
 			cmd.options.AuthPass = string(pass)
@@ -297,7 +297,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	cmd.parser = nil
 
-	err = firstNonNil(eg.Wait(), ctx.Err())
+	err = firstErr(eg.Wait(), ctx.Err())
 	if err != nil {
 		totalCancel(false)
 		return err
@@ -667,7 +667,7 @@ func unwrapOrErr(err error) error {
 	return err
 }
 
-func firstNonNil(errors ...error) error {
+func firstErr(errors ...error) error {
 	for _, err := range errors {
 		if err != nil {
 			return err
