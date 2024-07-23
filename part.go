@@ -366,7 +366,7 @@ func (p Part) isDone() bool {
 	return p.Written != 0 && p.Written == p.total()
 }
 
-func (p Part) sizeCmp(stat fs.FileInfo) error {
+func (p Part) checkSize(stat fs.FileInfo) error {
 	size := stat.Size()
 	if size != p.Written {
 		return errors.Errorf("%q size mismatch: expected %d got %d", stat.Name(), p.Written, size)
@@ -398,7 +398,7 @@ func (p Part) writeTo(dst *os.File) (err error) {
 	if err != nil {
 		return err
 	}
-	err = p.sizeCmp(stat)
+	err = p.checkSize(stat)
 	if err != nil {
 		return err
 	}
