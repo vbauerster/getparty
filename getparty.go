@@ -221,9 +221,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
-	if session.hasSkippedParts() {
-		return errors.New("Cannot process session with skipped parts")
-	}
 	session.summary(cmd.loggers)
 	if cmd.options.Parts == 0 {
 		return nil
@@ -232,15 +229,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var doneCount uint32
 	var eg errgroup.Group
 	var onceSessionHandle sync.Once
-	ctx, cancel := context.WithCancel(cmd.Ctx)
-	defer cancel()
-	progress := mpb.NewWithContext(ctx,
+	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.WithDebugOutput(cmd.Err),
 		mpb.WithOutput(cmd.Out),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalBarIncr, totalCancel, err := session.makeTotalBar(ctx,
+	totalBarIncr, totalCancel, err := session.makeTotalBar(cmd.Ctx,
 		progress,
 		&doneCount,
 		cmd.options.Quiet,
@@ -256,15 +251,24 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
 	single := len(session.Parts) == 1
+	firstHttp200 := make(chan int)
+
+	partialCtx, partialOK := context.WithCancel(cmd.Ctx)
+	defer partialOK()
 
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
 			continue
 		}
+		ctx, cancel := context.WithCancel(cmd.Ctx)
 		p.ctx = ctx
+		p.cancel = cancel
+		p.firstHttp200 = firstHttp200
+		p.partialOK = partialOK
 		p.order = i + 1
 		p.name = fmt.Sprintf("P%02d", p.order)
+		p.sessionOutputName = session.OutputFileName
 		p.maxTry = cmd.options.MaxRetry
 		p.progress = progress
 		p.totalBarIncr = totalBarIncr
@@ -278,26 +282,37 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		eg.Go(func() error {
 			defer func() {
 				if e := recover(); e != nil {
-					cancel()
 					onceSessionHandle.Do(func() {
+						for _, p := range session.Parts {
+							p.cancel()
+						}
+						totalCancel(false)
 						sessionHandle(true)
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
 				}
-				switch {
-				case p.isDone():
+				if p.isDone() {
 					atomic.AddUint32(&doneCount, 1)
-				case p.Skip:
-					totalCancel(true) // totalCancel is idempotent
 				}
 			}()
 			return p.download(client, session.location, single, timeout, sleep)
 		})
 	}
 
+	select {
+	case id := <-firstHttp200:
+		for _, p := range session.Parts {
+			if p.order != id {
+				p.cancel()
+			}
+		}
+		totalCancel(true)
+	case <-partialCtx.Done():
+	}
+
 	cmd.parser = nil
 
-	err = firstErr(eg.Wait(), ctx.Err())
+	err = firstErr(eg.Wait(), cmd.Ctx.Err())
 	if err != nil {
 		totalCancel(false)
 		return err

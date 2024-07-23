@@ -43,9 +43,7 @@ func (s *Session) calcParts(parts uint) error {
 	}
 
 	s.Parts = make([]*Part, parts)
-	s.Parts[0] = &Part{
-		FileName: s.OutputFileName,
-	}
+	s.Parts[0] = new(Part)
 
 	var stop int64
 	start := s.ContentLength
@@ -53,9 +51,8 @@ func (s *Session) calcParts(parts uint) error {
 		stop = start - 1
 		start = stop - fragment
 		s.Parts[i] = &Part{
-			FileName: fmt.Sprintf("%s.%02d", s.OutputFileName, i),
-			Start:    start,
-			Stop:     stop,
+			Start: start,
+			Stop:  stop,
 		}
 	}
 
@@ -137,15 +134,17 @@ func (s Session) checkContentSums(other Session) error {
 }
 
 func (s Session) checkSizeOfEachPart() error {
-	for _, part := range s.Parts {
-		if part.Written == 0 {
+	for i, p := range s.Parts {
+		if p.Written == 0 {
 			continue
 		}
-		stat, err := os.Stat(part.FileName)
+		p.order = i + 1
+		p.sessionOutputName = s.OutputFileName
+		stat, err := os.Stat(p.fileName())
 		if err != nil {
 			return err
 		}
-		err = part.sizeCmp(stat)
+		err = p.sizeCmp(stat)
 		if err != nil {
 			return err
 		}
@@ -153,9 +152,9 @@ func (s Session) checkSizeOfEachPart() error {
 	return nil
 }
 
-func (s Session) hasSkippedParts() bool {
+func (s Session) isHttpStatusOK() bool {
 	for _, p := range s.Parts {
-		if p.Skip {
+		if p.httpStatusOK {
 			return true
 		}
 	}
@@ -166,8 +165,8 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 	if len(s.Parts) <= 1 {
 		return nil
 	}
-	if s.hasSkippedParts() {
-		return errors.New("Cannot concatenate session with skipped parts")
+	if s.isHttpStatusOK() {
+		return errors.New("Cannot concatenate session with http status 200")
 	}
 	if tw := s.totalWritten(); tw != s.ContentLength {
 		return errors.Errorf("Written count mismatch: ContentLength %d, written %d", s.ContentLength, tw)
@@ -191,7 +190,7 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 		return err
 	}
 
-	dst, err := s.Parts[0].openAsDst()
+	dst, err := os.OpenFile(s.OutputFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
@@ -200,8 +199,8 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 		bar.Abort(false) // if bar is completed bar.Abort is nop
 	}()
 
-	for i := 1; i < len(s.Parts); i++ {
-		err = s.Parts[i].writeTo(dst)
+	for _, p := range s.Parts {
+		err = p.writeTo(dst)
 		if err != nil {
 			return err
 		}
