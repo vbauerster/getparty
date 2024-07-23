@@ -190,7 +190,7 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 		return err
 	}
 
-	dst, err := os.OpenFile(s.OutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	dst, err := os.OpenFile(s.OutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 	if err != nil {
 		return err
 	}

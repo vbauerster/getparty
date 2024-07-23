@@ -52,6 +52,7 @@ const (
 	cmdName     = "getparty"
 	projectHome = "https://github.com/vbauerster/getparty"
 
+	umask               = 0644
 	maxTimeout          = 180
 	maxRedirects        = 10
 	refreshRate         = 200

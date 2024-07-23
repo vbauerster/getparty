@@ -231,7 +231,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				p.partialOK()
 				statusPartialContent = true
 				if fpart == nil {
-					fpart, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+					fpart, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
 						return false, err
 					}
@@ -259,7 +259,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 						return false, nil
 					}
 				}
-				fpart, err = os.OpenFile(p.sessionOutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				fpart, err = os.OpenFile(p.sessionOutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 				if err != nil {
 					return false, err
 				}
