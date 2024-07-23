@@ -142,7 +142,6 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 					}
 					return
 				}
-				p.dlogger.Printf("Retry: %v, Error: %v", retry, err)
 				if n := p.Written - pWritten; n != 0 {
 					if n >= bufSize {
 						reset()
@@ -171,6 +170,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
 				}
+				p.dlogger.Printf("Retry: %v, Error: %v", retry, err)
 			}()
 
 			req.Header.Set(hRange, p.getRange())
