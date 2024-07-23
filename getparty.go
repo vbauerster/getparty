@@ -253,7 +253,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	single := len(session.Parts) == 1
 	firstHttp200 := make(chan int)
 
-	partialCtx, partialOK := context.WithCancel(cmd.Ctx)
+	http200Ctx, partialOK := context.WithCancel(cmd.Ctx)
 	defer partialOK()
 
 	for i, p := range session.Parts {
@@ -307,7 +307,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 		}
 		totalCancel(true)
-	case <-partialCtx.Done():
+	case <-http200Ctx.Done():
 	}
 
 	cmd.parser = nil
