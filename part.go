@@ -37,7 +37,7 @@ type Part struct {
 	maxTry            uint
 	progress          *mpb.Progress
 	dlogger           *log.Logger
-	totalBarIncr      func(int)
+	incrTotalBar      func(int)
 	patcher           func(*http.Request)
 	cancel            func()
 	partialOK         func()
@@ -317,7 +317,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
 				} else {
-					p.totalBarIncr(n)
+					p.incrTotalBar(n)
 				}
 				<-sleepCtx.Done()
 			}

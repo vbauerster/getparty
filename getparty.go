@@ -234,7 +234,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	totalBarIncr, totalBarCancel, err := session.makeTotalBar(cmd.Ctx,
+	incrTotalBar, cancelTotalBar, err := session.makeTotalBar(cmd.Ctx,
 		progress,
 		&doneCount,
 		cmd.options.Quiet,
@@ -272,7 +272,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.name = fmt.Sprintf("P%02d", i+1)
 		p.maxTry = cmd.options.MaxRetry
 		p.progress = progress
-		p.totalBarIncr = totalBarIncr
+		p.incrTotalBar = incrTotalBar
 		p.dlogger = log.New(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
 		p.patcher = cmd.patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
@@ -287,7 +287,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						for _, p := range session.Parts {
 							p.cancel()
 						}
-						totalBarCancel(false)
+						cancelTotalBar(false)
 						sessionHandle(true)
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
@@ -307,7 +307,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				p.cancel()
 			}
 		}
-		totalBarCancel(true)
+		cancelTotalBar(true)
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
 	case <-http200Ctx.Done():
 	}
@@ -316,7 +316,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	err = firstErr(eg.Wait(), cmd.Ctx.Err())
 	if err != nil {
-		totalBarCancel(false)
+		cancelTotalBar(false)
 		return err
 	}
 
