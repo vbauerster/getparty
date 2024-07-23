@@ -229,7 +229,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				p.partialOK()
 				statusPartialContent = true
 				if fpart == nil {
-					fpart, err = os.OpenFile(p.fileName(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+					fpart, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 					if err != nil {
 						return false, err
 					}
@@ -374,7 +374,7 @@ func (p Part) checkSize(stat fs.FileInfo) error {
 	return nil
 }
 
-func (p Part) fileName() string {
+func (p Part) outputName() string {
 	if p.order == 0 {
 		panic("part is not initialized")
 	}
@@ -382,7 +382,7 @@ func (p Part) fileName() string {
 }
 
 func (p Part) writeTo(dst *os.File) (err error) {
-	src, err := os.Open(p.fileName())
+	src, err := os.Open(p.outputName())
 	if err != nil {
 		return err
 	}
