@@ -307,6 +307,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 		}
 		totalBarCancel(true)
+		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
 	case <-http200Ctx.Done():
 	}
 
