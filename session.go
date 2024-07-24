@@ -180,12 +180,12 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 	}
 	defer func() {
 		err = firstErr(err, dst.Close())
-		bar.Abort(false) // if bar is completed bar.Abort is nop
 	}()
 
 	for _, p := range s.Parts {
 		err = p.writeTo(dst)
 		if err != nil {
+			bar.Abort(false)
 			return err
 		}
 		bar.Increment()
