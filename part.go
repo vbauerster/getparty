@@ -170,7 +170,7 @@ func (p *Part) download(
 						atomic.AddUint32(&globTry, 1)
 					case attempt == maxTry:
 						fmt.Fprintf(p.progress, "%s%s: %.1f / %.1f\n",
-							p.dlogger.Prefix(),
+							prefix,
 							ErrMaxRetry.Error(),
 							decor.SizeB1024(p.Written),
 							decor.SizeB1024(p.total()))
@@ -187,7 +187,8 @@ func (p *Part) download(
 			}()
 
 			if attempt != 0 {
-				p.dlogger.SetPrefix(fmt.Sprintf(prefix, attempt))
+				prefix = fmt.Sprintf(prefix, attempt)
+				p.dlogger.SetPrefix(prefix)
 			}
 
 			p.dlogger.Printf("GET %q", req.URL)
@@ -219,7 +220,7 @@ func (p *Part) download(
 
 			resp, err := p.client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 			if err != nil {
-				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), unwrapOrErr(err).Error())
+				fmt.Fprintf(p.progress, "%s%s\n", prefix, unwrapOrErr(err).Error())
 				return true, err
 			}
 			defer func() {
@@ -290,10 +291,10 @@ func (p *Part) download(
 					p.Written = 0
 				}
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
+				fmt.Fprintf(p.progress, "%s%s\n", prefix, resp.Status)
 				return true, HttpError(resp.StatusCode)
 			default:
-				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
+				fmt.Fprintf(p.progress, "%s%s\n", prefix, resp.Status)
 				return false, HttpError(resp.StatusCode)
 			}
 
