@@ -276,8 +276,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.maxTry = cmd.options.MaxRetry
 		p.progress = progress
 		p.incrTotalBar = incrTotalBar
-		p.dlogger = log.New(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
 		p.patcher = cmd.patcher
+		p.debugWriter = cmd.Err
 		p.client = &http.Client{
 			Transport: transport,
 			Jar:       jar,

@@ -49,6 +49,7 @@ type Part struct {
 	name         string
 	order        int
 	maxTry       uint
+	debugWriter  io.Writer
 }
 
 func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, error) {
@@ -108,6 +109,8 @@ func (p *Part) download(
 	single bool,
 ) (err error) {
 	var fpart *os.File
+	prefix := fmt.Sprintf("[%s:R%%02d] ", p.name)
+	p.dlogger = log.New(p.debugWriter, fmt.Sprintf(prefix, 0), log.LstdFlags)
 	defer func() {
 		if fpart != nil {
 			if e := fpart.Close(); e != nil {
@@ -135,7 +138,6 @@ func (p *Part) download(
 	var httpStatus200 bool
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
-	prefix := p.dlogger.Prefix()
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
@@ -184,10 +186,13 @@ func (p *Part) download(
 				p.dlogger.Printf("Retry: %v, Error: %v", retry, err)
 			}()
 
-			req.Header.Set(hRange, p.getRange())
+			if attempt != 0 {
+				p.dlogger.SetPrefix(fmt.Sprintf(prefix, attempt))
+			}
 
-			p.dlogger.SetPrefix(fmt.Sprintf(prefix, attempt))
 			p.dlogger.Printf("GET %q", req.URL)
+
+			req.Header.Set(hRange, p.getRange())
 			for k, v := range req.Header {
 				p.dlogger.Printf("Request Header: %s: %v", k, v)
 			}
