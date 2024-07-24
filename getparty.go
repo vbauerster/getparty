@@ -256,15 +256,18 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	http200Ctx, partialOK := context.WithCancel(cmd.Ctx)
 	defer partialOK()
 
+	cancelMap := make(map[int]func())
+
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
 			continue
 		}
 		ctx, cancel := context.WithCancel(cmd.Ctx)
+		cancelMap[i+1] = cancel
 		p.ctx = ctx
-		p.order = i + 1
 		p.cancel = cancel
+		p.order = i + 1
 		p.firstHttp200 = firstHttp200
 		p.partialOK = partialOK
 		p.sessionOutputName = session.OutputName
@@ -283,8 +286,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			defer func() {
 				if e := recover(); e != nil {
 					recoverHandler.Do(func() {
-						for _, p := range session.Parts {
-							p.cancel()
+						for _, cancel := range cancelMap {
+							cancel()
 						}
 						cancelTotalBar(false)
 						stateHandler(true)
@@ -301,9 +304,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	select {
 	case id := <-firstHttp200:
-		for _, p := range session.Parts {
-			if p.order != id {
-				p.cancel()
+		for k, cancel := range cancelMap {
+			if k != id {
+				cancel()
 			}
 		}
 		cancelTotalBar(true)
