@@ -552,6 +552,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
 					cmd.loggers[WARN].Println(unwrapOrErr(err).Error())
+					cmd.loggers[DEBUG].Println(err.Error())
 					if attempt != 0 && attempt == cmd.options.MaxRetry {
 						return false, errors.Wrap(ErrMaxRetry, err.Error())
 					}
