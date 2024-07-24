@@ -91,23 +91,24 @@ func (s Session) totalWritten() int64 {
 
 func (s Session) summary(loggers [LEVELS]*log.Logger) {
 	format := fmt.Sprintf("Length: %%s [%s]", s.ContentType)
-	if s.ContentLength <= 0 {
-		loggers[INFO].Printf(format, "unknown")
-	} else {
+	switch {
+	case s.isResumable():
 		summary := fmt.Sprintf("%d (%.1f)", s.ContentLength, decor.SizeB1024(s.ContentLength))
 		loggers[INFO].Printf(format, summary)
 		if total := s.totalWritten(); total != 0 {
 			remaining := s.ContentLength - total
 			loggers[INFO].Printf("Remaining: %d (%.1f)", remaining, decor.SizeB1024(remaining))
 		}
-	}
-	if len(s.Parts) != 0 {
-		loggers[INFO].Printf("Saving to: %q", s.OutputName)
-	}
-	if !s.isResumable() {
+	case s.ContentLength < 0:
+		loggers[INFO].Printf(format, "unknown")
+		fallthrough
+	default:
 		message := "Session is not resumable"
 		loggers[WARN].Println(message)
 		loggers[DEBUG].Println(message)
+	}
+	if len(s.Parts) != 0 {
+		loggers[INFO].Printf("Saving to: %q", s.OutputName)
 	}
 }
 
