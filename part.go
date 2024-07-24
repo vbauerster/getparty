@@ -257,6 +257,9 @@ func (p *Part) download(
 						return false, err
 					}
 				}
+				if p.Written != 0 {
+					go bar.SetRefill(p.Written)
+				}
 			case http.StatusOK: // no partial content, download with single part
 				if httpStatus206 {
 					panic("http.StatusOK after http.StatusPartialContent")
@@ -300,9 +303,6 @@ func (p *Part) download(
 
 			if bar == nil {
 				panic("expected non nil bar here")
-			}
-			if p.Written != 0 {
-				go bar.SetRefill(p.Written)
 			}
 
 			buf := make([]byte, bufSize)
