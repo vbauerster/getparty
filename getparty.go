@@ -239,10 +239,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	var httpStatus200 bool
-	sessionHandle := cmd.makeSessionHandler(session, progress)
+	stateHandler := cmd.makeStateHandler(session, progress)
 	defer func() {
 		if !httpStatus200 {
-			sessionHandle(false)
+			stateHandler(false)
 		}
 	}()
 
@@ -287,7 +287,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 							p.cancel()
 						}
 						cancelTotalBar(false)
-						sessionHandle(true)
+						stateHandler(true)
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
 				}
@@ -332,7 +332,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeSessionHandler(session *Session, progress *mpb.Progress) func(bool) {
+func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(bool) {
 	pTotal := session.totalWritten()
 	start := time.Now()
 	return func(isPanic bool) {
