@@ -169,7 +169,7 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 		return errors.New("Cannot concatenate session with http status 200")
 	}
 	if tw := s.totalWritten(); tw != s.ContentLength {
-		return errors.Errorf("Written count mismatch: ContentLength %d, written %d", s.ContentLength, tw)
+		return errors.Errorf("Written count mismatch: written=%d ContentLength=%d", tw, s.ContentLength)
 	}
 
 	bar, err := progress.Add(int64(len(s.Parts)-1), baseBarStyle().Build(),
