@@ -253,6 +253,9 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
+					if p.Written != 0 {
+						panic(fmt.Sprintf("expected to start with written=0 got %d", p.Written))
+					}
 				default:
 					if !p.httpStatusOK {
 						p.dlogger.Println("Stopping: some other part got status 200")
@@ -270,8 +273,8 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 					}
 				} else {
 					bar.SetCurrent(0)
+					p.Written = 0
 				}
-				p.Written = 0
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), resp.Status)
 				return true, HttpError(resp.StatusCode)
