@@ -301,10 +301,6 @@ func (p *Part) download(
 				return false, HttpError(resp.StatusCode)
 			}
 
-			if bar == nil {
-				panic("expected non nil bar here")
-			}
-
 			buf := make([]byte, bufSize)
 			sleepCtx, sleepCancel := context.WithCancel(context.Background())
 			sleepCancel()
