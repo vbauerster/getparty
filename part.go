@@ -215,7 +215,6 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 			}()
 
 			p.dlogger.Printf("HTTP status: %s", resp.Status)
-			p.dlogger.Printf("ContentLength: %d", resp.ContentLength)
 
 			if jar := client.Jar; jar != nil {
 				if cookies := jar.Cookies(req.URL); len(cookies) != 0 {
