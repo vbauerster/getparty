@@ -122,7 +122,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 
 	var bar *mpb.Bar
 	var curTry uint32
-	var statusPartialContent bool
+	var httpStatus206 bool
 	var httpStatus200 bool
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
@@ -135,7 +135,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 			pWritten := p.Written
 			start := time.Now()
 			defer func() {
-				if !statusPartialContent {
+				if !httpStatus206 {
 					if fpart != nil {
 						err = firstErr(err, fpart.Close())
 						fpart = nil
@@ -229,7 +229,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
 				p.partialOK()
-				statusPartialContent = true
+				httpStatus206 = true
 				if fpart == nil {
 					fpart, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
@@ -243,7 +243,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 					}
 				}
 			case http.StatusOK: // no partial content, download with single part
-				if statusPartialContent {
+				if httpStatus206 {
 					panic("http.StatusOK after http.StatusPartialContent")
 				}
 				select {
