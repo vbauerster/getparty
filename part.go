@@ -42,7 +42,6 @@ type Part struct {
 	cancel            func()
 	partialOK         func()
 	firstHttp200      chan int
-	httpStatusOK      bool
 	sessionOutputName string
 	name              string
 }
@@ -124,6 +123,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 	var bar *mpb.Bar
 	var curTry uint32
 	var statusPartialContent bool
+	var httpStatus200 bool
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
 	prefix := p.dlogger.Prefix()
@@ -249,7 +249,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				select {
 				case p.firstHttp200 <- p.order:
 					p.firstHttp200 = nil
-					p.httpStatusOK = true
+					httpStatus200 = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
@@ -257,7 +257,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 						panic(fmt.Sprintf("expected to start with written=0 got %d", p.Written))
 					}
 				default:
-					if !p.httpStatusOK {
+					if !httpStatus200 {
 						p.dlogger.Println("Stopping: some other part got status 200")
 						return false, nil
 					}
