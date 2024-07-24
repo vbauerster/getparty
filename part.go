@@ -202,11 +202,11 @@ func (p *Part) download(
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
 				msg := "Timeout..."
-				p.logger.Println(msg)
 				select {
 				case msgCh <- fmt.Sprintf("%s %s", p.name, msg):
+					p.logger.Println(msg, "msg sent")
 				case <-msgCh:
-					p.logger.Println("Houston msg dropped, is bar initialized?")
+					p.logger.Println(msg, "msg dropped")
 				}
 			})
 			defer timer.Stop()
