@@ -532,7 +532,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 				}
 
 				for k, v := range req.Header {
-					cmd.loggers[DEBUG].Printf("%s: %v", k, v)
+					cmd.loggers[DEBUG].Printf("Request Header: %s: %v", k, v)
 				}
 
 				resp, err := client.Do(req.WithContext(ctx))

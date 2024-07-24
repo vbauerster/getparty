@@ -180,7 +180,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 			p.dlogger.SetPrefix(fmt.Sprintf(prefix, attempt))
 			p.dlogger.Printf("GET %q", req.URL)
 			for k, v := range req.Header {
-				p.dlogger.Printf("%s: %v", k, v)
+				p.dlogger.Printf("Request Header: %s: %v", k, v)
 			}
 
 			ctx, cancel := context.WithCancel(p.ctx)
