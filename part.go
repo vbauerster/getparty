@@ -146,6 +146,7 @@ func (p *Part) download(
 			pWritten := p.Written
 			start := time.Now()
 			defer func() {
+				p.logger.Printf("Retry: %t, Error: %v", retry, err)
 				if !httpStatus206 {
 					if fpart != nil {
 						err = firstErr(err, fpart.Close())
@@ -183,7 +184,6 @@ func (p *Part) download(
 						}
 					}
 				}
-				p.logger.Printf("Retry: %v, Error: %v", retry, err)
 			}()
 
 			if attempt != 0 {
