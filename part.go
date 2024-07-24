@@ -35,6 +35,7 @@ type Part struct {
 	ctx          context.Context
 	order        int
 	maxTry       uint
+	client       *http.Client
 	progress     *mpb.Progress
 	dlogger      *log.Logger
 	incrTotalBar func(int)
@@ -97,7 +98,6 @@ func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, 
 }
 
 func (p *Part) download(
-	client *http.Client,
 	location, baseName string,
 	timeout, sleep time.Duration,
 	single bool,
@@ -207,7 +207,7 @@ func (p *Part) download(
 				},
 			}
 
-			resp, err := client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
+			resp, err := p.client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 			if err != nil {
 				fmt.Fprintf(p.progress, "%s%s\n", p.dlogger.Prefix(), unwrapOrErr(err).Error())
 				return true, err
@@ -220,7 +220,7 @@ func (p *Part) download(
 
 			p.dlogger.Printf("HTTP status: %s", resp.Status)
 
-			if jar := client.Jar; jar != nil {
+			if jar := p.client.Jar; jar != nil {
 				for _, cookie := range jar.Cookies(req.URL) {
 					p.dlogger.Printf("Cookie: %s", cookie) // cookie implements fmt.Stringer
 				}

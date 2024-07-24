@@ -276,11 +276,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.incrTotalBar = incrTotalBar
 		p.dlogger = log.New(cmd.Err, fmt.Sprintf("[%s:R%%02d] ", p.name), log.LstdFlags)
 		p.patcher = cmd.patcher
-		p := p // https://golang.org/doc/faq#closures_and_goroutines
-		client := &http.Client{
+		p.client = &http.Client{
 			Transport: transport,
 			Jar:       jar,
 		}
+		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {
 				if e := recover(); e != nil {
@@ -297,7 +297,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
-			return p.download(client, session.location, session.OutputName, timeout, sleep, single)
+			return p.download(session.location, session.OutputName, timeout, sleep, single)
 		})
 	}
 
