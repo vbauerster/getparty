@@ -238,9 +238,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
+	var httpStatus200 bool
 	sessionHandle := cmd.makeSessionHandler(session, progress)
 	defer func() {
-		sessionHandle(false)
+		if !httpStatus200 {
+			sessionHandle(false)
+		}
 	}()
 
 	var eg errgroup.Group
@@ -304,6 +307,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 		}
 		cancelTotalBar(true)
+		httpStatus200 = true
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
 	case <-http200Ctx.Done():
 	}
@@ -316,9 +320,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	err = session.concatenateParts(progress)
-	if err != nil {
-		return err
+	if !httpStatus200 {
+		err = session.concatenateParts(progress)
+		if err != nil {
+			return err
+		}
 	}
 	if cmd.options.JSONFileName != "" {
 		return os.Remove(cmd.options.JSONFileName)

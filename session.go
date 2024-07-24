@@ -152,21 +152,9 @@ func (s Session) checkSizeOfEachPart() error {
 	return nil
 }
 
-func (s Session) isHttpStatusOK() bool {
-	for _, p := range s.Parts {
-		if p.httpStatusOK {
-			return true
-		}
-	}
-	return false
-}
-
 func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 	if len(s.Parts) <= 1 {
 		return nil
-	}
-	if s.isHttpStatusOK() {
-		return errors.New("Cannot concatenate session with http status 200")
 	}
 	if tw := s.totalWritten(); tw != s.ContentLength {
 		return errors.Errorf("Written count mismatch: written=%d ContentLength=%d", tw, s.ContentLength)
