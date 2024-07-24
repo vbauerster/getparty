@@ -273,7 +273,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.statusOK = statusOK
 		p.name = fmt.Sprintf("P%02d", i+1)
 		p.order = i + 1
-		p.maxTry = cmd.options.MaxRetry
 		p.progress = progress
 		p.incrTotalBar = incrTotalBar
 		p.patcher = cmd.patcher
@@ -299,7 +298,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
-			return p.download(session.location, session.OutputName, timeout, sleep, single)
+			maxTry := cmd.options.MaxRetry
+			return p.download(session.location, session.OutputName, timeout, sleep, maxTry, single)
 		})
 	}
 

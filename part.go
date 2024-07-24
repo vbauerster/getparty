@@ -48,7 +48,6 @@ type Part struct {
 	cancel       func()
 	name         string
 	order        int
-	maxTry       uint
 	debugWriter  io.Writer
 }
 
@@ -106,6 +105,7 @@ func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, 
 func (p *Part) download(
 	location, baseName string,
 	timeout, sleep time.Duration,
+	maxTry uint,
 	single bool,
 ) (err error) {
 	var fpart *os.File
@@ -168,7 +168,7 @@ func (p *Part) download(
 					switch {
 					case attempt == 0:
 						atomic.AddUint32(&globTry, 1)
-					case attempt == p.maxTry:
+					case attempt == maxTry:
 						fmt.Fprintf(p.progress, "%s%s: %.1f / %.1f\n",
 							p.dlogger.Prefix(),
 							ErrMaxRetry.Error(),
