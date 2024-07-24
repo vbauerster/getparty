@@ -107,9 +107,6 @@ func (s Session) summary(loggers [LEVELS]*log.Logger) {
 		loggers[WARN].Println(message)
 		loggers[DEBUG].Println(message)
 	}
-	if len(s.Parts) != 0 {
-		loggers[INFO].Printf("Saving to: %q", s.OutputName)
-	}
 }
 
 func (s Session) isOutputFileExist() (bool, error) {

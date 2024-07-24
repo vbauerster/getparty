@@ -227,6 +227,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return nil
 	}
 
+	cmd.loggers[INFO].Printf("Saving to: %q", session.OutputName)
+
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.WithDebugOutput(cmd.Err),
 		mpb.WithOutput(cmd.Out),
