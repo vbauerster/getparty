@@ -270,7 +270,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.order = i + 1
 		p.firstHttp200 = firstHttp200
 		p.partialOK = partialOK
-		p.sessionOutputName = session.OutputName
 		p.name = fmt.Sprintf("P%02d", i+1)
 		p.maxTry = cmd.options.MaxRetry
 		p.progress = progress
@@ -298,7 +297,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
-			return p.download(client, session.location, single, timeout, sleep)
+			return p.download(client, session.location, session.OutputName, timeout, sleep, single)
 		})
 	}
 

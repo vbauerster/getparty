@@ -141,8 +141,7 @@ func (s Session) checkSizeOfEachPart() error {
 			continue
 		}
 		p.order = i + 1
-		p.sessionOutputName = s.OutputName
-		stat, err := os.Stat(p.outputName())
+		stat, err := os.Stat(p.outputName(s.OutputName))
 		if err != nil {
 			return err
 		}

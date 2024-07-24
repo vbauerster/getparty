@@ -32,18 +32,17 @@ type Part struct {
 	Written int64
 	Elapsed time.Duration
 
-	ctx               context.Context
-	order             int
-	maxTry            uint
-	progress          *mpb.Progress
-	dlogger           *log.Logger
-	incrTotalBar      func(int)
-	patcher           func(*http.Request)
-	cancel            func()
-	partialOK         func()
-	firstHttp200      chan int
-	sessionOutputName string
-	name              string
+	ctx          context.Context
+	order        int
+	maxTry       uint
+	progress     *mpb.Progress
+	dlogger      *log.Logger
+	incrTotalBar func(int)
+	patcher      func(*http.Request)
+	cancel       func()
+	partialOK    func()
+	firstHttp200 chan int
+	name         string
 }
 
 func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, error) {
@@ -97,7 +96,12 @@ func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, 
 	return bar, nil
 }
 
-func (p *Part) download(client *http.Client, location string, single bool, timeout, sleep time.Duration) (err error) {
+func (p *Part) download(
+	client *http.Client,
+	location, baseName string,
+	timeout, sleep time.Duration,
+	single bool,
+) (err error) {
 	var fpart *os.File
 	defer func() {
 		if fpart != nil {
@@ -231,7 +235,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 				p.partialOK()
 				httpStatus206 = true
 				if fpart == nil {
-					fpart, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
+					fpart, err = os.OpenFile(p.outputName(baseName), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
 						return false, err
 					}
@@ -262,7 +266,7 @@ func (p *Part) download(client *http.Client, location string, single bool, timeo
 						return false, nil
 					}
 				}
-				fpart, err = os.OpenFile(p.sessionOutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
+				fpart, err = os.OpenFile(baseName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 				if err != nil {
 					return false, err
 				}
@@ -373,15 +377,15 @@ func (p Part) checkSize(stat fs.FileInfo) error {
 	return nil
 }
 
-func (p Part) outputName() string {
+func (p Part) outputName(base string) string {
 	if p.order == 0 {
 		panic("part is not initialized")
 	}
-	return fmt.Sprintf("%s.%02d", p.sessionOutputName, p.order)
+	return fmt.Sprintf("%s.%02d", base, p.order)
 }
 
 func (p Part) writeTo(dst *os.File) (err error) {
-	src, err := os.Open(p.outputName())
+	src, err := os.Open(p.outputName(dst.Name()))
 	if err != nil {
 		return err
 	}
