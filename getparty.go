@@ -305,10 +305,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	select {
 	case id := <-firstHttp200:
-		for k, cancel := range cancelMap {
-			if k != id {
-				cancel()
-			}
+		delete(cancelMap, id)
+		for _, cancel := range cancelMap {
+			cancel()
 		}
 		cancelTotalBar(true)
 		httpStatus200 = true
