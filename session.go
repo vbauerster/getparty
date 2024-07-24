@@ -152,9 +152,6 @@ func (s Session) checkSizeOfEachPart() error {
 }
 
 func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
-	if len(s.Parts) <= 1 {
-		return nil
-	}
 	if tw := s.totalWritten(); tw != s.ContentLength {
 		return errors.Errorf("Written count mismatch: written=%d ContentLength=%d", tw, s.ContentLength)
 	}
