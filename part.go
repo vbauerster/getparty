@@ -25,6 +25,12 @@ const (
 
 var globTry uint32
 
+type http200Context struct {
+	ctx    context.Context
+	cancel func()
+	first  chan int
+}
+
 // Part represents state of each download part
 type Part struct {
 	Start   int64
@@ -33,17 +39,16 @@ type Part struct {
 	Elapsed time.Duration
 
 	ctx          context.Context
-	order        int
-	maxTry       uint
 	client       *http.Client
 	progress     *mpb.Progress
 	dlogger      *log.Logger
+	statusOK     *http200Context
 	incrTotalBar func(int)
 	patcher      func(*http.Request)
 	cancel       func()
-	partialOK    func()
-	firstHttp200 chan int
 	name         string
+	order        int
+	maxTry       uint
 }
 
 func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, error) {
@@ -232,7 +237,7 @@ func (p *Part) download(
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				p.partialOK()
+				p.statusOK.cancel()
 				httpStatus206 = true
 				if fpart == nil {
 					fpart, err = os.OpenFile(p.outputName(baseName), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
@@ -251,8 +256,8 @@ func (p *Part) download(
 					panic("http.StatusOK after http.StatusPartialContent")
 				}
 				select {
-				case p.firstHttp200 <- p.order:
-					p.firstHttp200 = nil
+				case p.statusOK.first <- p.order:
+					p.statusOK.cancel()
 					httpStatus200 = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
@@ -260,7 +265,7 @@ func (p *Part) download(
 					if p.Written != 0 {
 						panic(fmt.Sprintf("expected to start with written=0 got %d", p.Written))
 					}
-				default:
+				case <-p.statusOK.ctx.Done():
 					if !httpStatus200 {
 						p.dlogger.Println("Stopping: some other part got status 200")
 						return false, nil

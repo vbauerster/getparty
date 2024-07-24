@@ -253,10 +253,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
 	single := len(session.Parts) == 1
-	firstHttp200 := make(chan int)
 
-	http200Ctx, partialOK := context.WithCancel(cmd.Ctx)
-	defer partialOK()
+	statusOK := new(http200Context)
+	statusOK.first = make(chan int)
+	statusOK.ctx, statusOK.cancel = context.WithCancel(cmd.Ctx)
+	defer statusOK.cancel()
 
 	cancelMap := make(map[int]func())
 
@@ -269,10 +270,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cancelMap[i+1] = cancel
 		p.ctx = ctx
 		p.cancel = cancel
-		p.order = i + 1
-		p.firstHttp200 = firstHttp200
-		p.partialOK = partialOK
+		p.statusOK = statusOK
 		p.name = fmt.Sprintf("P%02d", i+1)
+		p.order = i + 1
 		p.maxTry = cmd.options.MaxRetry
 		p.progress = progress
 		p.incrTotalBar = incrTotalBar
@@ -304,7 +304,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	select {
-	case id := <-firstHttp200:
+	case id := <-statusOK.first:
 		delete(cancelMap, id)
 		for _, cancel := range cancelMap {
 			cancel()
@@ -312,7 +312,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cancelTotalBar(true)
 		httpStatus200 = true
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
-	case <-http200Ctx.Done():
+	case <-statusOK.ctx.Done():
 	}
 
 	cmd.parser = nil
