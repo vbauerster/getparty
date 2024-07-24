@@ -105,7 +105,9 @@ func (s Session) summary(loggers [LEVELS]*log.Logger) {
 		loggers[INFO].Printf("Saving to: %q", s.OutputName)
 	}
 	if !s.isResumable() {
-		loggers[WARN].Println("Session is not resumable")
+		message := "Session is not resumable"
+		loggers[WARN].Println(message)
+		loggers[DEBUG].Println(message)
 	}
 }
 
