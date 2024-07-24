@@ -41,7 +41,7 @@ type Part struct {
 	ctx          context.Context
 	client       *http.Client
 	progress     *mpb.Progress
-	dlogger      *log.Logger
+	logger       *log.Logger
 	statusOK     *http200Context
 	incrTotalBar func(int)
 	patcher      func(*http.Request)
@@ -65,7 +65,7 @@ func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, 
 			return err
 		})
 	}
-	p.dlogger.Printf("Setting bar total: %d", total)
+	p.logger.Printf("Setting bar total: %d", total)
 	bar, err := p.progress.Add(total, filler,
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
@@ -95,7 +95,7 @@ func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, 
 		return nil, err
 	}
 	if p.Written != 0 {
-		p.dlogger.Printf("Setting bar current: %d", p.Written)
+		p.logger.Printf("Setting bar current: %d", p.Written)
 		bar.SetCurrent(p.Written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
@@ -110,13 +110,13 @@ func (p *Part) download(
 ) (err error) {
 	var fpart *os.File
 	prefix := fmt.Sprintf("[%s:R%%02d] ", p.name)
-	p.dlogger = log.New(p.debugWriter, fmt.Sprintf(prefix, 0), log.LstdFlags)
+	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefix, 0), log.LstdFlags)
 	defer func() {
 		if fpart != nil {
 			if e := fpart.Close(); e != nil {
 				err = firstErr(err, e)
 			} else if p.Written == 0 {
-				p.dlogger.Printf("%q is empty, removing", fpart.Name())
+				p.logger.Printf("%q is empty, removing", fpart.Name())
 				err = firstErr(err, os.Remove(fpart.Name()))
 			}
 		}
@@ -159,8 +159,8 @@ func (p *Part) download(
 						timeout = resetTimeout
 					}
 					p.Elapsed += time.Since(start) - totalSleep
-					p.dlogger.Printf("Written: %d", n)
-					p.dlogger.Printf("Total sleep: %s", totalSleep)
+					p.logger.Printf("Written: %d", n)
+					p.logger.Printf("Total sleep: %s", totalSleep)
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
 				}
@@ -183,19 +183,19 @@ func (p *Part) download(
 						}
 					}
 				}
-				p.dlogger.Printf("Retry: %v, Error: %v", retry, err)
+				p.logger.Printf("Retry: %v, Error: %v", retry, err)
 			}()
 
 			if attempt != 0 {
 				prefix = fmt.Sprintf(prefix, attempt)
-				p.dlogger.SetPrefix(prefix)
+				p.logger.SetPrefix(prefix)
 			}
 
-			p.dlogger.Printf("GET %q", req.URL)
+			p.logger.Printf("GET %q", req.URL)
 
 			req.Header.Set(hRange, p.getRange())
 			for k, v := range req.Header {
-				p.dlogger.Printf("Request Header: %s: %v", k, v)
+				p.logger.Printf("Request Header: %s: %v", k, v)
 			}
 
 			ctx, cancel := context.WithCancel(p.ctx)
@@ -203,18 +203,18 @@ func (p *Part) download(
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
 				msg := "Timeout..."
-				p.dlogger.Println(msg)
+				p.logger.Println(msg)
 				select {
 				case msgCh <- fmt.Sprintf("%s %s", p.name, msg):
 				case <-msgCh:
-					p.dlogger.Println("Houston msg dropped, is bar initialized?")
+					p.logger.Println("Houston msg dropped, is bar initialized?")
 				}
 			})
 			defer timer.Stop()
 
 			trace := &httptrace.ClientTrace{
 				GotConn: func(connInfo httptrace.GotConnInfo) {
-					p.dlogger.Printf("Connection RemoteAddr: %s", connInfo.Conn.RemoteAddr())
+					p.logger.Printf("Connection RemoteAddr: %s", connInfo.Conn.RemoteAddr())
 				},
 			}
 
@@ -229,16 +229,16 @@ func (p *Part) download(
 				}
 			}()
 
-			p.dlogger.Printf("HTTP status: %s", resp.Status)
+			p.logger.Printf("HTTP status: %s", resp.Status)
 
 			if jar := p.client.Jar; jar != nil {
 				for _, cookie := range jar.Cookies(req.URL) {
-					p.dlogger.Printf("Cookie: %s", cookie) // cookie implements fmt.Stringer
+					p.logger.Printf("Cookie: %s", cookie) // cookie implements fmt.Stringer
 				}
 			}
 
 			for k, v := range resp.Header {
-				p.dlogger.Printf("Response Header: %s: %v", k, v)
+				p.logger.Printf("Response Header: %s: %v", k, v)
 			}
 
 			switch resp.StatusCode {
@@ -273,7 +273,7 @@ func (p *Part) download(
 					}
 				case <-p.statusOK.ctx.Done():
 					if !httpStatus200 {
-						p.dlogger.Println("Stopping: some other part got status 200")
+						p.logger.Println("Stopping: some other part got status 200")
 						return false, nil
 					}
 				}
@@ -405,7 +405,7 @@ func (p Part) writeTo(dst *os.File) (err error) {
 		if err != nil {
 			return
 		}
-		p.dlogger.Printf("Removing: %q", src.Name())
+		p.logger.Printf("Removing: %q", src.Name())
 		err = os.Remove(src.Name())
 	}()
 	stat, err := src.Stat()
@@ -417,6 +417,6 @@ func (p Part) writeTo(dst *os.File) (err error) {
 		return err
 	}
 	n, err := io.Copy(dst, src)
-	p.dlogger.Printf("%d bytes copied: src=%q dst=%q", n, src.Name(), dst.Name())
+	p.logger.Printf("%d bytes copied: src=%q dst=%q", n, src.Name(), dst.Name())
 	return err
 }
