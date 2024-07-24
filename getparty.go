@@ -229,14 +229,20 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	cmd.loggers[INFO].Printf("Saving to: %q", session.OutputName)
 
+	var doneCount uint32
+	single := len(session.Parts) == 1
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.WithDebugOutput(cmd.Err),
 		mpb.WithOutput(cmd.Out),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	var doneCount uint32
-	incrTotalBar, cancelTotalBar, err := cmd.runTotalBar(&doneCount, session, progress)
+	incrTotalBar, cancelTotalBar, err := cmd.initTotalBar(
+		&doneCount,
+		session,
+		progress,
+		single || cmd.options.Quiet,
+	)
 	if err != nil {
 		return err
 	}
@@ -252,7 +258,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var recoverHandler sync.Once
 	timeout := cmd.getTimeout()
 	sleep := cmd.getSleep()
-	single := len(session.Parts) == 1
 
 	statusOK := new(http200Context)
 	statusOK.first = make(chan int)
@@ -627,12 +632,16 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 	return session, err
 }
 
-func (cmd Cmd) runTotalBar(
+func (cmd Cmd) initTotalBar(
 	doneCount *uint32,
 	session *Session,
 	progress *mpb.Progress,
+	dummy bool,
 ) (func(int), func(bool), error) {
-	return session.runTotalBar(cmd.Ctx, doneCount, progress, cmd.options.Quiet)
+	if dummy {
+		return func(int) {}, func(bool) {}, nil
+	}
+	return session.runTotalBar(cmd.Ctx, doneCount, progress)
 }
 
 func (cmd Cmd) overwriteIfConfirmed(name string) error {

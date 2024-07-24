@@ -201,11 +201,7 @@ func (s Session) runTotalBar(
 	ctx context.Context,
 	doneCount *uint32,
 	progress *mpb.Progress,
-	quiet bool,
 ) (func(int), func(bool), error) {
-	if len(s.Parts) <= 1 || quiet {
-		return func(int) {}, func(bool) {}, nil
-	}
 	bar, err := progress.Add(s.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarExtender(mpb.BarFillerFunc(
