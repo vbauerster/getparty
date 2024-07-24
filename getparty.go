@@ -544,10 +544,9 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					return true, err
 				}
 
-				if cookies := client.Jar.Cookies(req.URL); len(cookies) != 0 {
-					cmd.loggers[DEBUG].Println("CookieJar:")
-					for _, cookie := range cookies {
-						cmd.loggers[DEBUG].Printf("  %q", cookie)
+				if jar := client.Jar; jar != nil {
+					for _, cookie := range jar.Cookies(req.URL) {
+						cmd.loggers[DEBUG].Printf("Cookie: %s", cookie) // cookie implements fmt.Stringer
 					}
 				}
 
