@@ -560,6 +560,8 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					}
 				}
 
+				cmd.loggers[DEBUG].Println("HTTP response:", resp.Status)
+
 				for k, v := range resp.Header {
 					cmd.loggers[DEBUG].Printf("Response Header: %s: %v", k, v)
 				}
