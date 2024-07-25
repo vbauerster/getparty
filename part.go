@@ -161,12 +161,12 @@ func (p *Part) download(
 				case attempt == 0:
 					atomic.AddUint32(&globTry, 1)
 				case attempt == maxTry:
+					retry, err = false, errors.Wrap(ErrMaxRetry, "Stop retrying")
 					fmt.Fprintf(p.progress, "%s%s: %.1f / %.1f\n",
 						p.logger.Prefix(),
-						ErrMaxRetry.Error(),
+						err.Error(),
 						decor.SizeB1024(p.Written),
 						decor.SizeB1024(p.total()))
-					retry, err = false, errors.Wrap(ErrMaxRetry, "Stop retrying")
 					fallthrough
 				case !retry:
 					atomic.AddUint32(&globTry, ^uint32(0))
