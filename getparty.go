@@ -654,14 +654,13 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	}
 	switch answer {
 	case '\n', 'y', 'Y':
-		if cmd.Ctx.Err() == nil {
-			cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
-			return os.Remove(name)
+		if cmd.Ctx.Err() != nil && context.Cause(cmd.Ctx) == ErrCanceledByUser {
+			return ErrCanceledByUser
 		}
-		fallthrough
-	default:
-		return ErrCanceledByUser
+		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
+		return os.Remove(name)
 	}
+	return nil
 }
 
 func (cmd Cmd) getTimeout() time.Duration {
