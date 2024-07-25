@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	"github.com/pkg/errors"
 )
 
 var _ heap.Interface = (*mirrorPQ)(nil)
@@ -142,7 +144,7 @@ func queryMirror(
 	if resp.Body != nil {
 		resp.Body.Close()
 	}
-	return HttpError(resp.StatusCode)
+	return errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 }
 
 func readLines(r io.Reader) <-chan *mirror {

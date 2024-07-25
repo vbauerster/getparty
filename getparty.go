@@ -582,7 +582,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				if resp.StatusCode != http.StatusOK {
 					cmd.loggers[WARN].Println("HTTP response:", resp.Status)
-					err = BadHttpStatus(resp.StatusCode)
+					err := errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 					if isServerError(resp.StatusCode) { // server error may be temporary
 						return attempt != cmd.options.MaxRetry, err
 					}
