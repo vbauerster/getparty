@@ -22,26 +22,21 @@ var (
 
 func main() {
 	runtime.MemProfileRate = 0
-	ctx, cancel := backgroundContext()
-	defer cancel()
+	quit := make(chan os.Signal, 1)
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer func() {
+		signal.Stop(quit)
+		cancel(nil)
+	}()
+	go func() {
+		<-quit
+		cancel(getparty.ErrCanceledByUser)
+	}()
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	cmd := &getparty.Cmd{
 		Ctx: ctx,
 		Out: os.Stdout,
 		Err: os.Stderr,
 	}
 	os.Exit(cmd.Exit(cmd.Run(os.Args[1:], version, commit)))
-}
-
-func backgroundContext() (context.Context, func()) {
-	ctx, cancel := context.WithCancel(context.Background())
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		defer signal.Stop(quit)
-		<-quit
-		cancel()
-	}()
-
-	return ctx, cancel
 }

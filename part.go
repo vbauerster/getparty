@@ -108,7 +108,14 @@ func (p *Part) download(
 	maxTry uint,
 	single bool,
 ) (err error) {
+	var fpart *os.File
+	prefixTemplate := fmt.Sprintf("[%s:R%%02d] ", p.name)
+	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
 	defer func() {
+		if fpart != nil {
+			p.logger.Printf("Closing: %q", fpart.Name())
+			err = firstErr(err, fpart.Close())
+		}
 		err = errors.WithMessage(err, p.name)
 		p.cancel()
 	}()
@@ -121,15 +128,12 @@ func (p *Part) download(
 		p.patcher(req)
 	}
 
-	var fpart *os.File
 	var bar *mpb.Bar
 	var curTry uint32
 	var httpStatus206 bool
 	var httpStatus200 bool
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
-	prefixTemplate := fmt.Sprintf("[%s:R%%02d] ", p.name)
-	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
@@ -150,11 +154,7 @@ func (p *Part) download(
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
 				}
-				if !retry || err == nil {
-					if fpart != nil {
-						p.logger.Printf("Closing: %q", fpart.Name())
-						err = firstErr(err, fpart.Close())
-					}
+				if !retry || err == nil || context.Cause(p.ctx) == ErrCanceledByUser {
 					return
 				}
 				switch attempt {
@@ -171,12 +171,10 @@ func (p *Part) download(
 						bar.Abort(true)
 					}
 					atomic.AddUint32(&globTry, ^uint32(0))
+					return
 				}
+				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
 			}()
-
-			if attempt != 0 {
-				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt))
-			}
 
 			p.logger.Printf("GET %q", req.URL)
 
@@ -265,6 +263,13 @@ func (p *Part) download(
 					if !httpStatus200 {
 						p.logger.Println("Stopping: some other part got status 200")
 						return false, nil
+					}
+				}
+				if fpart != nil {
+					p.logger.Printf("Closing: %q", fpart.Name())
+					err = firstErr(err, fpart.Close())
+					if err != nil {
+						return false, err
 					}
 				}
 				fpart, err = os.OpenFile(baseName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
