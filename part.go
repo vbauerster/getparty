@@ -173,6 +173,7 @@ func (p *Part) download(
 					atomic.AddUint32(&globTry, ^uint32(0))
 					return
 				}
+				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
 			}()
 
@@ -205,7 +206,6 @@ func (p *Part) download(
 
 			resp, err := p.client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 			if err != nil {
-				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
 				return true, err
 			}
 			defer func() {
@@ -286,7 +286,6 @@ func (p *Part) download(
 					p.Written = 0
 				}
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), resp.Status)
 				return true, HttpError(resp.StatusCode)
 			default:
 				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), resp.Status)
@@ -338,7 +337,6 @@ func (p *Part) download(
 			}
 
 			// err is never nil here
-			fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
 			return !p.isDone(), err
 		})
 }
