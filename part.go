@@ -128,8 +128,8 @@ func (p *Part) download(
 	var httpStatus200 bool
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
-	prefix := fmt.Sprintf("[%s:R%%02d] ", p.name)
-	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefix, 0), log.LstdFlags)
+	prefixTemplate := fmt.Sprintf("[%s:R%%02d] ", p.name)
+	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
@@ -175,7 +175,7 @@ func (p *Part) download(
 			}()
 
 			if attempt != 0 {
-				p.logger.SetPrefix(fmt.Sprintf(prefix, attempt))
+				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt))
 			}
 
 			p.logger.Printf("GET %q", req.URL)
