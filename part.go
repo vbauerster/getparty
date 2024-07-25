@@ -113,10 +113,6 @@ func (p *Part) download(
 		p.cancel()
 	}()
 
-	var fpart *os.File
-	prefix := fmt.Sprintf("[%s:R%%02d] ", p.name)
-	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefix, 0), log.LstdFlags)
-
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	if err != nil {
 		return err
@@ -125,12 +121,15 @@ func (p *Part) download(
 		p.patcher(req)
 	}
 
+	var fpart *os.File
 	var bar *mpb.Bar
 	var curTry uint32
 	var httpStatus206 bool
 	var httpStatus200 bool
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
+	prefix := fmt.Sprintf("[%s:R%%02d] ", p.name)
+	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefix, 0), log.LstdFlags)
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
