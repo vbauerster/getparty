@@ -344,15 +344,6 @@ func (p *Part) download(
 				return false, errors.Wrap(err, "Part isn't done after")
 			}
 
-			if p.isDone() {
-				message := "Part is done before EOF"
-				err = errors.WithMessage(err, message)
-				if err != nil {
-					return false, err
-				}
-				return false, errors.New(message)
-			}
-
 			// true is ignored if err == nil
 			return true, err
 		})
