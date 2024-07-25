@@ -556,7 +556,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				if jar := client.Jar; jar != nil {
 					for _, cookie := range jar.Cookies(req.URL) {
-						cmd.loggers[DEBUG].Printf("Cookie: %s", cookie) // cookie implements fmt.Stringer
+						cmd.loggers[DEBUG].Println("Cookie:", cookie) // cookie implements fmt.Stringer
 					}
 				}
 
@@ -567,7 +567,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 				}
 
 				if isRedirect(resp.StatusCode) {
-					cmd.loggers[INFO].Printf("HTTP response: %s", resp.Status)
+					cmd.loggers[INFO].Println("HTTP response:", resp.Status)
 					redirected = true
 					loc, err := resp.Location()
 					if err != nil {
@@ -581,7 +581,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 				}
 
 				if resp.StatusCode != http.StatusOK {
-					cmd.loggers[WARN].Printf("HTTP response: %s", resp.Status)
+					cmd.loggers[WARN].Println("HTTP response:", resp.Status)
 					err = HttpError(resp.StatusCode)
 					if isServerError(resp.StatusCode) { // server error may be temporary
 						return attempt != cmd.options.MaxRetry, err
@@ -589,7 +589,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					return false, err
 				}
 
-				cmd.loggers[INFO].Printf("HTTP response: %s", resp.Status)
+				cmd.loggers[INFO].Println("HTTP response:", resp.Status)
 
 				name := cmd.options.OutFileName
 				for i := 0; name == ""; i++ {

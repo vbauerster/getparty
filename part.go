@@ -65,7 +65,7 @@ func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, 
 			return err
 		})
 	}
-	p.logger.Printf("Setting bar total: %d", total)
+	p.logger.Println("Setting bar total:", total)
 	bar, err := p.progress.Add(total, filler,
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
@@ -95,7 +95,7 @@ func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, 
 		return nil, err
 	}
 	if p.Written != 0 {
-		p.logger.Printf("Setting bar current: %d", p.Written)
+		p.logger.Println("Setting bar current:", p.Written)
 		bar.SetCurrent(p.Written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
@@ -149,8 +149,8 @@ func (p *Part) download(
 						timeout = resetTimeout
 					}
 					p.Elapsed += time.Since(start) - totalSleep
-					p.logger.Printf("Written: %d", n)
-					p.logger.Printf("Total sleep: %s", totalSleep)
+					p.logger.Println("Written:", n)
+					p.logger.Println("Total sleep:", totalSleep)
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
 				}
@@ -177,7 +177,7 @@ func (p *Part) download(
 				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
 			}()
 
-			p.logger.Printf("GET %q", req.URL)
+			p.logger.Println("GET:", req.URL)
 
 			req.Header.Set(hRange, p.getRange())
 			for k, v := range req.Header {
@@ -200,7 +200,7 @@ func (p *Part) download(
 
 			trace := &httptrace.ClientTrace{
 				GotConn: func(connInfo httptrace.GotConnInfo) {
-					p.logger.Printf("Connection RemoteAddr: %s", connInfo.Conn.RemoteAddr())
+					p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
 				},
 			}
 
@@ -214,11 +214,11 @@ func (p *Part) download(
 				}
 			}()
 
-			p.logger.Printf("HTTP status: %s", resp.Status)
+			p.logger.Println("HTTP status:", resp.Status)
 
 			if jar := p.client.Jar; jar != nil {
 				for _, cookie := range jar.Cookies(req.URL) {
-					p.logger.Printf("Cookie: %s", cookie) // cookie implements fmt.Stringer
+					p.logger.Println("Cookie:", cookie) // cookie implements fmt.Stringer
 				}
 			}
 
