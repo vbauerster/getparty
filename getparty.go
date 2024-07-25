@@ -644,6 +644,7 @@ func (cmd Cmd) initTotalBar(
 
 func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	if cmd.options.ForceOverwrite {
+		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
 		return os.Remove(name)
 	}
 	var answer rune
@@ -654,7 +655,7 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	switch answer {
 	case '\n', 'y', 'Y':
 		if cmd.Ctx.Err() == nil {
-			cmd.loggers[DEBUG].Printf("Removing existing: %s", name)
+			cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
 			return os.Remove(name)
 		}
 		fallthrough
