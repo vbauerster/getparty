@@ -341,7 +341,7 @@ func (p *Part) download(
 				if p.isDone() {
 					return false, fpart.Sync()
 				}
-				return false, errors.WithMessage(err, "Part isn't done after EOF")
+				return false, errors.Wrap(err, "Part isn't done after")
 			}
 
 			if p.isDone() {
