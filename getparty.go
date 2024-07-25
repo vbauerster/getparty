@@ -35,10 +35,10 @@ func (e ExpectedError) Error() string {
 	return string(e)
 }
 
-type HttpError int
+type BadHttpStatus int
 
-func (e HttpError) Error() string {
-	return fmt.Sprintf("HTTP error: %d", int(e))
+func (e BadHttpStatus) Error() string {
+	return fmt.Sprintf("Bad status: %d", int(e))
 }
 
 const (
@@ -582,7 +582,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				if resp.StatusCode != http.StatusOK {
 					cmd.loggers[WARN].Println("HTTP response:", resp.Status)
-					err = HttpError(resp.StatusCode)
+					err = BadHttpStatus(resp.StatusCode)
 					if isServerError(resp.StatusCode) { // server error may be temporary
 						return attempt != cmd.options.MaxRetry, err
 					}
