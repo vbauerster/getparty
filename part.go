@@ -175,7 +175,7 @@ func (p *Part) download(
 							ErrMaxRetry.Error(),
 							decor.SizeB1024(p.Written),
 							decor.SizeB1024(p.total()))
-						retry, err = false, errors.Wrap(ErrMaxRetry, err.Error())
+						retry, err = false, errors.Wrap(ErrMaxRetry, "Stop retrying")
 						fallthrough
 					case !retry:
 						atomic.AddUint32(&globTry, ^uint32(0))
