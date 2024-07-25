@@ -344,8 +344,9 @@ func (p *Part) download(
 				return false, errors.Wrap(err, "Part isn't done after")
 			}
 
-			// true is ignored if err == nil
-			return true, err
+			// err is never nil here
+			fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
+			return !p.isDone(), err
 		})
 }
 
