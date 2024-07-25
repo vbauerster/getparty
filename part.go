@@ -312,11 +312,9 @@ func (p *Part) download(
 					sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
 					totalSleep += sleep
 				}
-				if err == io.EOF || err == io.ErrUnexpectedEOF {
-					if n == 0 {
-						continue
-					}
-					// err is io.ErrUnexpectedEOF here
+				if n == 0 {
+					continue
+				} else if err == io.ErrUnexpectedEOF {
 					// reset in order to have io.ReadFull return io.EOF
 					err = nil
 				}
