@@ -108,21 +108,14 @@ func (p *Part) download(
 	maxTry uint,
 	single bool,
 ) (err error) {
-	var fpart *os.File
-	prefix := fmt.Sprintf("[%s:R%%02d] ", p.name)
-	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefix, 0), log.LstdFlags)
 	defer func() {
-		if fpart != nil {
-			if e := fpart.Close(); e != nil {
-				err = firstErr(err, e)
-			} else if p.Written == 0 {
-				p.logger.Printf("%q is empty, removing", fpart.Name())
-				err = firstErr(err, os.Remove(fpart.Name()))
-			}
-		}
 		err = errors.WithMessage(err, p.name)
 		p.cancel()
 	}()
+
+	var fpart *os.File
+	prefix := fmt.Sprintf("[%s:R%%02d] ", p.name)
+	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefix, 0), log.LstdFlags)
 
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	if err != nil {
@@ -147,10 +140,10 @@ func (p *Part) download(
 			start := time.Now()
 			defer func() {
 				p.logger.Printf("Retry: %t, Error: %v", retry, err)
-				if !httpStatus206 {
+				if !httpStatus206 || err == nil {
 					if fpart != nil {
+						p.logger.Printf("Closing: %q", fpart.Name())
 						err = firstErr(err, fpart.Close())
-						fpart = nil
 					}
 					return
 				}
@@ -165,23 +158,21 @@ func (p *Part) download(
 				} else if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
 				}
-				if err != nil {
-					switch {
-					case attempt == 0:
-						atomic.AddUint32(&globTry, 1)
-					case attempt == maxTry:
-						fmt.Fprintf(p.progress, "%s%s: %.1f / %.1f\n",
-							p.logger.Prefix(),
-							ErrMaxRetry.Error(),
-							decor.SizeB1024(p.Written),
-							decor.SizeB1024(p.total()))
-						retry, err = false, errors.Wrap(ErrMaxRetry, "Stop retrying")
-						fallthrough
-					case !retry:
-						atomic.AddUint32(&globTry, ^uint32(0))
-						if bar != nil {
-							bar.Abort(true)
-						}
+				switch {
+				case attempt == 0:
+					atomic.AddUint32(&globTry, 1)
+				case attempt == maxTry:
+					fmt.Fprintf(p.progress, "%s%s: %.1f / %.1f\n",
+						p.logger.Prefix(),
+						ErrMaxRetry.Error(),
+						decor.SizeB1024(p.Written),
+						decor.SizeB1024(p.total()))
+					retry, err = false, errors.Wrap(ErrMaxRetry, "Stop retrying")
+					fallthrough
+				case !retry:
+					atomic.AddUint32(&globTry, ^uint32(0))
+					if bar != nil {
+						bar.Abort(true)
 					}
 				}
 			}()
