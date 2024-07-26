@@ -451,7 +451,7 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 			if err != nil {
 				return nil, err
 			}
-			if cmd.options.UserAgent != "" || restored.HeaderMap[hUserAgentKey] == "" {
+			if restored.HeaderMap[hUserAgentKey] != userAgents[cmd.options.UserAgent] {
 				restored.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 			}
 			switch {
