@@ -294,7 +294,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		ctx, cancel := context.WithCancel(cmd.Ctx)
 		cancelMap[i+1] = cancel
 		p.ctx = ctx
-		p.cancel = cancel
 		p.statusOK = statusOK
 		p.name = fmt.Sprintf("P%02d", i+1)
 		p.order = i + 1
@@ -322,6 +321,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				if p.isDone() {
 					atomic.AddUint32(&doneCount, 1)
 				}
+				cancel()
 			}()
 			maxTry := cmd.options.MaxRetry
 			return p.download(session.location, session.OutputName, timeout, sleep, maxTry, single)

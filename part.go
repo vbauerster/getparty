@@ -45,7 +45,6 @@ type Part struct {
 	statusOK     *http200Context
 	incrTotalBar func(int)
 	patcher      func(*http.Request)
-	cancel       func()
 	name         string
 	order        int
 	debugWriter  io.Writer
@@ -117,7 +116,6 @@ func (p *Part) download(
 			err = firstErr(err, fpart.Close())
 		}
 		err = errors.WithMessage(err, p.name)
-		p.cancel()
 	}()
 
 	req, err := http.NewRequest(http.MethodGet, location, nil)
