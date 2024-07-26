@@ -288,7 +288,7 @@ func (p *Part) download(
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 				return true, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 			default:
-				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), resp.Status)
+				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), BadHttpStatus(resp.StatusCode).Error())
 				return false, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 			}
 
