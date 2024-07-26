@@ -83,7 +83,7 @@ type Options struct {
 	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
 	SpeedLimit         uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
 	OutputName         string            `short:"o" long:"output" value-name:"name" description:"user defined output name"`
-	JSONFileName       string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
+	SessionName        string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
 	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	ForceOverwrite     bool              `short:"f" long:"force" description:"overwrite existing file silently"`
@@ -218,7 +218,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}
 
-	if cmd.options.Positional.Location == "" && cmd.options.JSONFileName == "" {
+	if cmd.options.Positional.Location == "" && cmd.options.SessionName == "" {
 		return new(flags.Error)
 	}
 
@@ -352,8 +352,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			return err
 		}
 	}
-	if cmd.options.JSONFileName != "" {
-		return os.Remove(cmd.options.JSONFileName)
+	if cmd.options.SessionName != "" {
+		return os.Remove(cmd.options.SessionName)
 	}
 	return nil
 }
@@ -437,9 +437,9 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 	var scratch, restored *Session
 	for {
 		switch {
-		case cmd.options.JSONFileName != "":
+		case cmd.options.SessionName != "":
 			restored = new(Session)
-			err := restored.loadState(cmd.options.JSONFileName)
+			err := restored.loadState(cmd.options.SessionName)
 			if err != nil {
 				return nil, err
 			}
@@ -471,7 +471,7 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 			default:
 				restored.location = restored.URL
 			}
-			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.options.JSONFileName)
+			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.options.SessionName)
 			return restored, nil
 		case cmd.options.Positional.Location != "":
 			err := setCookies(client.Jar, cmd.options.HeaderMap, cmd.options.Positional.Location)
@@ -484,7 +484,7 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 			}
 			state := scratch.OutputName + ".json"
 			if _, err := os.Stat(state); err == nil {
-				cmd.options.JSONFileName = state
+				cmd.options.SessionName = state
 			} else if errors.Is(err, os.ErrNotExist) {
 				if cmd.options.Parts != 0 {
 					exist, err := scratch.isOutputFileExist()
