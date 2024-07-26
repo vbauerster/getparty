@@ -161,6 +161,7 @@ func (p *Part) download(
 				case 0:
 					atomic.AddUint32(&globTry, 1)
 				case maxTry:
+					atomic.AddUint32(&globTry, ^uint32(0))
 					retry, err = false, errors.WithMessage(ErrMaxRetry, "Stopping")
 					fmt.Fprintf(p.progress, "%s%s (%.1f / %.1f)\n",
 						p.logger.Prefix(),
@@ -170,7 +171,6 @@ func (p *Part) download(
 					if bar != nil {
 						bar.Abort(true)
 					}
-					atomic.AddUint32(&globTry, ^uint32(0))
 					return
 				}
 				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
@@ -288,12 +288,12 @@ func (p *Part) download(
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 				return true, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 			default:
+				if attempt != 0 {
+					atomic.AddUint32(&globTry, ^uint32(0))
+				}
 				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), BadHttpStatus(resp.StatusCode).Error())
 				if bar != nil {
 					bar.Abort(true)
-				}
-				if attempt != 0 {
-					atomic.AddUint32(&globTry, ^uint32(0))
 				}
 				return false, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 			}
