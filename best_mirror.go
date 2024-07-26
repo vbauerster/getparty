@@ -54,23 +54,23 @@ func (pq *mirrorPQ) Pop() interface{} {
 	return link
 }
 
-func (cmd Cmd) bestMirror(maxGoroutines int, transport http.RoundTripper, args []string) ([]string, error) {
+func (cmd Cmd) bestMirror(transport http.RoundTripper, mirrors string, maxGoroutines int) ([]string, error) {
 	var top []string
 	var input io.Reader
 	var fdClose func() error
-	if len(args) != 0 {
-		fd, err := os.Open(args[0])
+	if mirrors == "-" {
+		input = os.Stdin
+		fdClose = func() error { return nil }
+	} else {
+		fd, err := os.Open(mirrors)
 		if err != nil {
 			return nil, err
 		}
 		input = fd
 		fdClose = fd.Close
-	} else {
-		input = os.Stdin
-		fdClose = func() error { return nil }
 	}
 	pq := cmd.batchMirrors(input, transport, maxGoroutines)
-	for i := 0; i < len(cmd.options.BestMirror) && pq.Len() != 0; i++ {
+	for i := 0; i < len(cmd.options.BestMirror.N) && pq.Len() != 0; i++ {
 		m := heap.Pop(&pq).(*mirror)
 		top = append(top, m.url)
 		cmd.loggers[INFO].Printf("%s: %q", m.queryDur, m.url)

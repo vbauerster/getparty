@@ -85,7 +85,6 @@ type Options struct {
 	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
 	JSONFileName       string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
 	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
-	BestMirror         []bool            `short:"b" long:"best-mirror" description:"pickup best mirror, repeat n times to list top n"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	ForceOverwrite     bool              `short:"f" long:"force" description:"overwrite existing file silently"`
 	AuthUser           string            `short:"u" long:"username" description:"basic http auth username"`
@@ -95,6 +94,14 @@ type Options struct {
 	CertsFileName      string            `short:"c" long:"certs-file" value-name:"certs.crt" description:"root certificates to use when verifying server certificates"`
 	Debug              bool              `long:"debug" description:"enable debug to stderr"`
 	Version            bool              `short:"v" long:"version" description:"show version"`
+	BestMirror         struct {
+		N       []bool `short:"b" long:"best-mirror" description:"best mirror mode, repeat n times to list top n and quit"`
+		Mirrors string `short:"m" long:"mirrors" value-name:"file" default:"-" description:"input of mirrors"`
+		MaxGo   uint   `short:"g" long:"max-req" value-name:"n" description:"max concurrent http request (default: number of logical CPUs)"`
+	} `group:"Best-mirror Options"`
+	Positional struct {
+		Location string `positional-arg-name:"<url>" description:"http location"`
+	} `positional-args:"yes"`
 }
 
 type Cmd struct {
@@ -153,7 +160,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	cmd.options = new(Options)
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
-	cmd.parser.Usage = "[OPTIONS] url"
 	args, err = cmd.parser.ParseArgs(args)
 	if err != nil {
 		return err
@@ -195,14 +201,19 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	cmd.patcher = makeReqPatcher(userinfo, cmd.options.HeaderMap)
 
-	if len(cmd.options.BestMirror) != 0 {
+	if len(cmd.options.BestMirror.N) != 0 {
 		transport := newRoundTripperBuilder(false).withTLSConfig(tlsConfig).build()
-		top, err := cmd.bestMirror(4, transport, args)
+		max := int(cmd.options.BestMirror.MaxGo)
+		if max == 0 {
+			max = runtime.NumCPU()
+		}
+		cmd.loggers[DEBUG].Println("Best-mirror max:", max)
+		top, err := cmd.bestMirror(transport, cmd.options.BestMirror.Mirrors, max)
 		if err != nil {
 			return err
 		}
 		if len(top) == 1 {
-			args = top
+			cmd.options.Positional.Location = top[0]
 		} else {
 			return nil
 		}
