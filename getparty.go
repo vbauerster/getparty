@@ -335,8 +335,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	case <-statusOK.ctx.Done():
 	}
 
-	cmd.parser = nil
-
 	err = firstErr(eg.Wait(), cmd.Ctx.Err())
 	if err != nil {
 		cancelTotalBar(false)
