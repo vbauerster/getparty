@@ -289,6 +289,12 @@ func (p *Part) download(
 				return true, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 			default:
 				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), BadHttpStatus(resp.StatusCode).Error())
+				if bar != nil {
+					bar.Abort(true)
+				}
+				if attempt != 0 {
+					atomic.AddUint32(&globTry, ^uint32(0))
+				}
 				return false, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 			}
 
