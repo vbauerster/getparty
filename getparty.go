@@ -82,7 +82,7 @@ type Options struct {
 	MaxRetry           uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retry per each part, 0 for infinite"`
 	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
 	SpeedLimit         uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
-	OutFileName        string            `short:"o" long:"output" value-name:"filename" description:"user defined output"`
+	OutputName         string            `short:"o" long:"output" value-name:"name" description:"user defined output name"`
 	JSONFileName       string            `short:"s" long:"session" value-name:"session.json" description:"path to saved session file (optional)"`
 	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
@@ -601,7 +601,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				cmd.loggers[INFO].Println("HTTP response:", resp.Status)
 
-				name := cmd.options.OutFileName
+				name := cmd.options.OutputName
 				for i := 0; name == ""; i++ {
 					switch i {
 					case 0:
