@@ -29,8 +29,11 @@ func main() {
 		cancel(nil)
 	}()
 	go func() {
-		<-quit
-		cancel(getparty.ErrCanceledByUser)
+		select {
+		case <-quit:
+			cancel(getparty.ErrCanceledByUser)
+		case <-ctx.Done():
+		}
 	}()
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	cmd := &getparty.Cmd{
