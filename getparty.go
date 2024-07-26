@@ -219,6 +219,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}
 
+	if cmd.options.Positional.Location == "" && cmd.options.JSONFileName == "" {
+		return new(flags.Error)
+	}
+
 	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
@@ -506,8 +510,6 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 			} else {
 				return nil, err
 			}
-		default:
-			return nil, new(flags.Error)
 		}
 	}
 }
