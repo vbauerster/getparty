@@ -233,7 +233,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		Jar:       jar,
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirects {
-				return errors.WithMessagef(ErrMaxRedirect, "stopped after %d redirects", maxRedirects)
+				return errors.WithMessagef(ErrMaxRedirect, "Stopping after %d redirects", maxRedirects)
 			}
 			return http.ErrUseLastResponse
 		},
