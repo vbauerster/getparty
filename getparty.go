@@ -231,6 +231,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	client := &http.Client{
 		Transport: transport,
 		Jar:       jar,
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+			if len(via) >= maxRedirects {
+				return errors.WithMessagef(ErrMaxRedirect, "stopped after %d redirects", maxRedirects)
+			}
+			return http.ErrUseLastResponse
+		},
 	}
 	session, err := cmd.getState(userinfo, client)
 	if err != nil {
@@ -427,12 +433,6 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 		}
 		jar.SetCookies(u, cookies)
 		return nil
-	}
-	client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
-		if len(via) >= maxRedirects {
-			return errors.WithMessagef(ErrMaxRedirect, "stopped after %d redirects", maxRedirects)
-		}
-		return http.ErrUseLastResponse
 	}
 	var scratch, restored *Session
 	for {
