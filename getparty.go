@@ -195,7 +195,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	cmd.Out = cmd.getOut()
-	cmd.Err = cmd.getErr()
 	cmd.initLoggers()
 
 	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
@@ -247,7 +246,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var doneCount uint32
 	single := len(session.Parts) == 1
 	progress := mpb.NewWithContext(cmd.Ctx,
-		mpb.WithDebugOutput(cmd.Err),
+		mpb.WithDebugOutput(cmd.getErr()),
 		mpb.WithOutput(cmd.Out),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
@@ -296,7 +295,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.progress = progress
 		p.incrTotalBar = incrTotalBar
 		p.patcher = cmd.patcher
-		p.debugWriter = cmd.Err
+		p.debugWriter = cmd.getErr()
 		p.client = &http.Client{
 			Transport: transport,
 			Jar:       jar,
@@ -659,7 +658,7 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 		return os.Remove(name)
 	}
 	var answer rune
-	fmt.Fprintf(os.Stderr, "File %q already exists, overwrite? [Y/n] ", name)
+	fmt.Fprintf(cmd.Err, "File %q already exists, overwrite? [Y/n] ", name)
 	if _, err := fmt.Scanf("%c", &answer); err != nil {
 		return err
 	}
