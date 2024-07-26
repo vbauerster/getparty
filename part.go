@@ -214,7 +214,7 @@ func (p *Part) download(
 				}
 			}()
 
-			p.logger.Println("HTTP status:", resp.Status)
+			p.logger.Println("HTTP response:", resp.Status)
 
 			if jar := p.client.Jar; jar != nil {
 				for _, cookie := range jar.Cookies(req.URL) {
