@@ -229,7 +229,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		Transport: transport,
 		Jar:       jar,
 	}
-	session, err := cmd.getState(userinfo, client, args)
+	session, err := cmd.getState(userinfo, client)
 	if err != nil {
 		return err
 	}
@@ -411,8 +411,8 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 	return config, nil
 }
 
-func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []string) (*Session, error) {
-	setCookies := func(jar http.CookieJar, headers map[string]string, rawURL string) error {
+func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session, error) {
+	setCookies := func(jar http.CookieJar, headers map[string]string, location string) error {
 		cookies, err := parseCookies(headers)
 		if err != nil {
 			return err
@@ -420,7 +420,7 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []str
 		if len(cookies) == 0 {
 			return nil
 		}
-		u, err := url.Parse(rawURL)
+		u, err := url.Parse(location)
 		if err != nil {
 			return err
 		}
@@ -472,12 +472,12 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client, args []str
 			}
 			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.options.JSONFileName)
 			return restored, nil
-		case len(args) != 0:
-			err := setCookies(client.Jar, cmd.options.HeaderMap, args[0])
+		case cmd.options.Positional.Location != "":
+			err := setCookies(client.Jar, cmd.options.HeaderMap, cmd.options.Positional.Location)
 			if err != nil {
 				return nil, err
 			}
-			scratch, err = cmd.follow(client, args[0])
+			scratch, err = cmd.follow(client, cmd.options.Positional.Location)
 			if err != nil {
 				return nil, err
 			}
