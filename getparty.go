@@ -483,10 +483,11 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 				return nil, err
 			}
 			state := scratch.OutputName + ".json"
-			if _, err := os.Stat(state); err == nil {
-				cmd.options.SessionName = state
-			} else if errors.Is(err, os.ErrNotExist) {
-				if cmd.options.Parts != 0 {
+			if _, err := os.Stat(state); err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					if cmd.options.Parts == 0 {
+						return scratch, nil
+					}
 					exist, err := scratch.isOutputFileExist()
 					if err != nil {
 						return nil, err
@@ -501,12 +502,13 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 					if err != nil {
 						return nil, err
 					}
+					scratch.HeaderMap = cmd.options.HeaderMap
+					return scratch, nil
 				}
-				scratch.HeaderMap = cmd.options.HeaderMap
-				return scratch, nil
-			} else {
 				return nil, err
 			}
+			cmd.loggers[DEBUG].Printf("Reusing existing state: %q", state)
+			cmd.options.SessionName = state
 		}
 	}
 }
