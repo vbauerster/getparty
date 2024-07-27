@@ -181,7 +181,6 @@ func (p *Part) download(
 			}
 
 			ctx, cancel := context.WithCancel(p.ctx)
-			defer cancel()
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
 				msg := "Timeout..."
@@ -192,7 +191,10 @@ func (p *Part) download(
 					p.logger.Println(msg, "msg dropped")
 				}
 			})
-			defer timer.Stop()
+			defer func() {
+				timer.Stop()
+				cancel()
+			}()
 
 			trace := &httptrace.ClientTrace{
 				GotConn: func(connInfo httptrace.GotConnInfo) {
