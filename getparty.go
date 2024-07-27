@@ -78,7 +78,7 @@ var (
 // Options struct, represents cmd line options
 type Options struct {
 	Parts          uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
-	MaxRetry       uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retry per each part, 0 for infinite"`
+	MaxRetry       uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retries per each part, 0 for infinite"`
 	MaxRedirect    uint              `long:"max-redirect" value-name:"n" default:"10" description:"max redirections allowed, 0 for infinite"`
 	Timeout        uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
 	SpeedLimit     uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
