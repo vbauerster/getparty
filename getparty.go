@@ -95,10 +95,10 @@ type Options struct {
 	Debug              bool              `long:"debug" description:"enable debug to stderr"`
 	Version            bool              `short:"v" long:"version" description:"show version"`
 	BestMirror         struct {
-		N       []bool `short:"b" long:"best-mirror" description:"best mirror mode, repeat n times to list top n and quit"`
-		Mirrors string `short:"m" long:"mirrors" value-name:"FILE" default:"-" description:"mirror list input"`
-		MaxGo   uint   `short:"g" long:"max-req" value-name:"n" description:"max concurrent http request (default: number of logical CPUs)"`
-	} `group:"Best-mirror Options"`
+		Mirrors string `short:"m" long:"list" value-name:"FILE|-" description:"mirror list input"`
+		MaxGo   uint   `short:"g" long:"max" value-name:"n" description:"max concurrent http request (default: number of logical CPUs)"`
+		TopN    uint   `long:"top" value-name:"n" default:"1" description:"list top n mirrors, download condition n=1"`
+	} `group:"Best-mirror Options" namespace:"mirror"`
 	Positional struct {
 		Location string `positional-arg-name:"<url>" description:"http location"`
 	} `positional-args:"yes"`
@@ -169,7 +169,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if cmd.options.Version {
 		fmt.Fprintf(cmd.Out, "%s (%.7s) (%s)\n", userAgents[cmdName], commit, runtime.Version())
-		fmt.Fprintf(cmd.Out, "Project home: %s\n", projectHome)
+		fmt.Fprintf(cmd.Out, "Project home: %+v\n", cmd.options)
 		return nil
 	}
 
@@ -200,14 +200,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	cmd.patcher = makeReqPatcher(userinfo, cmd.options.HeaderMap)
 
-	if len(cmd.options.BestMirror.N) != 0 {
-		transport := newRoundTripperBuilder(false).withTLSConfig(tlsConfig).build()
-		max := int(cmd.options.BestMirror.MaxGo)
-		if max == 0 {
-			max = runtime.NumCPU()
-		}
-		cmd.loggers[DEBUG].Println("Best-mirror max:", max)
-		top, err := cmd.bestMirror(transport, cmd.options.BestMirror.Mirrors, max)
+	if cmd.options.BestMirror.Mirrors != "" {
+		top, err := cmd.bestMirror(newRoundTripperBuilder(false).withTLSConfig(tlsConfig).build())
 		if err != nil {
 			return err
 		}

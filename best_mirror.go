@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -54,23 +55,24 @@ func (pq *mirrorPQ) Pop() interface{} {
 	return link
 }
 
-func (cmd Cmd) bestMirror(transport http.RoundTripper, mirrors string, maxGoroutines int) ([]string, error) {
+func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 	var top []string
 	var input io.Reader
 	var fdClose func() error
-	if mirrors == "-" {
+	if cmd.options.BestMirror.Mirrors == "-" {
 		input = os.Stdin
 		fdClose = func() error { return nil }
 	} else {
-		fd, err := os.Open(mirrors)
+		fd, err := os.Open(cmd.options.BestMirror.Mirrors)
 		if err != nil {
 			return nil, err
 		}
 		input = fd
 		fdClose = fd.Close
 	}
-	pq := cmd.batchMirrors(input, transport, maxGoroutines)
-	for i := 0; i < len(cmd.options.BestMirror.N) && pq.Len() != 0; i++ {
+	pq := cmd.batchMirrors(input, transport)
+	topn := int(cmd.options.BestMirror.TopN)
+	for i := 0; i < topn && pq.Len() != 0; i++ {
 		m := heap.Pop(&pq).(*mirror)
 		top = append(top, m.url)
 		cmd.loggers[INFO].Printf("%s: %q", m.queryDur, m.url)
@@ -78,12 +80,17 @@ func (cmd Cmd) bestMirror(transport http.RoundTripper, mirrors string, maxGorout
 	return top, fdClose()
 }
 
-func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, maxGoroutines int) mirrorPQ {
+func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) mirrorPQ {
+	max := int(cmd.options.BestMirror.MaxGo)
+	if max == 0 {
+		max = runtime.NumCPU()
+	}
+	cmd.loggers[DEBUG].Println("Best-mirror max:", max)
 	mirrors := readLines(input)
 	result := make(chan *mirror)
 
 	var wg sync.WaitGroup
-	wg.Add(maxGoroutines)
+	wg.Add(max)
 	go func() {
 		wg.Wait()
 		close(result)
@@ -91,7 +98,7 @@ func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, maxGor
 
 	timeout := cmd.getTimeout()
 
-	for i := 0; i < maxGoroutines; i++ {
+	for i := 0; i < max; i++ {
 		client := &http.Client{
 			Transport: transport,
 		}
