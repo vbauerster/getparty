@@ -334,8 +334,13 @@ func (p *Part) download(
 				}
 				return false, errors.Wrap(err, "Expected one of EOF")
 			}
-			// err is never nil here
-			return true, err
+
+			if p.Stop > 0 {
+				// err is never nil here
+				return true, err
+			}
+			p.logger.Println("Stopping: session must not be resumable:", err.Error())
+			return false, nil
 		})
 }
 
