@@ -82,7 +82,7 @@ type Options struct {
 	MaxRetry           uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retry per each part, 0 for infinite"`
 	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
 	SpeedLimit         uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
-	OutputName         string            `short:"o" long:"output" value-name:"FILE" description:"user defined output name"`
+	OutputName         string            `short:"o" long:"output" value-name:"FILE" description:"output file name"`
 	SessionName        string            `short:"s" long:"session" value-name:"FILE" description:"session state of incomplete download, file with json extension"`
 	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
 	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
