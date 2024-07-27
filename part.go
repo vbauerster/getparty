@@ -355,6 +355,8 @@ func (p Part) getRange() string {
 	return fmt.Sprintf("bytes=%d-%d", p.Start+p.Written, p.Stop)
 }
 
+// on ContentLength =  0 p.Stop is -1 and total evaluates to  0
+// on ContentLength = -1 p.Stop is -2 and total evaluates to -1
 func (p Part) total() int64 {
 	return p.Stop - p.Start + 1
 }
