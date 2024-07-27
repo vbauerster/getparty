@@ -297,7 +297,7 @@ func (p *Part) download(
 			var buf [bufLen]byte
 			sleepCtx, sleepCancel := context.WithCancel(context.Background())
 			sleepCancel()
-			for n := 0; err == nil; sleepCancel() {
+			for n := bufLen; n == bufLen; sleepCancel() {
 				timer.Reset(timeout)
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buf[:])
@@ -306,40 +306,31 @@ func (p *Part) download(
 					sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
 					totalSleep += sleep
 				}
-				if n == 0 {
-					continue
-				} else if err == io.ErrUnexpectedEOF {
-					// reset in order to have io.ReadFull return io.EOF
-					err = nil
-				}
-				n, e := fpart.Write(buf[:n])
-				if e != nil {
-					err = e
-					continue
-				}
+				n, werr := fpart.Write(buf[:n])
 				p.Written += int64(n)
-				bar.EwmaIncrBy(n, dur)
+				if werr != nil {
+					sleepCancel()
+					return false, errors.Wrapf(werr, "Write error to %q", fpart.Name())
+				}
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
 				} else {
 					p.incrTotalBar(n)
 				}
+				bar.EwmaIncrBy(n, dur)
 				<-sleepCtx.Done()
 			}
 
-			if err == io.EOF {
-				if p.total() <= 0 {
-					p.Stop = p.Written - 1 // so p.isDone() retruns true
-					bar.EnableTriggerComplete()
-				}
-				if p.isDone() {
-					return false, fpart.Sync()
-				}
-				return false, errors.Wrap(err, "Part isn't done after")
+			if err == io.EOF && p.total() <= 0 {
+				p.Stop = p.Written - 1 // so p.isDone() retruns true
+				bar.EnableTriggerComplete()
 			}
 
+			if p.isDone() {
+				return false, fpart.Sync()
+			}
 			// err is never nil here
-			return !p.isDone(), err
+			return true, err
 		})
 }
 
