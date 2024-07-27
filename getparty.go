@@ -169,7 +169,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if cmd.options.Version {
 		fmt.Fprintf(cmd.Out, "%s (%.7s) (%s)\n", userAgents[cmdName], commit, runtime.Version())
-		fmt.Fprintf(cmd.Out, "Project home: %+v\n", cmd.options)
+		fmt.Fprintf(cmd.Out, "Project home: %s\n", projectHome)
 		return nil
 	}
 
