@@ -564,7 +564,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					if attempt != 0 && attempt == cmd.options.MaxRetry {
 						return false, errors.WithMessage(ErrMaxRetry, "Stopping")
 					}
-					return true, err
+					return !errors.Is(err, ErrMaxRedirect), err
 				}
 
 				if jar := client.Jar; jar != nil {
