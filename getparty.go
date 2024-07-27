@@ -160,7 +160,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	cmd.options = new(Options)
 	cmd.parser = flags.NewParser(cmd.options, flags.Default)
-	args, err = cmd.parser.ParseArgs(args)
+	_, err = cmd.parser.ParseArgs(args)
 	if err != nil {
 		return err
 	}
