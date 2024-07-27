@@ -339,7 +339,7 @@ func (p *Part) download(
 				// err is never nil here
 				return true, err
 			}
-			p.logger.Println("Stopping: session must not be resumable:", err.Error())
+			p.logger.Println("Stopping: session must be not resumable:", err.Error())
 			return false, nil
 		})
 }
