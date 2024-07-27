@@ -53,6 +53,7 @@ func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, 
 	var filler, extender mpb.BarFiller
 	total := p.total()
 	if total < 0 {
+		p.logger.Println("Session must be not resumable")
 		total = 0
 	} else {
 		filler = distinctBarRefiller(baseBarStyle()).Build()
@@ -323,7 +324,7 @@ func (p *Part) download(
 				<-sleepCtx.Done()
 			}
 
-			if err == io.EOF && p.total() <= 0 {
+			if p.total() <= 0 && err == io.EOF || err == io.ErrUnexpectedEOF {
 				p.Stop = p.Written - 1 // so p.isDone() retruns true
 				bar.EnableTriggerComplete()
 			}
@@ -336,15 +337,8 @@ func (p *Part) download(
 				return false, errors.Wrap(err, "Expected one of EOF")
 			}
 
-			if p.Stop > 0 {
-				// err is never nil here
-				return true, err
-			}
-
-			p.logger.Println("Stopping: session must be not resumable:", err.Error())
-			bar.EnableTriggerComplete()
-			bar.Wait()
-			return false, nil
+			// err is never nil here
+			return true, err
 		})
 }
 
