@@ -345,7 +345,7 @@ func (p *Part) download(
 }
 
 func (p Part) getRange() string {
-	if p.Stop < 1 {
+	if p.Stop <= 0 {
 		return "bytes=0-"
 	}
 	return fmt.Sprintf("bytes=%d-%d", p.Start+p.Written, p.Stop)
