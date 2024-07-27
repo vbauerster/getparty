@@ -297,6 +297,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.statusOK = statusOK
 		p.name = fmt.Sprintf("P%02d", i+1)
 		p.order = i + 1
+		p.single = single
 		p.progress = progress
 		p.incrTotalBar = incrTotalBar
 		p.patcher = cmd.patcher
@@ -324,7 +325,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				cancel()
 			}()
 			maxTry := cmd.options.MaxRetry
-			return p.download(session.location, session.OutputName, timeout, sleep, maxTry, single)
+			return p.download(session.location, session.OutputName, timeout, sleep, maxTry)
 		})
 	}
 

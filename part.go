@@ -47,6 +47,7 @@ type Part struct {
 	patcher      func(*http.Request)
 	name         string
 	order        int
+	single       bool
 	debugWriter  io.Writer
 }
 
@@ -105,7 +106,6 @@ func (p *Part) download(
 	location, baseName string,
 	timeout, sleep time.Duration,
 	maxTry uint,
-	single bool,
 ) (err error) {
 	var fpart *os.File
 	prefixTemplate := fmt.Sprintf("[%s:R%%02d] ", p.name)
@@ -235,7 +235,7 @@ func (p *Part) download(
 					}
 				}
 				if bar == nil {
-					bar, err = p.newBar(&curTry, single, msgCh)
+					bar, err = p.newBar(&curTry, p.single, msgCh)
 					if err != nil {
 						return false, err
 					}
@@ -371,6 +371,9 @@ func (p Part) checkSize(stat fs.FileInfo) error {
 func (p Part) outputName(base string) string {
 	if p.order == 0 {
 		panic("part is not initialized")
+	}
+	if p.single {
+		return base
 	}
 	return fmt.Sprintf("%s.%02d", base, p.order)
 }
