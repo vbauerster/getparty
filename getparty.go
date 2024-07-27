@@ -85,11 +85,11 @@ type Options struct {
 	OutputName     string            `short:"o" long:"output" value-name:"FILE" description:"output file name"`
 	SessionName    string            `short:"s" long:"session" value-name:"FILE" description:"session state of incomplete download, file with json extension"`
 	UserAgent      string            `short:"u" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
-	Quiet          bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
-	ForceOverwrite bool              `short:"f" long:"force" description:"overwrite existing file silently"`
 	AuthUser       string            `long:"username" description:"basic http auth username"`
 	AuthPass       string            `long:"password" description:"basic http auth password"`
 	HeaderMap      map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
+	ForceOverwrite bool              `short:"f" long:"force" description:"overwrite existing file silently"`
+	Quiet          bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	Debug          bool              `short:"d" long:"debug" description:"enable debug to stderr"`
 	Version        bool              `short:"v" long:"version" description:"show version"`
 	Https          struct {
