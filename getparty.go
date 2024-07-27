@@ -78,23 +78,25 @@ var (
 
 // Options struct, represents cmd line options
 type Options struct {
-	Parts              uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
-	MaxRetry           uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retry per each part, 0 for infinite"`
-	Timeout            uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
-	SpeedLimit         uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
-	OutputName         string            `short:"o" long:"output" value-name:"FILE" description:"output file name"`
-	SessionName        string            `short:"s" long:"session" value-name:"FILE" description:"session state of incomplete download, file with json extension"`
-	UserAgent          string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
-	Quiet              bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
-	ForceOverwrite     bool              `short:"f" long:"force" description:"overwrite existing file silently"`
-	AuthUser           string            `short:"u" long:"username" description:"basic http auth username"`
-	AuthPass           string            `long:"password" description:"basic http auth password"`
-	HeaderMap          map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
-	InsecureSkipVerify bool              `long:"no-check-cert" description:"don't validate the server's certificate"`
-	CertsFileName      string            `short:"c" long:"certs-file" value-name:"certs.crt" description:"root certificates to use when verifying server certificates"`
-	Debug              bool              `short:"d" long:"debug" description:"enable debug to stderr"`
-	Version            bool              `short:"v" long:"version" description:"show version"`
-	BestMirror         struct {
+	Parts          uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
+	MaxRetry       uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retry per each part, 0 for infinite"`
+	Timeout        uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
+	SpeedLimit     uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
+	OutputName     string            `short:"o" long:"output" value-name:"FILE" description:"output file name"`
+	SessionName    string            `short:"s" long:"session" value-name:"FILE" description:"session state of incomplete download, file with json extension"`
+	UserAgent      string            `short:"a" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
+	Quiet          bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
+	ForceOverwrite bool              `short:"f" long:"force" description:"overwrite existing file silently"`
+	AuthUser       string            `short:"u" long:"username" description:"basic http auth username"`
+	AuthPass       string            `long:"password" description:"basic http auth password"`
+	HeaderMap      map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
+	Debug          bool              `short:"d" long:"debug" description:"enable debug to stderr"`
+	Version        bool              `short:"v" long:"version" description:"show version"`
+	Https          struct {
+		CertsFileName      string `short:"c" long:"certs-file" value-name:"certs.crt" description:"root certificates to use when verifying server certificates"`
+		InsecureSkipVerify bool   `long:"no-check-cert" description:"don't verify the server's certificate chain and host name"`
+	} `group:"Https Options"`
+	BestMirror struct {
 		Mirrors string `short:"m" long:"list" value-name:"FILE|-" description:"mirror list input"`
 		MaxGo   uint   `short:"g" long:"max" value-name:"n" description:"max concurrent http request (default: number of logical CPUs)"`
 		TopN    uint   `long:"top" value-name:"n" default:"1" description:"list top n mirrors, download condition n=1"`
@@ -394,10 +396,10 @@ func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(b
 
 func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 	var config *tls.Config
-	if cmd.options.InsecureSkipVerify {
+	if cmd.options.Https.InsecureSkipVerify {
 		config = &tls.Config{InsecureSkipVerify: true}
-	} else if cmd.options.CertsFileName != "" {
-		buf, err := os.ReadFile(cmd.options.CertsFileName)
+	} else if cmd.options.Https.CertsFileName != "" {
+		buf, err := os.ReadFile(cmd.options.Https.CertsFileName)
 		if err != nil {
 			return nil, err
 		}
@@ -406,7 +408,7 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 			return nil, err
 		}
 		if ok := pool.AppendCertsFromPEM(buf); !ok {
-			return nil, errors.Errorf("bad cert file %q", cmd.options.CertsFileName)
+			return nil, errors.Errorf("bad cert file %q", cmd.options.Https.CertsFileName)
 		}
 		config = &tls.Config{RootCAs: pool}
 	}
