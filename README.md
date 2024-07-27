@@ -32,49 +32,59 @@ $ cd getparty/cmd/getparty && go build
 
 ```
 Usage:
-  getparty [OPTIONS] url
+  getparty [OPTIONS] [<url>]
 
 Application Options:
   -p, --parts=n                                             number of parts (default: 1)
-  -r, --max-retry=n                                         max retry per each part, 0 for infinite (default: 10)
+  -r, --max-retry=n                                         max retries per each part, 0 for infinite (default: 10)
+      --max-redirect=n                                      max redirections allowed, 0 for infinite (default: 10)
   -t, --timeout=sec                                         context timeout (default: 15)
   -l, --speed-limit=n                                       speed limit gauge, value from 1 to 10 inclusive
-  -o, --output=filename                                     user defined output
-  -s, --session=session.json                                path to saved session file (optional)
-  -a, --user-agent=[chrome|firefox|safari|edge|getparty]    User-Agent header (default: chrome)
-  -b, --best-mirror                                         pickup best mirror, repeat n times to list top n
-  -q, --quiet                                               quiet mode, no progress bars
-  -f, --force                                               overwrite existing file silently
-  -u, --username=                                           basic http auth username
+  -o, --output=FILE                                         output file name
+  -s, --session=FILE                                        session state of incomplete download, file with json extension
+  -u, --user-agent=[chrome|firefox|safari|edge|getparty]    User-Agent header (default: chrome)
+      --username=                                           basic http auth username
       --password=                                           basic http auth password
   -H, --header=key:value                                    http header, can be specified more than once
-      --no-check-cert                                       don't validate the server's certificate
-  -c, --certs-file=certs.crt                                root certificates to use when verifying server certificates
-      --debug                                               enable debug to stderr
+  -f, --force                                               overwrite existing file silently
+  -q, --quiet                                               quiet mode, no progress bars
+  -d, --debug                                               enable debug to stderr
   -v, --version                                             show version
+
+Https Options:
+  -c, --certs-file=certs.crt                                root certificates to use when verifying server certificates
+      --no-check-cert                                       don't verify the server's certificate chain and host name
+
+Best-mirror Options:
+  -m, --mirror.list=FILE|-                                  mirror list input
+  -g, --mirror.max=n                                        max concurrent http request (default: number of logical CPUs)
+      --mirror.top=n                                        list top n mirrors, download condition n=1 (default: 1)
 
 Help Options:
   -h, --help                                                Show this help message
+
+Arguments:
+  <url>:                                                    http location
 ```
 
 #### Best mirror example:
 
-either pipe to stdin:
+read [mirrors.txt](mirrors.txt) from a file and proceed to dowload from the best mirror:
 
 ```
-cat mirrors.txt | getparty -b
+getparty -m mirrors.txt
 ```
 
-or directly from a file:
+read [mirrors.txt](mirrors.txt) from a stdin and proceed to dowload from the best mirror:
 
 ```
-getparty -b mirrors.txt
+cat mirrors.txt | getparty -m -
 ```
 
-just list top 3 mirrors:
+just list top 3 mirrors without any download:
 
 ```
-getparty -bbb mirrors.txt
+getparty -m mirrors.txt --mirror.top 3
 ```
 
 ## License
