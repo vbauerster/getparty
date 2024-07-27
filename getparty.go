@@ -195,6 +195,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
+	rtBuilder := newRoundTripperBuilder(tlsConfig)
 
 	cmd.Out = cmd.getOut()
 	cmd.initLoggers()
@@ -203,7 +204,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.patcher = makeReqPatcher(userinfo, cmd.options.HeaderMap)
 
 	if cmd.options.BestMirror.Mirrors != "" {
-		top, err := cmd.bestMirror(newRoundTripperBuilder(false).withTLSConfig(tlsConfig).build())
+		top, err := cmd.bestMirror(rtBuilder.pool(false).build())
 		if err != nil {
 			return err
 		}
@@ -223,9 +224,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
-	transport := newRoundTripperBuilder(cmd.options.Parts != 0).withTLSConfig(tlsConfig).build()
 	client := &http.Client{
-		Transport: transport,
+		Transport: rtBuilder.pool(cmd.options.Parts != 0).build(),
 		Jar:       jar,
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirects {
@@ -282,6 +282,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	cancelMap := make(map[int]func())
 
+	client.CheckRedirect = nil
+	rtBuilder = nil
+
 	for i, p := range session.Parts {
 		if p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
@@ -290,6 +293,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		ctx, cancel := context.WithCancel(cmd.Ctx)
 		cancelMap[i+1] = cancel
 		p.ctx = ctx
+		p.client = client
 		p.statusOK = statusOK
 		p.name = fmt.Sprintf("P%02d", i+1)
 		p.order = i + 1
@@ -298,10 +302,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.incrTotalBar = incrTotalBar
 		p.patcher = cmd.patcher
 		p.debugWriter = cmd.getErr()
-		p.client = &http.Client{
-			Transport: transport,
-			Jar:       jar,
-		}
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {

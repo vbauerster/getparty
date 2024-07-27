@@ -8,25 +8,28 @@ import (
 )
 
 type roundTripperBuilder struct {
-	transport *http.Transport
+	pooled    bool
+	tlsConfig *tls.Config
 }
 
-func newRoundTripperBuilder(pooled bool) roundTripperBuilder {
-	if pooled {
-		return roundTripperBuilder{
-			transport: cleanhttp.DefaultPooledTransport(),
-		}
-	}
-	return roundTripperBuilder{
-		transport: cleanhttp.DefaultTransport(),
+func newRoundTripperBuilder(config *tls.Config) *roundTripperBuilder {
+	return &roundTripperBuilder{
+		tlsConfig: config,
 	}
 }
 
-func (b roundTripperBuilder) withTLSConfig(config *tls.Config) roundTripperBuilder {
-	b.transport.TLSClientConfig = config
+func (b *roundTripperBuilder) pool(ok bool) *roundTripperBuilder {
+	b.pooled = ok
 	return b
 }
 
-func (b roundTripperBuilder) build() http.RoundTripper {
-	return b.transport
+func (b *roundTripperBuilder) build() http.RoundTripper {
+	var transport *http.Transport
+	if b.pooled {
+		transport = cleanhttp.DefaultPooledTransport()
+	} else {
+		transport = cleanhttp.DefaultTransport()
+	}
+	transport.TLSClientConfig = b.tlsConfig
+	return transport
 }
