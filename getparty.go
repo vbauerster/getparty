@@ -395,10 +395,7 @@ func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(b
 }
 
 func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
-	var config *tls.Config
-	if cmd.options.Https.InsecureSkipVerify {
-		config = &tls.Config{InsecureSkipVerify: true}
-	} else if cmd.options.Https.CertsFileName != "" {
+	if cmd.options.Https.CertsFileName != "" {
 		buf, err := os.ReadFile(cmd.options.Https.CertsFileName)
 		if err != nil {
 			return nil, err
@@ -410,9 +407,15 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 		if ok := pool.AppendCertsFromPEM(buf); !ok {
 			return nil, errors.Errorf("bad cert file %q", cmd.options.Https.CertsFileName)
 		}
-		config = &tls.Config{RootCAs: pool}
+		return &tls.Config{
+			InsecureSkipVerify: cmd.options.Https.InsecureSkipVerify,
+			RootCAs:            pool,
+		}, nil
 	}
-	return config, nil
+	if cmd.options.Https.InsecureSkipVerify {
+		return &tls.Config{InsecureSkipVerify: true}, nil
+	}
+	return nil, nil
 }
 
 func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session, error) {
