@@ -225,7 +225,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	client := &http.Client{
-		Transport: rtBuilder.pool(cmd.options.Parts != 0).build(),
+		Transport: rtBuilder.pool(cmd.options.Parts > 1).build(),
 		Jar:       jar,
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
 			max := int(cmd.options.MaxRedirect)
