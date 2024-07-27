@@ -330,6 +330,7 @@ func (p *Part) download(
 
 			if p.isDone() {
 				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					bar.Wait()
 					return false, fpart.Sync()
 				}
 				return false, errors.Wrap(err, "Expected one of EOF")
@@ -339,7 +340,10 @@ func (p *Part) download(
 				// err is never nil here
 				return true, err
 			}
+
 			p.logger.Println("Stopping: session must be not resumable:", err.Error())
+			bar.EnableTriggerComplete()
+			bar.Wait()
 			return false, nil
 		})
 }
