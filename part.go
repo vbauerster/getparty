@@ -309,8 +309,8 @@ func (p *Part) download(
 					sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
 					totalSleep += sleep
 				}
-				n, werr := fpart.Write(buf[:n])
-				p.Written += int64(n)
+				wn, werr := fpart.Write(buf[:n])
+				p.Written += int64(wn)
 				if werr != nil {
 					sleepCancel()
 					return false, errors.Wrapf(werr, "Write error to %q", fpart.Name())
@@ -318,9 +318,9 @@ func (p *Part) download(
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
 				} else {
-					p.incrTotalBar(n)
+					p.incrTotalBar(wn)
 				}
-				bar.EwmaIncrBy(n, dur)
+				bar.EwmaIncrBy(wn, dur)
 				<-sleepCtx.Done()
 			}
 
