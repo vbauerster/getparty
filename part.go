@@ -327,7 +327,10 @@ func (p *Part) download(
 			}
 
 			if p.isDone() {
-				return false, fpart.Sync()
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					return false, fpart.Sync()
+				}
+				return false, errors.Wrap(err, "Expected one of EOF")
 			}
 			// err is never nil here
 			return true, err
