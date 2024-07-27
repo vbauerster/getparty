@@ -228,7 +228,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		Transport: rtBuilder.pool(cmd.options.Parts != 0).build(),
 		Jar:       jar,
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-			if len(via) >= int(cmd.options.MaxRedirect) {
+			max := int(cmd.options.MaxRedirect)
+			if max != 0 && len(via) > max {
 				return errors.WithMessage(ErrMaxRedirect, "Stopping")
 			}
 			return http.ErrUseLastResponse
