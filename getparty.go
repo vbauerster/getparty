@@ -92,7 +92,7 @@ type Options struct {
 	HeaderMap          map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
 	InsecureSkipVerify bool              `long:"no-check-cert" description:"don't validate the server's certificate"`
 	CertsFileName      string            `short:"c" long:"certs-file" value-name:"certs.crt" description:"root certificates to use when verifying server certificates"`
-	Debug              bool              `long:"debug" description:"enable debug to stderr"`
+	Debug              bool              `short:"d" long:"debug" description:"enable debug to stderr"`
 	Version            bool              `short:"v" long:"version" description:"show version"`
 	BestMirror         struct {
 		Mirrors string `short:"m" long:"list" value-name:"FILE|-" description:"mirror list input"`
