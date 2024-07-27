@@ -56,6 +56,7 @@ func (s *Session) calcParts(parts uint) error {
 		}
 	}
 
+	// if session isn't resumable stop is always negative
 	s.Parts[0].Stop = start - 1
 
 	return nil
