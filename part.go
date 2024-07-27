@@ -19,9 +19,7 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
-const (
-	bufSize = 4096
-)
+const bufLen = 4096
 
 var globTry uint32
 
@@ -142,7 +140,7 @@ func (p *Part) download(
 			defer func() {
 				p.logger.Printf("Retry: %t, Error: %v", retry, err)
 				if n := p.Written - pWritten; n != 0 { // if some bytes were written
-					if n >= bufSize {
+					if n >= bufLen {
 						reset()
 						timeout = resetTimeout
 					}
@@ -296,13 +294,13 @@ func (p *Part) download(
 				return false, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 			}
 
-			buf := make([]byte, bufSize)
+			var buf [bufLen]byte
 			sleepCtx, sleepCancel := context.WithCancel(context.Background())
 			sleepCancel()
 			for n := 0; err == nil; sleepCancel() {
 				timer.Reset(timeout)
 				start := time.Now()
-				n, err = io.ReadFull(resp.Body, buf)
+				n, err = io.ReadFull(resp.Body, buf[:])
 				dur := time.Since(start) + sleep
 				if timer.Stop() && sleep != 0 {
 					sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
