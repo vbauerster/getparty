@@ -43,7 +43,7 @@ Application Options:
   -l, --speed-limit=n                                       speed limit gauge, value from 1 to 10 inclusive
   -o, --output=FILE                                         output file name
   -s, --session=FILE                                        session state of incomplete download, file with json extension
-  -u, --user-agent=[chrome|firefox|safari|edge|getparty]    User-Agent header (default: chrome)
+  -U, --user-agent=[chrome|firefox|safari|edge|getparty]    User-Agent header (default: chrome)
       --username=                                           basic http auth username
       --password=                                           basic http auth password
   -H, --header=key:value                                    http header, can be specified more than once

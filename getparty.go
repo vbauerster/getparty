@@ -84,7 +84,7 @@ type Options struct {
 	SpeedLimit     uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
 	OutputName     string            `short:"o" long:"output" value-name:"FILE" description:"output file name"`
 	SessionName    string            `short:"s" long:"session" value-name:"FILE" description:"session state of incomplete download, file with json extension"`
-	UserAgent      string            `short:"u" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
+	UserAgent      string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
 	AuthUser       string            `long:"username" description:"basic http auth username"`
 	AuthPass       string            `long:"password" description:"basic http auth password"`
 	HeaderMap      map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
