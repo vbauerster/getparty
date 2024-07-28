@@ -180,8 +180,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		if cmd.options.AuthPass == "" {
 			fmt.Fprint(cmd.Out, "Enter password: ")
 			pass, err := term.ReadPassword(0)
-			if firstErr(err, cmd.Ctx.Err()) != nil {
+			if err != nil {
 				return err
+			}
+			if cmd.Ctx.Err() != nil && context.Cause(cmd.Ctx) == ErrCanceledByUser {
+				return ErrCanceledByUser
 			}
 			cmd.options.AuthPass = string(pass)
 			fmt.Fprintln(cmd.Out)
