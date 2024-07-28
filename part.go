@@ -297,7 +297,7 @@ func (p *Part) download(
 			sleepCtx, sleepCancel := context.WithCancel(context.Background())
 			sleepCancel()
 			for n := bufLen; n == bufLen || err == io.ErrUnexpectedEOF; sleepCancel() {
-				timer.Reset(timeout)
+				timer.Reset(timeout) // because client.Do has taken some time
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buf[:])
 				dur := time.Since(start) + sleep
