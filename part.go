@@ -174,7 +174,7 @@ func (p *Part) download(
 				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
 			}()
 
-			p.logger.Println("GET:", req.URL)
+			p.logger.Printf("GET(%s): %s", timeout, req.URL)
 
 			req.Header.Set(hRange, p.getRange())
 			for k, v := range req.Header {
