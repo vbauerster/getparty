@@ -175,6 +175,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return nil
 	}
 
+	cmd.initLoggers()
+
 	var userinfo *url.Userinfo
 	if cmd.options.AuthUser != "" {
 		if cmd.options.AuthPass == "" {
@@ -199,9 +201,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	rtBuilder := newRoundTripperBuilder(tlsConfig)
-
-	cmd.Out = cmd.getOut()
-	cmd.initLoggers()
 
 	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
 	cmd.patcher = makeReqPatcher(userinfo, cmd.options.HeaderMap)
@@ -253,7 +252,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	single := len(session.Parts) == 1
 	progress := mpb.NewWithContext(cmd.Ctx,
 		mpb.WithDebugOutput(cmd.getErr()),
-		mpb.WithOutput(cmd.Out),
+		mpb.WithOutput(cmd.getOut()),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
@@ -362,7 +361,7 @@ func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(b
 		log := func() {}
 		defer func() {
 			progress.Wait()
-			fmt.Fprintln(cmd.Out)
+			fmt.Fprintln(cmd.getOut())
 			log()
 		}()
 		total := session.totalWritten()
