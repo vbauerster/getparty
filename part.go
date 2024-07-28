@@ -313,7 +313,7 @@ func (p *Part) download(
 				}
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
-				} else {
+				} else if wn != 0 {
 					p.incrTotalBar(wn)
 				}
 				bar.EwmaIncrBy(wn, dur)
