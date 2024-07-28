@@ -263,13 +263,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
-	var httpStatus200 bool
 	stateHandler := cmd.makeStateHandler(session, progress)
-	defer func() {
-		if !httpStatus200 {
-			stateHandler(false)
-		}
-	}()
+	defer stateHandler(false)
 
 	var eg errgroup.Group
 	var recoverHandler sync.Once
@@ -326,6 +321,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
+	var httpStatus200 bool
 	select {
 	case id := <-statusOK.first:
 		delete(cancelMap, id)
