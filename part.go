@@ -135,22 +135,28 @@ func (p *Part) download(
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
 			atomic.StoreUint32(&curTry, uint32(attempt))
+			ctx, cancel := context.WithCancel(p.ctx)
+			timer := time.AfterFunc(timeout, func() {
+				cancel()
+				msg := "Timeout..."
+				select {
+				case msgCh <- fmt.Sprintf("%s %s", p.name, msg):
+					p.logger.Println(msg, "msg sent")
+				case <-msgCh:
+					p.logger.Println(msg, "msg dropped")
+				}
+			})
 			var totalSleep time.Duration
 			pWritten := p.Written
 			start := time.Now()
 			defer func() {
+				p.Elapsed += time.Since(start) - totalSleep
+				stopOk := timer.Stop()
+				cancel()
+				p.logger.Println("Written:", p.Written-pWritten)
+				p.logger.Println("Slept:", totalSleep)
+				p.logger.Println("Elapsed (without sleep):", p.Elapsed)
 				p.logger.Printf("Retry: %t, Error: %v", retry, err)
-				if n := p.Written - pWritten; n != 0 { // if some bytes were written
-					if n >= bufLen {
-						reset()
-						timeout = resetTimeout
-					}
-					p.Elapsed += time.Since(start) - totalSleep
-					p.logger.Println("Written:", n)
-					p.logger.Println("Total sleep:", totalSleep)
-				} else if timeout < maxTimeout*time.Second {
-					timeout += 5 * time.Second
-				}
 				if !retry || err == nil || context.Cause(p.ctx) == ErrCanceledByUser {
 					return
 				}
@@ -170,6 +176,12 @@ func (p *Part) download(
 					}
 					return
 				}
+				if stopOk {
+					reset()
+					timeout = resetTimeout
+				} else if timeout < maxTimeout*time.Second {
+					timeout += 5 * time.Second
+				}
 				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
 			}()
@@ -180,22 +192,6 @@ func (p *Part) download(
 			for k, v := range req.Header {
 				p.logger.Printf("Request Header: %s: %v", k, v)
 			}
-
-			ctx, cancel := context.WithCancel(p.ctx)
-			timer := time.AfterFunc(timeout, func() {
-				cancel()
-				msg := "Timeout..."
-				select {
-				case msgCh <- fmt.Sprintf("%s %s", p.name, msg):
-					p.logger.Println(msg, "msg sent")
-				case <-msgCh:
-					p.logger.Println(msg, "msg dropped")
-				}
-			})
-			defer func() {
-				timer.Stop()
-				cancel()
-			}()
 
 			trace := &httptrace.ClientTrace{
 				GotConn: func(connInfo httptrace.GotConnInfo) {
