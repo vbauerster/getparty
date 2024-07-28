@@ -287,7 +287,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	rtBuilder = nil
 
 	for i, p := range session.Parts {
-		if p.isDone() {
+		if p.Written != 0 && p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
 			continue
 		}

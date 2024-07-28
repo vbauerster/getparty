@@ -79,7 +79,7 @@ func (s *Session) dumpState(name string) error {
 }
 
 func (s Session) isResumable() bool {
-	return strings.EqualFold(s.AcceptRanges, "bytes") && s.ContentLength > 0
+	return strings.EqualFold(s.AcceptRanges, "bytes") && s.ContentLength >= 0
 }
 
 func (s Session) totalWritten() int64 {
