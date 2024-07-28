@@ -296,7 +296,7 @@ func (p *Part) download(
 			var buf [bufLen]byte
 			sleepCtx, sleepCancel := context.WithCancel(context.Background())
 			sleepCancel()
-			for n := bufLen; n == bufLen; sleepCancel() {
+			for n := bufLen; n == bufLen || err == io.ErrUnexpectedEOF; sleepCancel() {
 				timer.Reset(timeout)
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buf[:])
@@ -320,17 +320,17 @@ func (p *Part) download(
 				<-sleepCtx.Done()
 			}
 
-			if p.total() <= 0 && err == io.EOF || err == io.ErrUnexpectedEOF {
+			if p.total() <= 0 && err == io.EOF {
 				p.Stop = p.Written - 1 // so p.isDone() retruns true
 				bar.EnableTriggerComplete()
 			}
 
 			if p.isDone() {
-				if err == io.EOF || err == io.ErrUnexpectedEOF {
+				if err == io.EOF {
 					bar.Wait()
 					return false, fpart.Sync()
 				}
-				return false, errors.Wrap(err, "Expected one of EOF")
+				return false, errors.Wrap(err, "Expected EOF")
 			}
 
 			// err is never nil here
