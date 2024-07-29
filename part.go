@@ -150,7 +150,7 @@ func (p *Part) download(
 			pWritten := p.Written
 			start := time.Now()
 			defer func() {
-				p.Elapsed += time.Since(start) - totalSleep
+				p.Elapsed += time.Since(start)
 				timer.Stop()
 				cancel()
 				p.logger.Println("Written:", p.Written-pWritten)
