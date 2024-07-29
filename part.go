@@ -297,7 +297,7 @@ func (p *Part) download(
 			for n := bufLen; n == bufLen || err == io.ErrUnexpectedEOF; sleepCancel() {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buf[:])
-				dur := time.Since(start) + sleep
+				rDur := time.Since(start)
 
 				if timer.Reset(timeout + sleep) {
 					// put off f passed to time.AfterFunc to be called for the next reset durration
@@ -327,7 +327,7 @@ func (p *Part) download(
 				} else if wn != 0 {
 					p.incrTotalBar(wn)
 				}
-				bar.EwmaIncrBy(wn, dur)
+				bar.EwmaIncrBy(wn, rDur+sleep)
 				<-sleepCtx.Done()
 			}
 
