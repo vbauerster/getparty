@@ -300,7 +300,7 @@ func (p *Part) download(
 				rDur := time.Since(start)
 
 				if timer.Reset(timeout + sleep) {
-					// put off f passed to time.AfterFunc to be called for the next reset durration
+					// put off f passed to time.AfterFunc to be called for the next reset duration
 					if sleep != 0 {
 						sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
 						totalSleep += sleep
@@ -311,7 +311,7 @@ func (p *Part) download(
 					}
 				} else if timeout < maxTimeout*time.Second {
 					// timer has expired and f passed to time.AfterFunc has been started in its own goroutine
-					// deffered timer.Stop will cancel former timer.Reset which scheduled f to run again
+					// deferred timer.Stop will cancel former timer.Reset which scheduled f to run again
 					// we're going to quit loop because n != bufLen most likely
 					timeout += 5 * time.Second
 				}
