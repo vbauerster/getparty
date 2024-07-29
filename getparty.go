@@ -323,7 +323,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
-	var httpStatus200 bool
 	select {
 	case id := <-statusOK.first:
 		delete(cancelMap, id)
@@ -331,7 +330,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			cancel()
 		}
 		cancelTotalBar(true)
-		httpStatus200 = true
+		single = true
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
 	case <-statusOK.ctx.Done():
 	}
@@ -342,7 +341,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	if !single && !httpStatus200 {
+	if !single {
 		err = session.concatenateParts(progress)
 		if err != nil {
 			return err
