@@ -107,9 +107,12 @@ func (p *Part) download(
 	maxTry uint,
 ) (err error) {
 	var fpart *os.File
+	var totalSlept time.Duration
 	prefixTemplate := fmt.Sprintf("[%s:R%%02d] ", p.name)
 	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
 	defer func() {
+		p.logger.Println("Total Elapsed:", p.Elapsed)
+		p.logger.Println("Total Slept:", totalSlept)
 		if fpart != nil {
 			p.logger.Printf("Closing: %q", fpart.Name())
 			err = firstErr(err, fpart.Close())
@@ -146,17 +149,18 @@ func (p *Part) download(
 					p.logger.Println(msg, "msg dropped")
 				}
 			})
-			var totalSleep time.Duration
+			var slept time.Duration
 			pWritten := p.Written
 			start := time.Now()
 			defer func() {
-				p.Elapsed += time.Since(start)
+				elapsed := time.Since(start)
 				timer.Stop()
 				cancel()
+				p.Elapsed += elapsed
+				totalSlept += slept
 				p.logger.Println("Written:", p.Written-pWritten)
-				p.logger.Println("Slept:", totalSleep)
-				p.logger.Println("Elapsed (without sleep):", p.Elapsed)
-				p.logger.Printf("Retry: %t, Error: %v", retry, err)
+				p.logger.Println("Elapsed:", elapsed)
+				p.logger.Println("Slept:", slept)
 				if !retry || err == nil || context.Cause(p.ctx) == ErrCanceledByUser {
 					return
 				}
@@ -176,6 +180,7 @@ func (p *Part) download(
 					}
 					return
 				}
+				p.logger.Println("Retry reason:", err.Error())
 				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
 			}()
@@ -303,7 +308,7 @@ func (p *Part) download(
 					// put off f passed to time.AfterFunc to be called for the next reset duration
 					if sleep != 0 {
 						sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
-						totalSleep += sleep
+						slept += sleep
 					}
 					if timeout != resetTimeout {
 						reset()
@@ -410,3 +415,10 @@ func (p Part) writeTo(dst *os.File) (err error) {
 	p.logger.Printf("%d bytes copied: src=%q dst=%q", n, src.Name(), dst.Name())
 	return err
 }
+
+// func quoteOrNil(err error) string {
+// 	if err != nil {
+// 		return fmt.Sprintf("Error=%q", err.Error())
+// 	}
+// 	return "Error=<nil>"
+// }
