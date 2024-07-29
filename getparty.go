@@ -81,7 +81,7 @@ type Options struct {
 	MaxRetry       uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retries per each part, 0 for infinite"`
 	MaxRedirect    uint              `long:"max-redirect" value-name:"n" default:"10" description:"max redirections allowed, 0 for infinite"`
 	Timeout        uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
-	SpeedLimit     uint              `short:"l" long:"speed-limit" value-name:"n" description:"speed limit gauge, value from 1 to 10 inclusive"`
+	SpeedLimit     uint              `short:"l" long:"speed-limit" choice:"1" choice:"2" choice:"3" choice:"4" choice:"5" description:"speed limit gauge"`
 	OutputName     string            `short:"o" long:"output" value-name:"FILE" description:"output file name"`
 	SessionName    string            `short:"s" long:"session" value-name:"FILE" description:"session state of incomplete download, file with json extension"`
 	UserAgent      string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
@@ -271,7 +271,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var eg errgroup.Group
 	var recoverHandler sync.Once
 	timeout := cmd.getTimeout()
-	sleep := cmd.getSleep()
+	sleep := time.Duration(cmd.options.SpeedLimit*60) * time.Millisecond
 
 	statusOK := new(http200Context)
 	statusOK.first = make(chan int)
@@ -678,15 +678,6 @@ func (cmd Cmd) getTimeout() time.Duration {
 		return 15 * time.Second
 	}
 	return time.Duration(cmd.options.Timeout) * time.Second
-}
-
-func (cmd Cmd) getSleep() time.Duration {
-	switch l := cmd.options.SpeedLimit; l {
-	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10:
-		return time.Duration(l*50) * time.Millisecond
-	default:
-		return 0
-	}
 }
 
 func (cmd Cmd) getOut() io.Writer {

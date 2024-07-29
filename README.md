@@ -40,7 +40,7 @@ Application Options:
   -r, --max-retry=n                                         max retries per each part, 0 for infinite (default: 10)
       --max-redirect=n                                      max redirections allowed, 0 for infinite (default: 10)
   -t, --timeout=sec                                         context timeout (default: 15)
-  -l, --speed-limit=n                                       speed limit gauge, value from 1 to 10 inclusive
+  -l, --speed-limit=[1|2|3|4|5]                             speed limit gauge
   -o, --output=FILE                                         output file name
   -s, --session=FILE                                        session state of incomplete download, file with json extension
   -U, --user-agent=[chrome|firefox|safari|edge|getparty]    User-Agent header (default: chrome)
