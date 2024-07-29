@@ -151,7 +151,7 @@ func (p *Part) download(
 			start := time.Now()
 			defer func() {
 				p.Elapsed += time.Since(start) - totalSleep
-				stopOk := timer.Stop()
+				timer.Stop()
 				cancel()
 				p.logger.Println("Written:", p.Written-pWritten)
 				p.logger.Println("Slept:", totalSleep)
@@ -176,12 +176,6 @@ func (p *Part) download(
 					}
 					return
 				}
-				if stopOk {
-					reset()
-					timeout = resetTimeout
-				} else if timeout < maxTimeout*time.Second {
-					timeout += 5 * time.Second
-				}
 				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
 			}()
@@ -201,6 +195,10 @@ func (p *Part) download(
 
 			resp, err := p.client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 			if err != nil {
+				if !timer.Stop() && timeout < maxTimeout*time.Second {
+					// timer has expired and f passed to time.AfterFunc has been started in its own goroutine
+					timeout += 5 * time.Second
+				}
 				return true, err
 			}
 			defer func() {
@@ -297,14 +295,27 @@ func (p *Part) download(
 			sleepCtx, sleepCancel := context.WithCancel(context.Background())
 			sleepCancel()
 			for n := bufLen; n == bufLen || err == io.ErrUnexpectedEOF; sleepCancel() {
-				timer.Reset(timeout) // because client.Do has taken some time
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buf[:])
 				dur := time.Since(start) + sleep
-				if timer.Stop() && sleep != 0 {
-					sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
-					totalSleep += sleep
+
+				if timer.Reset(timeout + sleep) {
+					// put off f passed to time.AfterFunc to be called for the next reset durration
+					if sleep != 0 {
+						sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
+						totalSleep += sleep
+					}
+					if timeout != resetTimeout {
+						reset()
+						timeout = resetTimeout
+					}
+				} else if timeout < maxTimeout*time.Second {
+					// timer has expired and f passed to time.AfterFunc has been started in its own goroutine
+					// deffered timer.Stop will cancel former timer.Reset which scheduled f to run again
+					// we're going to quit loop because n != bufLen most likely
+					timeout += 5 * time.Second
 				}
+
 				wn, werr := fpart.Write(buf[:n])
 				p.Written += int64(wn)
 				if werr != nil {
