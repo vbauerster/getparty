@@ -59,11 +59,11 @@ func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 	var top []string
 	var input io.Reader
 	var fdClose func() error
-	if cmd.options.BestMirror.Mirrors == "-" {
+	if cmd.opt.BestMirror.Mirrors == "-" {
 		input = os.Stdin
 		fdClose = func() error { return nil }
 	} else {
-		fd, err := os.Open(cmd.options.BestMirror.Mirrors)
+		fd, err := os.Open(cmd.opt.BestMirror.Mirrors)
 		if err != nil {
 			return nil, err
 		}
@@ -71,7 +71,7 @@ func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 		fdClose = fd.Close
 	}
 	pq := cmd.batchMirrors(input, transport)
-	topn := int(cmd.options.BestMirror.TopN)
+	topn := int(cmd.opt.BestMirror.TopN)
 	for i := 0; i < topn && pq.Len() != 0; i++ {
 		m := heap.Pop(&pq).(*mirror)
 		top = append(top, m.url)
@@ -81,7 +81,7 @@ func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 }
 
 func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) mirrorPQ {
-	max := int(cmd.options.BestMirror.MaxGo)
+	max := int(cmd.opt.BestMirror.MaxGo)
 	if max == 0 {
 		max = runtime.NumCPU()
 	}

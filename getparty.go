@@ -110,7 +110,7 @@ type Cmd struct {
 	Ctx     context.Context
 	Out     io.Writer
 	Err     io.Writer
-	options *Options
+	opt     *Options
 	parser  *flags.Parser
 	patcher func(*http.Request)
 	loggers [LEVELS]*log.Logger
@@ -160,8 +160,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	cmd.options = new(Options)
-	cmd.parser = flags.NewParser(cmd.options, flags.Default)
+	cmd.opt = new(Options)
+	cmd.parser = flags.NewParser(cmd.opt, flags.Default)
 	_, err = cmd.parser.ParseArgs(args)
 	if err != nil {
 		return err
@@ -169,7 +169,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	userAgents[cmdName] = fmt.Sprintf("%s/%s", cmdName, version)
 
-	if cmd.options.Version {
+	if cmd.opt.Version {
 		fmt.Fprintf(cmd.Out, "%s (%.7s) (%s)\n", userAgents[cmdName], commit, runtime.Version())
 		fmt.Fprintf(cmd.Out, "Project home: %s\n", projectHome)
 		return nil
@@ -178,8 +178,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.initLoggers()
 
 	var userinfo *url.Userinfo
-	if cmd.options.AuthUser != "" {
-		if cmd.options.AuthPass == "" {
+	if cmd.opt.AuthUser != "" {
+		if cmd.opt.AuthPass == "" {
 			fmt.Fprint(cmd.Out, "Enter password: ")
 			pass, err := term.ReadPassword(0)
 			if err != nil {
@@ -188,12 +188,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			if cmd.Ctx.Err() != nil && context.Cause(cmd.Ctx) == ErrCanceledByUser {
 				return ErrCanceledByUser
 			}
-			cmd.options.AuthPass = string(pass)
+			cmd.opt.AuthPass = string(pass)
 			fmt.Fprintln(cmd.Out)
 		}
-		userinfo = url.UserPassword(cmd.options.AuthUser, cmd.options.AuthPass)
-		cmd.options.AuthUser = ""
-		cmd.options.AuthPass = ""
+		userinfo = url.UserPassword(cmd.opt.AuthUser, cmd.opt.AuthPass)
+		cmd.opt.AuthUser = ""
+		cmd.opt.AuthPass = ""
 	}
 
 	tlsConfig, err := cmd.getTLSConfig()
@@ -202,22 +202,22 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	rtBuilder := newRoundTripperBuilder(tlsConfig)
 
-	cmd.options.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
-	cmd.patcher = makeReqPatcher(userinfo, cmd.options.HeaderMap)
+	cmd.opt.HeaderMap[hUserAgentKey] = userAgents[cmd.opt.UserAgent]
+	cmd.patcher = makeReqPatcher(userinfo, cmd.opt.HeaderMap)
 
-	if cmd.options.BestMirror.Mirrors != "" {
+	if cmd.opt.BestMirror.Mirrors != "" {
 		top, err := cmd.bestMirror(rtBuilder.pool(false).build())
 		if err != nil {
 			return err
 		}
 		if len(top) == 1 {
-			cmd.options.Positional.Location = top[0]
+			cmd.opt.Positional.Location = top[0]
 		} else {
 			return nil
 		}
 	}
 
-	if cmd.options.Positional.Location == "" && cmd.options.SessionName == "" {
+	if cmd.opt.Positional.Location == "" && cmd.opt.SessionName == "" {
 		return new(flags.Error)
 	}
 
@@ -227,10 +227,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	client := &http.Client{
-		Transport: rtBuilder.pool(cmd.options.Parts > 1).build(),
+		Transport: rtBuilder.pool(cmd.opt.Parts > 1).build(),
 		Jar:       jar,
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-			max := int(cmd.options.MaxRedirect)
+			max := int(cmd.opt.MaxRedirect)
 			if max != 0 && len(via) > max {
 				return errors.WithMessage(ErrMaxRedirect, "Stopping")
 			}
@@ -242,7 +242,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	session.summary(cmd.loggers)
-	if cmd.options.Parts == 0 {
+	if cmd.opt.Parts == 0 {
 		return nil
 	}
 
@@ -260,7 +260,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		&doneCount,
 		session,
 		progress,
-		single || cmd.options.Quiet,
+		single || cmd.opt.Quiet,
 	)
 	if err != nil {
 		return err
@@ -271,7 +271,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var eg errgroup.Group
 	var recoverHandler sync.Once
 	timeout := cmd.getTimeout()
-	sleep := time.Duration(cmd.options.SpeedLimit*60) * time.Millisecond
+	sleep := time.Duration(cmd.opt.SpeedLimit*60) * time.Millisecond
 
 	statusOK := new(http200Context)
 	statusOK.first = make(chan int)
@@ -318,7 +318,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 				cancel()
 			}()
-			maxTry := cmd.options.MaxRetry
+			maxTry := cmd.opt.MaxRetry
 			return p.download(session.location, session.OutputName, timeout, sleep, maxTry)
 		})
 	}
@@ -347,8 +347,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			return err
 		}
 	}
-	if cmd.options.SessionName != "" {
-		return os.Remove(cmd.options.SessionName)
+	if cmd.opt.SessionName != "" {
+		return os.Remove(cmd.opt.SessionName)
 	}
 	return nil
 }
@@ -393,8 +393,8 @@ func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(b
 }
 
 func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
-	if cmd.options.Https.CertsFileName != "" {
-		buf, err := os.ReadFile(cmd.options.Https.CertsFileName)
+	if cmd.opt.Https.CertsFileName != "" {
+		buf, err := os.ReadFile(cmd.opt.Https.CertsFileName)
 		if err != nil {
 			return nil, err
 		}
@@ -403,14 +403,14 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 			return nil, err
 		}
 		if ok := pool.AppendCertsFromPEM(buf); !ok {
-			return nil, errors.Errorf("bad cert file %q", cmd.options.Https.CertsFileName)
+			return nil, errors.Errorf("bad cert file %q", cmd.opt.Https.CertsFileName)
 		}
 		return &tls.Config{
-			InsecureSkipVerify: cmd.options.Https.InsecureSkipVerify,
+			InsecureSkipVerify: cmd.opt.Https.InsecureSkipVerify,
 			RootCAs:            pool,
 		}, nil
 	}
-	if cmd.options.Https.InsecureSkipVerify {
+	if cmd.opt.Https.InsecureSkipVerify {
 		return &tls.Config{InsecureSkipVerify: true}, nil
 	}
 	return nil, nil
@@ -435,9 +435,9 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 	var scratch, restored *Session
 	for {
 		switch {
-		case cmd.options.SessionName != "":
+		case cmd.opt.SessionName != "":
 			restored = new(Session)
-			err := restored.loadState(cmd.options.SessionName)
+			err := restored.loadState(cmd.opt.SessionName)
 			if err != nil {
 				return nil, err
 			}
@@ -449,8 +449,8 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 			if err != nil {
 				return nil, err
 			}
-			if restored.HeaderMap[hUserAgentKey] != userAgents[cmd.options.UserAgent] {
-				restored.HeaderMap[hUserAgentKey] = userAgents[cmd.options.UserAgent]
+			if restored.HeaderMap[hUserAgentKey] != userAgents[cmd.opt.UserAgent] {
+				restored.HeaderMap[hUserAgentKey] = userAgents[cmd.opt.UserAgent]
 			}
 			switch {
 			case scratch == nil && restored.Redirected:
@@ -469,21 +469,21 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 			default:
 				restored.location = restored.URL
 			}
-			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.options.SessionName)
+			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.opt.SessionName)
 			return restored, nil
-		case cmd.options.Positional.Location != "":
-			err := setCookies(client.Jar, cmd.options.HeaderMap, cmd.options.Positional.Location)
+		case cmd.opt.Positional.Location != "":
+			err := setCookies(client.Jar, cmd.opt.HeaderMap, cmd.opt.Positional.Location)
 			if err != nil {
 				return nil, err
 			}
-			scratch, err = cmd.follow(client, cmd.options.Positional.Location)
+			scratch, err = cmd.follow(client, cmd.opt.Positional.Location)
 			if err != nil {
 				return nil, err
 			}
 			state := scratch.OutputName + ".json"
 			if _, err := os.Stat(state); err != nil {
 				if errors.Is(err, os.ErrNotExist) {
-					if cmd.options.Parts == 0 {
+					if cmd.opt.Parts == 0 {
 						return scratch, nil
 					}
 					exist, err := scratch.isOutputFileExist()
@@ -496,17 +496,17 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 							return nil, err
 						}
 					}
-					err = scratch.calcParts(cmd.options.Parts)
+					err = scratch.calcParts(cmd.opt.Parts)
 					if err != nil {
 						return nil, err
 					}
-					scratch.HeaderMap = cmd.options.HeaderMap
+					scratch.HeaderMap = cmd.opt.HeaderMap
 					return scratch, nil
 				}
 				return nil, err
 			}
 			cmd.loggers[DEBUG].Printf("Reusing existing state: %q", state)
-			cmd.options.SessionName = state
+			cmd.opt.SessionName = state
 		}
 	}
 }
@@ -558,7 +558,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 				if err != nil {
 					cmd.loggers[WARN].Println(unwrapOrErr(err).Error())
 					cmd.loggers[DEBUG].Println(err.Error())
-					if attempt != 0 && attempt == cmd.options.MaxRetry {
+					if attempt != 0 && attempt == cmd.opt.MaxRetry {
 						return false, errors.WithMessage(ErrMaxRetry, "Stopping")
 					}
 					return !errors.Is(err, ErrMaxRedirect), err
@@ -594,14 +594,14 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					cmd.loggers[WARN].Println("HTTP response:", resp.Status)
 					err := errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 					if isServerError(resp.StatusCode) { // server error may be temporary
-						return attempt != cmd.options.MaxRetry, err
+						return attempt != cmd.opt.MaxRetry, err
 					}
 					return false, err
 				}
 
 				cmd.loggers[INFO].Println("HTTP response:", resp.Status)
 
-				name := cmd.options.OutputName
+				name := cmd.opt.OutputName
 				for i := 0; name == ""; i++ {
 					switch i {
 					case 0:
@@ -653,7 +653,7 @@ func (cmd Cmd) initTotalBar(
 }
 
 func (cmd Cmd) overwriteIfConfirmed(name string) error {
-	if cmd.options.ForceOverwrite {
+	if cmd.opt.ForceOverwrite {
 		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
 		return os.Remove(name)
 	}
@@ -674,21 +674,21 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 }
 
 func (cmd Cmd) getTimeout() time.Duration {
-	if cmd.options.Timeout == 0 {
+	if cmd.opt.Timeout == 0 {
 		return 15 * time.Second
 	}
-	return time.Duration(cmd.options.Timeout) * time.Second
+	return time.Duration(cmd.opt.Timeout) * time.Second
 }
 
 func (cmd Cmd) getOut() io.Writer {
-	if cmd.options.Quiet {
+	if cmd.opt.Quiet {
 		return io.Discard
 	}
 	return cmd.Out
 }
 
 func (cmd Cmd) getErr() io.Writer {
-	if cmd.options.Debug {
+	if cmd.opt.Debug {
 		return cmd.Err
 	}
 	return io.Discard
