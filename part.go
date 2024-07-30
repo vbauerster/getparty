@@ -137,7 +137,6 @@ func (p *Part) download(
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
-			atomic.StoreUint32(&curTry, uint32(attempt))
 			ctx, cancel := context.WithCancel(p.ctx)
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
@@ -183,6 +182,7 @@ func (p *Part) download(
 				p.logger.Println("Retry reason:", err.Error())
 				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
+				atomic.StoreUint32(&curTry, uint32(attempt+1))
 			}()
 
 			p.logger.Printf("GET(%s): %s", timeout, req.URL)
