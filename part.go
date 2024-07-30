@@ -298,8 +298,8 @@ func (p *Part) download(
 			}
 
 			var buf [bufLen]byte
-			sleepCtx, sleepCancel := context.WithCancel(context.Background())
-			sleepCancel()
+			var sleepCtx context.Context
+			sleepCancel := func() {}
 			timer.Reset(timeout) // because client.Do has taken some time
 			for n := bufLen; n == bufLen || err == io.ErrUnexpectedEOF; sleepCancel() {
 				start := time.Now()
@@ -335,7 +335,9 @@ func (p *Part) download(
 					p.incrTotalBar(wn)
 				}
 				bar.EwmaIncrBy(wn, rDur+sleep)
-				<-sleepCtx.Done()
+				if sleep != 0 {
+					<-sleepCtx.Done()
+				}
 			}
 
 			if p.total() <= 0 && err == io.EOF {
