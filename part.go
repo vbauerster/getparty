@@ -415,10 +415,3 @@ func (p Part) writeTo(dst *os.File) (err error) {
 	p.logger.Printf("%d bytes copied: src=%q dst=%q", n, src.Name(), dst.Name())
 	return err
 }
-
-// func quoteOrNil(err error) string {
-// 	if err != nil {
-// 		return fmt.Sprintf("Error=%q", err.Error())
-// 	}
-// 	return "Error=<nil>"
-// }
