@@ -84,7 +84,7 @@ type options struct {
 	SpeedLimit     uint              `short:"l" long:"speed-limit" choice:"1" choice:"2" choice:"3" choice:"4" choice:"5" description:"speed limit gauge"`
 	OutputName     string            `short:"o" long:"output" value-name:"FILE" description:"output file name"`
 	SessionName    string            `short:"s" long:"session" value-name:"FILE" description:"session state of incomplete download, file with json extension"`
-	UserAgent      string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" choice:"getparty" default:"chrome" description:"User-Agent header"`
+	UserAgent      string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" description:"User-Agent header (default: getparty/ver)"`
 	AuthUser       string            `long:"username" description:"basic http auth username"`
 	AuthPass       string            `long:"password" description:"basic http auth password"`
 	HeaderMap      map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
@@ -167,10 +167,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	userAgents[cmdName] = fmt.Sprintf("%s/%s", cmdName, version)
+	userAgents[""] = fmt.Sprintf("%s/%s", cmdName, version)
 
 	if cmd.opt.Version {
-		fmt.Fprintf(cmd.Out, "%s (%.7s) (%s)\n", userAgents[cmdName], commit, runtime.Version())
+		fmt.Fprintf(cmd.Out, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
 		fmt.Fprintf(cmd.Out, "Project home: %s\n", projectHome)
 		return nil
 	}
@@ -452,9 +452,6 @@ func (cmd Cmd) getState(client *http.Client) (*Session, error) {
 			err = setCookies(client.Jar, restored.HeaderMap, restored.URL)
 			if err != nil {
 				return nil, err
-			}
-			if restored.HeaderMap[hUserAgentKey] != userAgents[cmd.opt.UserAgent] {
-				restored.HeaderMap[hUserAgentKey] = userAgents[cmd.opt.UserAgent]
 			}
 			switch {
 			case scratch == nil && restored.Redirected:
