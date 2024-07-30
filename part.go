@@ -335,7 +335,7 @@ func (p *Part) download(
 					p.incrTotalBar(wn)
 				}
 				bar.EwmaIncrBy(wn, rDur+sleep)
-				if sleep != 0 {
+				if sleepCtx != nil {
 					<-sleepCtx.Done()
 				}
 			}
