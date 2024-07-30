@@ -75,8 +75,8 @@ var (
 	}
 )
 
-// Options struct, represents cmd line options
-type Options struct {
+// options struct, represents cmd line options
+type options struct {
 	Parts          uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
 	MaxRetry       uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retries per each part, 0 for infinite"`
 	MaxRedirect    uint              `long:"max-redirect" value-name:"n" default:"10" description:"max redirections allowed, 0 for infinite"`
@@ -110,7 +110,7 @@ type Cmd struct {
 	Ctx     context.Context
 	Out     io.Writer
 	Err     io.Writer
-	opt     *Options
+	opt     *options
 	parser  *flags.Parser
 	patcher func(*http.Request)
 	loggers [LEVELS]*log.Logger
@@ -160,7 +160,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	cmd.opt = new(Options)
+	cmd.opt = new(options)
 	cmd.parser = flags.NewParser(cmd.opt, flags.Default)
 	_, err = cmd.parser.ParseArgs(args)
 	if err != nil {
