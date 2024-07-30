@@ -111,6 +111,7 @@ func (p *Part) download(
 	prefixTemplate := fmt.Sprintf("[%s:R%%02d] ", p.name)
 	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
 	defer func() {
+		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", p.Elapsed)
 		p.logger.Println("Total Slept:", totalSlept)
 		if fpart != nil {
