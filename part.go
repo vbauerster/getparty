@@ -300,6 +300,7 @@ func (p *Part) download(
 			var buf [bufLen]byte
 			sleepCtx, sleepCancel := context.WithCancel(context.Background())
 			sleepCancel()
+			timer.Reset(timeout) // because client.Do has taken some time
 			for n := bufLen; n == bufLen || err == io.ErrUnexpectedEOF; sleepCancel() {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buf[:])
