@@ -237,7 +237,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			return http.ErrUseLastResponse
 		},
 	}
-	session, err := cmd.getState(userinfo, client)
+	session, err := cmd.getState(client)
 	if err != nil {
 		return err
 	}
@@ -247,6 +247,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	cmd.loggers[INFO].Printf("Saving to: %q", session.OutputName)
+
+	if session.restored {
+		cmd.patcher = makeReqPatcher(userinfo, session.HeaderMap)
+	}
 
 	var doneCount uint32
 	single := len(session.Parts) == 1
@@ -416,7 +420,7 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 	return nil, nil
 }
 
-func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session, error) {
+func (cmd Cmd) getState(client *http.Client) (*Session, error) {
 	setCookies := func(jar http.CookieJar, headers map[string]string, location string) error {
 		cookies, err := parseCookies(headers)
 		if err != nil {
@@ -454,7 +458,6 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 			}
 			switch {
 			case scratch == nil && restored.Redirected:
-				cmd.patcher = makeReqPatcher(userinfo, restored.HeaderMap)
 				scratch, err = cmd.follow(client, restored.URL)
 				if err != nil {
 					return nil, err
@@ -469,6 +472,7 @@ func (cmd *Cmd) getState(userinfo *url.Userinfo, client *http.Client) (*Session,
 			default:
 				restored.location = restored.URL
 			}
+			restored.restored = true
 			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.opt.SessionName)
 			return restored, nil
 		case cmd.opt.Positional.Location != "":

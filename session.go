@@ -18,6 +18,7 @@ import (
 
 // Session represents download session state
 type Session struct {
+	restored      bool
 	location      string
 	URL           string
 	OutputName    string
