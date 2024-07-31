@@ -342,6 +342,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	err = eg.Wait()
 	if err != nil {
 		cancelTotalBar(false)
+		if context.Cause(cmd.Ctx) == ErrCanceledByUser {
+			return ErrCanceledByUser
+		}
 		return err
 	}
 
