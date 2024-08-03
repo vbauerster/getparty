@@ -535,10 +535,10 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 		func(attempt uint, _ func()) (retry bool, err error) {
 			ctx, cancel := context.WithTimeout(cmd.Ctx, timeout)
 			defer func() {
+				cancel()
 				if timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
 				}
-				cancel()
 			}()
 			getR := fmt.Sprintf(template, attempt)
 			for {
