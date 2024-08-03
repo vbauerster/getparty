@@ -516,15 +516,12 @@ func (cmd Cmd) getState(client *http.Client) (*Session, error) {
 }
 
 func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err error) {
-	defer func() {
-		err = errors.WithMessage(err, "follow")
-	}()
-
 	var redirected bool
 	defer func() {
 		if redirected {
 			client.CloseIdleConnections()
 		}
+		err = errors.WithMessage(err, "follow")
 	}()
 
 	location := rawURL
