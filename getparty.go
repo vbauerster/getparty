@@ -529,7 +529,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 	location := rawURL
 	timeout := cmd.getTimeout()
-	template := "GET:R%02d"
+	template := "GET:R%02d %%q"
 
 	err = backoff.RetryWithContext(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (retry bool, err error) {
@@ -542,8 +542,8 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 			}()
 			getR := fmt.Sprintf(template, attempt)
 			for {
-				cmd.loggers[INFO].Println(getR, location)
-				cmd.loggers[DEBUG].Println(getR, location)
+				cmd.loggers[INFO].Printf(getR, location)
+				cmd.loggers[DEBUG].Printf(getR, location)
 
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
