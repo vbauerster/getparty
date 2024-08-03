@@ -540,8 +540,8 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 				}
 				cancel()
 			}()
+			getR := fmt.Sprintf(template, attempt)
 			for {
-				getR := fmt.Sprintf(template, attempt)
 				cmd.loggers[INFO].Println(getR, location)
 				cmd.loggers[DEBUG].Println(getR, location)
 
