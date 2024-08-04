@@ -300,8 +300,9 @@ func (p *Part) download(
 			var buf [bufLen]byte
 			var sleepCtx context.Context
 			sleepCancel := func() {}
+			fuser := makeUnexpectedEOFFuser(p.logger)
 			timer.Reset(timeout) // because client.Do has taken some time
-			for n := bufLen; n == bufLen || err == io.ErrUnexpectedEOF; sleepCancel() {
+			for n := bufLen; n == bufLen || fuser(err); sleepCancel() {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buf[:])
 				rDur := time.Since(start)
@@ -420,4 +421,15 @@ func (p Part) writeTo(dst *os.File) (err error) {
 	n, err := io.Copy(dst, src)
 	p.logger.Printf("%d bytes copied: src=%q dst=%q", n, src.Name(), dst.Name())
 	return err
+}
+
+func makeUnexpectedEOFFuser(logger *log.Logger) func(error) bool {
+	var fuse bool
+	return func(err error) bool {
+		defer func() {
+			fuse = true
+		}()
+		logger.Printf("Fuser(%t): %v", fuse, err)
+		return err == io.ErrUnexpectedEOF && !fuse
+	}
 }
