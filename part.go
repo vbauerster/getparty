@@ -328,7 +328,7 @@ func (p *Part) download(
 				p.Written += int64(wn)
 				if werr != nil {
 					sleepCancel()
-					return false, errors.Wrapf(werr, "Write error to %q", fpart.Name())
+					return false, errors.Wrap(werr, "Write error")
 				}
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
