@@ -326,15 +326,17 @@ func (p *Part) download(
 				}
 
 				wn, werr := fpart.Write(buf[:n])
-				p.Written += int64(wn)
 				if werr != nil {
 					sleepCancel()
 					return false, errors.Wrap(werr, "Write error")
 				}
-				if p.total() <= 0 {
-					bar.SetTotal(p.Written, false)
-				} else if wn != 0 {
-					p.incrTotalBar(wn)
+				if wn != 0 {
+					p.Written += int64(wn)
+					if p.total() <= 0 {
+						bar.SetTotal(p.Written, false)
+					} else {
+						p.incrTotalBar(wn)
+					}
 				}
 				bar.EwmaIncrBy(wn, rDur+sleep)
 				if sleepCtx != nil {
