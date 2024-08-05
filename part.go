@@ -180,7 +180,6 @@ func (p *Part) download(
 					}
 					return
 				}
-				p.logger.Println("Retry reason:", err.Error())
 				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
