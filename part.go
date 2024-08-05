@@ -180,7 +180,9 @@ func (p *Part) download(
 					}
 					return
 				}
-				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), unwrapOrErr(err).Error())
+				go func(prefix string) {
+					fmt.Fprintf(p.progress, "%s%s\n", prefix, unwrapOrErr(err).Error())
+				}(p.logger.Prefix())
 				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
 			}()
