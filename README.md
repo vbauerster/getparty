@@ -16,7 +16,7 @@ $ brew tap vbauerster/getparty
 $ brew install getparty
 ```
 
-#### [Aur](https://wiki.archlinux.org/title/AUR_helpers)
+#### [AUR](https://wiki.archlinux.org/title/AUR_helpers)
 
 ```
 $ paru -S getparty
