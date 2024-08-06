@@ -427,12 +427,12 @@ func (p Part) writeTo(dst *os.File) (err error) {
 }
 
 func makeUnexpectedEOFFuser(logger *log.Logger) func(error) bool {
-	var fuse bool
+	var fused bool
 	return func(err error) bool {
 		defer func() {
-			fuse = true
+			fused = true
 		}()
-		logger.Printf("Fuser(%t): %v", fuse, err)
-		return err == io.ErrUnexpectedEOF && !fuse
+		logger.Printf("Fuser(%t): %v", fused, err)
+		return err == io.ErrUnexpectedEOF && !fused
 	}
 }
