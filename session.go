@@ -155,7 +155,7 @@ func (s Session) checkSizeOfEachPart() error {
 	return nil
 }
 
-func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
+func (s Session) concatenateParts(progress *mpb.Progress) error {
 	if tw := s.totalWritten(); tw != s.ContentLength {
 		return errors.Errorf("Written count mismatch: written=%d ContentLength=%d", tw, s.ContentLength)
 	}
@@ -182,20 +182,18 @@ func (s Session) concatenateParts(progress *mpb.Progress) (err error) {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		err = firstErr(err, dst.Close())
-	}()
 
 	for _, p := range s.Parts {
-		err = p.writeTo(dst)
+		err := p.writeTo(dst)
 		if err != nil {
 			bar.Abort(false)
+			_ = dst.Close()
 			return err
 		}
 		bar.Increment()
 	}
 
-	return nil
+	return firstErr(dst.Sync(), dst.Close())
 }
 
 func (s Session) runTotalBar(
