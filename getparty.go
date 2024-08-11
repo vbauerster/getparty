@@ -605,11 +605,10 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				cmd.loggers[INFO].Println("HTTP response:", resp.Status)
 
-				name := cmd.opt.Output.Name
-				for name == "" {
+				for cmd.opt.Output.Name == "" {
 					switch cmd.opt.Output.Method {
 					case "content-disposition":
-						name = parseContentDisposition(resp.Header.Get(hContentDisposition))
+						cmd.opt.Output.Name = parseContentDisposition(resp.Header.Get(hContentDisposition))
 						cmd.opt.Output.Method = "url-path"
 					case "url-path":
 						path := location
@@ -626,17 +625,17 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 								path = unescaped
 							}
 						}
-						name = filepath.Base(path)
+						cmd.opt.Output.Name = filepath.Base(path)
 						cmd.opt.Output.Method = ""
 					default:
-						name = "unknown"
+						cmd.opt.Output.Name = "unknown"
 					}
 				}
 
 				session = &Session{
 					location:      location,
 					URL:           rawURL,
-					OutputName:    name,
+					OutputName:    cmd.opt.Output.Name,
 					ContentMD5:    resp.Header.Get(hContentMD5),
 					AcceptRanges:  resp.Header.Get(hAcceptRanges),
 					ContentType:   resp.Header.Get(hContentType),
