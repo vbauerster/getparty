@@ -77,25 +77,28 @@ var (
 
 // options struct, represents cmd line options
 type options struct {
-	Parts          uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
-	MaxRetry       uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retries per each part, 0 for infinite"`
-	MaxRedirect    uint              `long:"max-redirect" value-name:"n" default:"10" description:"max redirections allowed, 0 for infinite"`
-	Timeout        uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
-	SpeedLimit     uint              `short:"l" long:"speed-limit" choice:"1" choice:"2" choice:"3" choice:"4" choice:"5" description:"speed limit gauge"`
-	OutputName     string            `short:"o" long:"output" value-name:"FILE" description:"output file name"`
-	SessionName    string            `short:"s" long:"session" value-name:"FILE" description:"session state of incomplete download, file with json extension"`
-	UserAgent      string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" description:"User-Agent header (default: getparty/ver)"`
-	AuthUser       string            `long:"username" description:"basic http auth username"`
-	AuthPass       string            `long:"password" description:"basic http auth password"`
-	HeaderMap      map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
-	ForceOverwrite bool              `short:"f" long:"force" description:"overwrite existing file silently"`
-	Quiet          bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
-	Debug          bool              `short:"d" long:"debug" description:"enable debug to stderr"`
-	Version        bool              `short:"v" long:"version" description:"show version"`
-	Https          struct {
+	Parts       uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
+	MaxRetry    uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retries per each part, 0 for infinite"`
+	MaxRedirect uint              `long:"max-redirect" value-name:"n" default:"10" description:"max redirections allowed, 0 for infinite"`
+	Timeout     uint              `short:"t" long:"timeout" value-name:"sec" default:"15" description:"context timeout"`
+	SpeedLimit  uint              `short:"l" long:"speed-limit" choice:"1" choice:"2" choice:"3" choice:"4" choice:"5" description:"speed limit gauge"`
+	SessionName string            `short:"s" long:"session" value-name:"FILE" description:"session state of incomplete download, file with json extension"`
+	UserAgent   string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" description:"User-Agent header (default: getparty/ver)"`
+	AuthUser    string            `long:"username" description:"basic http auth username"`
+	AuthPass    string            `long:"password" description:"basic http auth password"`
+	HeaderMap   map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
+	Quiet       bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
+	Debug       bool              `short:"d" long:"debug" description:"enable debug to stderr"`
+	Version     bool              `short:"v" long:"version" description:"show version"`
+	Https       struct {
 		CertsFileName      string `short:"c" long:"certs-file" value-name:"certs.crt" description:"root certificates to use when verifying server certificates"`
 		InsecureSkipVerify bool   `long:"no-check-cert" description:"don't verify the server's certificate chain and host name"`
 	} `group:"Https Options"`
+	Output struct {
+		Name      string `short:"o" long:"name" value-name:"FILE" description:"output file name"`
+		Overwrite bool   `short:"f" long:"overwrite" description:"overwrite existing file silently"`
+		Method    string `long:"method" choice:"content-disposition" choice:"url-path" default:"content-disposition" description:"method of name resolution if no output name is provided"`
+	} `group:"Output Options" namespace:"output"`
 	BestMirror struct {
 		Mirrors string `short:"m" long:"list" value-name:"FILE|-" description:"mirror list input"`
 		MaxGo   uint   `short:"g" long:"max" value-name:"n" description:"max concurrent http request (default: number of logical CPUs)"`
@@ -602,22 +605,32 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				cmd.loggers[INFO].Println("HTTP response:", resp.Status)
 
-				name := cmd.opt.OutputName
-				for i := 0; name == ""; i++ {
-					switch i {
-					case 0:
+				name := cmd.opt.Output.Name
+				for name == "" {
+					switch cmd.opt.Output.Method {
+					case "content-disposition":
 						name = parseContentDisposition(resp.Header.Get(hContentDisposition))
-					case 1:
-						if nURL, err := url.Parse(location); err != nil {
-							name = location
-						} else {
-							nURL.RawQuery = ""
-							name, err = url.QueryUnescape(nURL.String())
-							if err != nil {
-								name = nURL.String()
+						cmd.opt.Output.Method = "url-path"
+					case "url-path":
+						var path string
+						nURL, err := url.Parse(location)
+						switch {
+						case err == nil && nURL.Path != "":
+							path = nURL.Path
+						case err == nil && nURL.Opaque != "":
+							path = nURL.Opaque
+							fallthrough
+						default:
+							if path == "" {
+								path = location
+							}
+							unescaped, err := url.QueryUnescape(path)
+							if err == nil {
+								path = unescaped
 							}
 						}
-						name = filepath.Base(name)
+						name = filepath.Base(path)
+						cmd.opt.Output.Method = ""
 					default:
 						name = "unknown"
 					}
@@ -654,7 +667,7 @@ func (cmd Cmd) initTotalBar(
 }
 
 func (cmd Cmd) overwriteIfConfirmed(name string) error {
-	if cmd.opt.ForceOverwrite {
+	if cmd.opt.Output.Overwrite {
 		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
 		return os.Remove(name)
 	}
