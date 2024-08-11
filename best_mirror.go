@@ -130,7 +130,7 @@ func queryMirror(
 	timeout time.Duration,
 	patcher func(*http.Request),
 ) error {
-	req, err := http.NewRequest(http.MethodGet, mirror.url, nil)
+	req, err := http.NewRequest(http.MethodHead, mirror.url, nil)
 	if err != nil {
 		return err
 	}
