@@ -75,7 +75,7 @@ func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 	for i := 0; i < topn && pq.Len() != 0; i++ {
 		m := heap.Pop(&pq).(*mirror)
 		top = append(top, m.url)
-		cmd.loggers[INFO].Printf("%s: %q", m.queryDur, m.url)
+		cmd.loggers[INFO].Printf("%s: %q", m.queryDur.Truncate(time.Microsecond), m.url)
 	}
 	return top, fdClose()
 }
