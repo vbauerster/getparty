@@ -753,19 +753,26 @@ func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*htt
 	}
 }
 
-func parseContentDisposition(input string) string {
+func parseContentDisposition(input string) (output string) {
+	defer func() {
+		if output != "" {
+			unescaped, err := url.QueryUnescape(output)
+			if err == nil {
+				output = unescaped
+			}
+		}
+	}()
 	groups := reContentDisposition.FindAllStringSubmatch(input, -1)
 	for _, group := range groups {
 		if group[2] != "" {
 			return group[2]
 		}
-		split := strings.Split(group[1], "'")
-		if len(split) == 3 && strings.ToLower(split[0]) == "utf-8" {
-			unescaped, _ := url.QueryUnescape(split[2])
-			return unescaped
+		b, a, found := strings.Cut(group[1], "''")
+		if found && strings.ToLower(b) == "utf-8" {
+			return a
 		}
-		if split[0] != `""` {
-			return split[0]
+		if b != `""` {
+			return b
 		}
 	}
 	return ""
