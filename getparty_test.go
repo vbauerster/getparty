@@ -1,10 +1,6 @@
-package getparty_test
+package getparty
 
-import (
-	"testing"
-
-	"github.com/vbauerster/getparty"
-)
+import "testing"
 
 func TestParseContentDisposition(t *testing.T) {
 	tests := []struct {
@@ -46,7 +42,7 @@ func TestParseContentDisposition(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		output := getparty.ParseContentDisposition(test.input)
+		output := parseContentDisposition(test.input)
 		if output != test.output {
 			t.Errorf("expected %q got %q", test.output, output)
 		}
