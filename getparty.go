@@ -612,7 +612,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 						name = parseContentDisposition(resp.Header.Get(hContentDisposition))
 						cmd.opt.Output.Method = "url-path"
 					case "url-path":
-						var path string
+						path := location
 						nURL, err := url.Parse(location)
 						switch {
 						case err == nil && nURL.Path != "":
@@ -621,9 +621,6 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 							path = nURL.Opaque
 							fallthrough
 						default:
-							if path == "" {
-								path = location
-							}
 							unescaped, err := url.QueryUnescape(path)
 							if err == nil {
 								path = unescaped
