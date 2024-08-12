@@ -759,20 +759,21 @@ func parseContentDisposition(input string) (output string) {
 			}
 		}
 	}()
-	groups := reContentDisposition.FindAllStringSubmatch(input, -1)
-	for _, group := range groups {
-		if group[2] != "" {
-			return group[2]
-		}
-		b, a, found := strings.Cut(group[1], "''")
-		if found && strings.ToLower(b) == "utf-8" {
-			return a
-		}
-		if b != `""` {
-			return b
-		}
+	group := reContentDisposition.FindStringSubmatch(input)
+	if len(group) != 3 {
+		return
 	}
-	return ""
+	if group[2] != "" {
+		return group[2]
+	}
+	b, a, found := strings.Cut(group[1], "''")
+	if found && strings.ToLower(b) == "utf-8" {
+		return a
+	}
+	if b != `""` {
+		return b
+	}
+	return
 }
 
 func parseCookies(headers map[string]string) ([]*http.Cookie, error) {
