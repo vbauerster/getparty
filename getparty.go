@@ -97,7 +97,7 @@ type options struct {
 	Output struct {
 		Name      string `short:"o" long:"name" value-name:"FILE" description:"output file name"`
 		Overwrite bool   `short:"f" long:"overwrite" description:"overwrite existing file silently"`
-		Method    string `long:"method" choice:"content-disposition" choice:"url-path" default:"content-disposition" description:"method of name resolution if no output name is provided"`
+		PathFirst bool   `long:"url-path" description:"resolve name from url path first (default: Content-Disposition header first)"`
 	} `group:"Output Options" namespace:"output"`
 	BestMirror struct {
 		Mirrors string `short:"m" long:"list" value-name:"FILE|-" description:"mirror list input"`
@@ -605,12 +605,12 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				cmd.loggers[INFO].Println("HTTP response:", resp.Status)
 
-				for cmd.opt.Output.Name == "" {
-					switch cmd.opt.Output.Method {
-					case "content-disposition":
-						cmd.opt.Output.Name = parseContentDisposition(resp.Header.Get(hContentDisposition))
-						cmd.opt.Output.Method = "url-path"
-					case "url-path":
+				for i := 0; cmd.opt.Output.Name == "" && i < 3; i++ {
+					if i == 2 {
+						cmd.opt.Output.Name = "unknown"
+						continue
+					}
+					if cmd.opt.Output.PathFirst {
 						path := location
 						nURL, err := url.Parse(location)
 						switch {
@@ -626,9 +626,10 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 							}
 						}
 						cmd.opt.Output.Name = filepath.Base(path)
-						cmd.opt.Output.Method = ""
-					default:
-						cmd.opt.Output.Name = "unknown"
+						cmd.opt.Output.PathFirst = false
+					} else {
+						cmd.opt.Output.Name = parseContentDisposition(resp.Header.Get(hContentDisposition))
+						cmd.opt.Output.PathFirst = true
 					}
 				}
 
