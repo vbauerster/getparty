@@ -203,10 +203,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		return err
 	}
-	rtBuilder := newRoundTripperBuilder(tlsConfig)
 
 	cmd.opt.HeaderMap[hUserAgentKey] = userAgents[cmd.opt.UserAgent]
 	cmd.patcher = makeReqPatcher(userinfo, cmd.opt.HeaderMap)
+	rtBuilder := newRoundTripperBuilder(tlsConfig)
 
 	if cmd.opt.BestMirror.Mirrors != "" {
 		top, err := cmd.bestMirror(rtBuilder.pool(false).build())
