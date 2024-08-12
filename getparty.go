@@ -605,8 +605,8 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				cmd.loggers[INFO].Println("HTTP response:", resp.Status)
 
-				for i := 0; cmd.opt.Output.Name == "" && i < 3; i++ {
-					if i == 2 {
+				for i := 2; cmd.opt.Output.Name == "" && i >= 0; i-- {
+					if i == 0 {
 						cmd.opt.Output.Name = "unknown"
 						continue
 					}
