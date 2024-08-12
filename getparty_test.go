@@ -8,6 +8,14 @@ func TestParseContentDisposition(t *testing.T) {
 		output string
 	}{
 		{
+			input:  "",
+			output: "",
+		},
+		{
+			input:  "garbage",
+			output: "",
+		},
+		{
 			input:  "attachment; filename=",
 			output: "",
 		},
@@ -18,6 +26,14 @@ func TestParseContentDisposition(t *testing.T) {
 		{
 			input:  `attachment; filename=""`,
 			output: "",
+		},
+		{
+			input:  "attachment; garbage=filename",
+			output: "",
+		},
+		{
+			input:  "attachment; filename=filename",
+			output: "filename",
 		},
 		{
 			input:  "attachment; filename=content.txt",
