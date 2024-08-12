@@ -527,6 +527,10 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 		err = errors.WithMessage(err, "follow")
 	}()
 
+	if client.CheckRedirect == nil {
+		return nil, errors.New("expected non nil client.CheckRedirect")
+	}
+
 	location := rawURL
 	timeout := cmd.getTimeout()
 	template := "GET:R%02d %%q"
