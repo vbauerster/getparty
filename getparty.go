@@ -97,7 +97,7 @@ type options struct {
 	Output struct {
 		Name      string `short:"o" long:"name" value-name:"FILE" description:"output file name"`
 		Overwrite bool   `short:"f" long:"overwrite" description:"overwrite existing file silently"`
-		PathFirst bool   `long:"url-path" description:"resolve name from url path first (default: Content-Disposition header first)"`
+		PathFirst bool   `long:"use-path" description:"resolve name from url path first (default: Content-Disposition header first)"`
 	} `group:"Output Options" namespace:"output"`
 	BestMirror struct {
 		Mirrors string `short:"m" long:"list" value-name:"FILE|-" description:"mirror list input"`
