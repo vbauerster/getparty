@@ -427,21 +427,6 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 }
 
 func (cmd Cmd) getState(client *http.Client) (*Session, error) {
-	setCookies := func(jar http.CookieJar, headers map[string]string, location string) error {
-		cookies, err := parseCookies(headers)
-		if err != nil {
-			return err
-		}
-		if len(cookies) == 0 {
-			return nil
-		}
-		u, err := url.Parse(location)
-		if err != nil {
-			return err
-		}
-		jar.SetCookies(u, cookies)
-		return nil
-	}
 	var scratch, restored *Session
 	for {
 		switch {
@@ -452,10 +437,6 @@ func (cmd Cmd) getState(client *http.Client) (*Session, error) {
 				return nil, err
 			}
 			err = restored.checkSizeOfEachPart()
-			if err != nil {
-				return nil, err
-			}
-			err = setCookies(client.Jar, restored.HeaderMap, restored.URL)
 			if err != nil {
 				return nil, err
 			}
@@ -479,10 +460,7 @@ func (cmd Cmd) getState(client *http.Client) (*Session, error) {
 			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.opt.SessionName)
 			return restored, nil
 		case cmd.opt.Positional.Location != "":
-			err := setCookies(client.Jar, cmd.opt.HeaderMap, cmd.opt.Positional.Location)
-			if err != nil {
-				return nil, err
-			}
+			var err error
 			scratch, err = cmd.follow(client, cmd.opt.Positional.Location)
 			if err != nil {
 				return nil, err
@@ -778,20 +756,6 @@ func parseContentDisposition(input string) (output string) {
 		return b
 	}
 	return
-}
-
-func parseCookies(headers map[string]string) ([]*http.Cookie, error) {
-	var cookies []*http.Cookie
-	if hc, ok := headers[hCookie]; ok {
-		for _, cookie := range strings.Split(hc, "; ") {
-			k, v, ok := strings.Cut(cookie, "=")
-			if !ok {
-				continue
-			}
-			cookies = append(cookies, &http.Cookie{Name: k, Value: v})
-		}
-	}
-	return cookies, nil
 }
 
 func isRedirect(status int) bool {
