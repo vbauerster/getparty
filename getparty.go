@@ -645,13 +645,17 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
 		return os.Remove(name)
 	}
-	var answer rune
+	var answer string
 	fmt.Fprintf(cmd.Err, "File %q already exists, overwrite? [Y/n] ", name)
-	if _, err := fmt.Scanf("%c", &answer); err != nil {
-		return err
+	if _, err := fmt.Scanf("%s", &answer); err != nil {
+		if err.Error() == "unexpected newline" {
+			answer = "y"
+		} else {
+			return err
+		}
 	}
 	switch answer {
-	case '\n', 'y', 'Y':
+	case "y", "Y":
 		if cmd.Ctx.Err() == nil {
 			cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
 			return os.Remove(name)
