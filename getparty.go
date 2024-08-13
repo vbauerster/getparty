@@ -426,13 +426,12 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 	return nil, nil
 }
 
-func (cmd Cmd) getState(client *http.Client) (*Session, error) {
-	var scratch, restored *Session
+func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
 	for {
 		switch {
 		case cmd.opt.SessionName != "":
-			restored = new(Session)
-			err := restored.loadState(cmd.opt.SessionName)
+			restored := new(Session)
+			err = restored.loadState(cmd.opt.SessionName)
 			if err != nil {
 				return nil, err
 			}
@@ -441,18 +440,18 @@ func (cmd Cmd) getState(client *http.Client) (*Session, error) {
 				return nil, err
 			}
 			switch {
-			case scratch == nil && restored.Redirected:
-				scratch, err = cmd.follow(client, restored.URL)
+			case session == nil && restored.Redirected:
+				session, err = cmd.follow(client, restored.URL)
 				if err != nil {
 					return nil, err
 				}
 				fallthrough
-			case scratch != nil:
-				err = restored.checkContentSums(*scratch)
+			case session != nil:
+				err = restored.checkContentSums(*session)
 				if err != nil {
 					return nil, err
 				}
-				restored.location = scratch.location
+				restored.location = session.location
 			default:
 				restored.location = restored.URL
 			}
@@ -460,33 +459,32 @@ func (cmd Cmd) getState(client *http.Client) (*Session, error) {
 			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.opt.SessionName)
 			return restored, nil
 		case cmd.opt.Positional.Location != "":
-			var err error
-			scratch, err = cmd.follow(client, cmd.opt.Positional.Location)
+			session, err = cmd.follow(client, cmd.opt.Positional.Location)
 			if err != nil {
 				return nil, err
 			}
-			state := scratch.OutputName + ".json"
+			state := session.OutputName + ".json"
 			if _, err := os.Stat(state); err != nil {
 				if errors.Is(err, os.ErrNotExist) {
 					if cmd.opt.Parts == 0 {
-						return scratch, nil
+						return session, nil
 					}
-					exist, err := scratch.isOutputFileExist()
+					exist, err := session.isOutputFileExist()
 					if err != nil {
 						return nil, err
 					}
 					if exist {
-						err = cmd.overwriteIfConfirmed(scratch.OutputName)
+						err = cmd.overwriteIfConfirmed(session.OutputName)
 						if err != nil {
 							return nil, err
 						}
 					}
-					err = scratch.calcParts(cmd.opt.Parts)
+					err = session.calcParts(cmd.opt.Parts)
 					if err != nil {
 						return nil, err
 					}
-					scratch.HeaderMap = cmd.opt.HeaderMap
-					return scratch, nil
+					session.HeaderMap = cmd.opt.HeaderMap
+					return session, nil
 				}
 				return nil, err
 			}
