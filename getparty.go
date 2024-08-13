@@ -463,27 +463,24 @@ func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
 			if err != nil {
 				return nil, err
 			}
+			session.HeaderMap = cmd.opt.HeaderMap
 			state := session.OutputName + ".json"
 			if _, err := os.Stat(state); err != nil {
 				if errors.Is(err, os.ErrNotExist) {
 					if cmd.opt.Parts == 0 {
 						return session, nil
 					}
+					err := session.calcParts(cmd.opt.Parts)
+					if err != nil {
+						return nil, err
+					}
 					exist, err := session.isOutputFileExist()
 					if err != nil {
 						return nil, err
 					}
 					if exist {
-						err = cmd.overwriteIfConfirmed(session.OutputName)
-						if err != nil {
-							return nil, err
-						}
+						return session, cmd.overwriteIfConfirmed(session.OutputName)
 					}
-					err = session.calcParts(cmd.opt.Parts)
-					if err != nil {
-						return nil, err
-					}
-					session.HeaderMap = cmd.opt.HeaderMap
 					return session, nil
 				}
 				return nil, err
