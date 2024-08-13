@@ -656,6 +656,9 @@ func (cmd Cmd) overwriteIfConfirmed(name string) error {
 			cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
 			return os.Remove(name)
 		}
+		if context.Cause(cmd.Ctx) != ErrCanceledByUser {
+			return cmd.Ctx.Err()
+		}
 		fallthrough
 	default:
 		return ErrCanceledByUser
