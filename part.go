@@ -95,7 +95,7 @@ func (p Part) newBar(curTry *uint32, msgCh chan string) (*mpb.Bar, error) {
 }
 
 func (p *Part) download(
-	location, baseName string,
+	location, outputBase string,
 	timeout, sleep time.Duration,
 	maxTry uint,
 ) (err error) {
@@ -223,7 +223,7 @@ func (p *Part) download(
 				p.statusOK.cancel()
 				httpStatus206 = true
 				if fpart == nil {
-					fpart, err = os.OpenFile(p.outputName(baseName), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
+					fpart, err = os.OpenFile(p.outputName(outputBase), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
 						return false, err
 					}
@@ -264,7 +264,7 @@ func (p *Part) download(
 						return false, err
 					}
 				}
-				fpart, err = os.OpenFile(baseName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
+				fpart, err = os.OpenFile(outputBase, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 				if err != nil {
 					return false, err
 				}
