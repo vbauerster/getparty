@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
@@ -150,45 +149,4 @@ func (s Session) checkSizeOfEachPart() error {
 		}
 	}
 	return nil
-}
-
-func (s Session) concatenateParts(progress *mpb.Progress) error {
-	if tw := s.totalWritten(); tw != s.ContentLength {
-		return errors.Errorf("Written count mismatch: written=%d ContentLength=%d", tw, s.ContentLength)
-	}
-
-	bar, err := progress.Add(int64(len(s.Parts)-1), baseBarStyle().Build(),
-		mpb.BarFillerTrim(),
-		mpb.BarPriority(len(s.Parts)+1),
-		mpb.PrependDecorators(
-			decor.Name("Concatenating", decor.WCSyncWidthR),
-			decor.NewPercentage("%d", decor.WCSyncSpace),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-		),
-	)
-	if err != nil {
-		return err
-	}
-
-	dst, err := os.OpenFile(s.OutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
-	if err != nil {
-		return err
-	}
-
-	for _, p := range s.Parts {
-		err := p.writeTo(dst)
-		if err != nil {
-			bar.Abort(false)
-			_ = dst.Close()
-			return err
-		}
-		bar.Increment()
-	}
-
-	return firstErr(dst.Sync(), dst.Close())
 }

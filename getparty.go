@@ -356,7 +356,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	if !single {
-		err = session.concatenateParts(progress)
+		err = concatenateParts(progress, session)
 		if err != nil {
 			return err
 		}
@@ -798,4 +798,45 @@ func runTotalBar(
 		bar.DecoratorAverageAdjust(time.Now().Add(-session.Elapsed))
 	}
 	return nil
+}
+
+func concatenateParts(progress *mpb.Progress, session *Session) error {
+	if tw := session.totalWritten(); tw != session.ContentLength {
+		return errors.Errorf("Written count mismatch: written=%d ContentLength=%d", tw, session.ContentLength)
+	}
+
+	bar, err := progress.Add(int64(len(session.Parts)-1), baseBarStyle().Build(),
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(len(session.Parts)+2),
+		mpb.PrependDecorators(
+			decor.Name("Concatenating", decor.WCSyncWidthR),
+			decor.NewPercentage("%d", decor.WCSyncSpace),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+		),
+	)
+	if err != nil {
+		return err
+	}
+
+	dst, err := os.OpenFile(session.OutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
+	if err != nil {
+		return err
+	}
+
+	for _, p := range session.Parts {
+		err := p.writeTo(dst)
+		if err != nil {
+			bar.Abort(false)
+			_ = dst.Close()
+			return err
+		}
+		bar.Increment()
+	}
+
+	return firstErr(dst.Sync(), dst.Close())
 }
