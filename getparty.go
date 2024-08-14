@@ -306,7 +306,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.progress = progress
 		p.totalIncr = totalIncr
 		p.patcher = cmd.patcher
-		p.debugWriter = debugOut
+		p.debugOut = debugOut
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {

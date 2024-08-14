@@ -36,17 +36,17 @@ type Part struct {
 	Written int64
 	Elapsed time.Duration
 
-	ctx         context.Context
-	client      *http.Client
-	progress    *mpb.Progress
-	logger      *log.Logger
-	statusOK    *http200Context
-	patcher     func(*http.Request)
-	totalIncr   chan<- int
-	name        string
-	order       int
-	single      bool
-	debugWriter io.Writer
+	ctx       context.Context
+	client    *http.Client
+	progress  *mpb.Progress
+	logger    *log.Logger
+	statusOK  *http200Context
+	patcher   func(*http.Request)
+	totalIncr chan<- int
+	name      string
+	order     int
+	single    bool
+	debugOut  io.Writer
 }
 
 func (p Part) newBar(curTry *uint32, msgCh chan string) (*mpb.Bar, error) {
@@ -102,7 +102,7 @@ func (p *Part) download(
 	var fpart *os.File
 	var totalSlept time.Duration
 	prefixTemplate := fmt.Sprintf("[%s:R%%02d] ", p.name)
-	p.logger = log.New(p.debugWriter, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
+	p.logger = log.New(p.debugOut, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
 	defer func() {
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", p.Elapsed)
