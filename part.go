@@ -125,7 +125,6 @@ func (p *Part) download(
 	var bar *mpb.Bar
 	var curTry uint32
 	var httpStatus206 bool
-	var httpStatus200 bool
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
 
@@ -245,7 +244,7 @@ func (p *Part) download(
 				select {
 				case p.statusOK.first <- p.order:
 					p.statusOK.cancel()
-					httpStatus200 = true
+					p.single = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
@@ -253,7 +252,7 @@ func (p *Part) download(
 						panic(fmt.Sprintf("expected to start with written=0 got %d", p.Written))
 					}
 				case <-p.statusOK.ctx.Done():
-					if !httpStatus200 {
+					if !p.single {
 						p.logger.Println("Stopping: some other part got status 200")
 						return false, nil
 					}
