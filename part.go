@@ -343,10 +343,8 @@ func (p *Part) download(
 
 			if p.isDone() {
 				if err == io.EOF {
-					err = fpart.Sync()
-					p.logger.Println("Waiting for bar")
-					bar.Wait()
-					return false, err
+					p.logger.Println("Part is done with EOF")
+					return false, fpart.Sync()
 				}
 				return false, errors.Wrap(err, "Expected EOF")
 			}
