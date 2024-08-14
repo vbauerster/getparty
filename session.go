@@ -1,14 +1,11 @@
 package getparty
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -194,72 +191,4 @@ func (s Session) concatenateParts(progress *mpb.Progress) error {
 	}
 
 	return firstErr(dst.Sync(), dst.Close())
-}
-
-func (s Session) runTotalBar(
-	ctx context.Context,
-	doneCount *uint32,
-	progress *mpb.Progress,
-) (func(int), func(bool), error) {
-	bar, err := progress.Add(s.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
-		mpb.BarFillerTrim(),
-		mpb.BarExtender(mpb.BarFillerFunc(
-			func(w io.Writer, _ decor.Statistics) error {
-				_, err := fmt.Fprintln(w)
-				return err
-			}), true),
-		mpb.PrependDecorators(
-			decor.Any(func(_ decor.Statistics) string {
-				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(doneCount), len(s.Parts))
-			}, decor.WCSyncWidthR),
-			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
-		),
-		mpb.AppendDecorators(
-			decor.OnCompleteOrOnAbort(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
-			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-		),
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	if written := s.totalWritten(); written != 0 {
-		bar.SetCurrent(written)
-		bar.SetRefill(written)
-		bar.DecoratorAverageAdjust(time.Now().Add(-s.Elapsed))
-	}
-	ch := make(chan int, len(s.Parts)-int(atomic.LoadUint32(doneCount)))
-	ctx, cancel := context.WithCancel(ctx)
-	dropCtx, dropCancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			select {
-			case n := <-ch:
-				bar.IncrBy(n)
-			case <-dropCtx.Done():
-				cancel()
-				bar.Abort(true)
-				return
-			case <-ctx.Done():
-				dropCancel()
-				bar.Abort(false)
-				return
-			}
-		}
-	}()
-	return func(n int) {
-			select {
-			case ch <- n:
-			case <-done:
-			}
-		}, func(drop bool) {
-			if drop {
-				dropCancel()
-			} else {
-				cancel()
-			}
-		}, nil
 }

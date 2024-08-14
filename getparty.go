@@ -24,6 +24,7 @@ import (
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
 	"github.com/vbauerster/mpb/v8"
+	"github.com/vbauerster/mpb/v8/decor"
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
@@ -255,40 +256,39 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.patcher = makeReqPatcher(userinfo, session.HeaderMap)
 	}
 
-	var doneCount uint32
-	single := len(session.Parts) == 1
+	debugOut := cmd.getErr()
 	progress := mpb.NewWithContext(cmd.Ctx,
-		mpb.WithDebugOutput(cmd.getErr()),
+		mpb.WithDebugOutput(debugOut),
 		mpb.WithOutput(cmd.getOut()),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 	)
-	incrTotalBar, cancelTotalBar, err := cmd.initTotalBar(
-		&doneCount,
-		session,
-		progress,
-		single || cmd.opt.Quiet,
-	)
-	if err != nil {
-		return err
-	}
+
 	stateHandler := cmd.makeStateHandler(session, progress)
 	defer stateHandler(false)
 
-	var eg errgroup.Group
-	var recoverHandler sync.Once
-	timeout := cmd.getTimeout()
-	sleep := time.Duration(cmd.opt.SpeedLimit*60) * time.Millisecond
+	nopBar, err := progress.Add(0, nil)
+	if err != nil {
+		return err
+	}
+	defer nopBar.EnableTriggerComplete()
+
+	totalIncr := make(chan int, len(session.Parts))
+	defer close(totalIncr)
 
 	statusOK := new(http200Context)
 	statusOK.first = make(chan int)
 	statusOK.ctx, statusOK.cancel = context.WithCancel(cmd.Ctx)
 	defer statusOK.cancel()
 
+	var doneCount uint32
+	var eg errgroup.Group
+	var recoverHandler sync.Once
+	timeout := cmd.getTimeout()
+	sleep := time.Duration(cmd.opt.SpeedLimit*60) * time.Millisecond
+	single := len(session.Parts) == 1
 	cancelMap := make(map[int]func())
-
 	client.CheckRedirect = nil
-	rtBuilder = nil
 
 	for i, p := range session.Parts {
 		if p.Written != 0 && p.isDone() {
@@ -304,9 +304,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.order = i + 1
 		p.single = single
 		p.progress = progress
-		p.incrTotalBar = incrTotalBar
+		p.totalIncr = totalIncr
 		p.patcher = cmd.patcher
-		p.debugWriter = cmd.getErr()
+		p.debugWriter = debugOut
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {
@@ -315,7 +315,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						for _, cancel := range cancelMap {
 							cancel()
 						}
-						cancelTotalBar(false)
+						close(totalIncr)
 						stateHandler(true)
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
@@ -336,15 +336,19 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		for _, cancel := range cancelMap {
 			cancel()
 		}
-		cancelTotalBar(true)
 		single = true
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
 	case <-statusOK.ctx.Done():
+		if !single {
+			err := runTotalBar(progress, session, &doneCount, totalIncr)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	err = eg.Wait()
 	if err != nil {
-		cancelTotalBar(false)
 		if context.Cause(cmd.Ctx) == ErrCanceledByUser {
 			return ErrCanceledByUser
 		}
@@ -628,18 +632,6 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 	return session, err
 }
 
-func (cmd Cmd) initTotalBar(
-	doneCount *uint32,
-	session *Session,
-	progress *mpb.Progress,
-	dummy bool,
-) (func(int), func(bool), error) {
-	if dummy {
-		return func(int) {}, func(bool) {}, nil
-	}
-	return session.runTotalBar(cmd.Ctx, doneCount, progress)
-}
-
 func (cmd Cmd) overwriteIfConfirmed(name string) error {
 	if cmd.opt.Output.Overwrite {
 		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
@@ -767,4 +759,43 @@ func isRedirect(status int) bool {
 
 func isServerError(status int) bool {
 	return status > 499 && status < 600
+}
+
+func runTotalBar(
+	progress *mpb.Progress,
+	session *Session,
+	doneCount *uint32,
+	incrCh <-chan int,
+) error {
+	bar, err := progress.Add(session.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(len(session.Parts)+1),
+		mpb.PrependDecorators(
+			decor.Any(func(_ decor.Statistics) string {
+				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(doneCount), len(session.Parts))
+			}, decor.WCSyncWidthR),
+			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
+		),
+		mpb.AppendDecorators(
+			decor.OnCompleteOrOnAbort(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
+			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+		),
+	)
+	if err != nil {
+		return err
+	}
+	go func() {
+		for n := range incrCh {
+			bar.IncrBy(n)
+		}
+		bar.Abort(false)
+	}()
+	if written := session.totalWritten(); written != 0 {
+		bar.SetCurrent(written)
+		bar.SetRefill(written)
+		bar.DecoratorAverageAdjust(time.Now().Add(-session.Elapsed))
+	}
+	return nil
 }

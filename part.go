@@ -36,21 +36,21 @@ type Part struct {
 	Written int64
 	Elapsed time.Duration
 
-	ctx          context.Context
-	client       *http.Client
-	progress     *mpb.Progress
-	logger       *log.Logger
-	statusOK     *http200Context
-	incrTotalBar func(int)
-	patcher      func(*http.Request)
-	name         string
-	order        int
-	single       bool
-	debugWriter  io.Writer
+	ctx         context.Context
+	client      *http.Client
+	progress    *mpb.Progress
+	logger      *log.Logger
+	statusOK    *http200Context
+	patcher     func(*http.Request)
+	totalIncr   chan<- int
+	name        string
+	order       int
+	single      bool
+	debugWriter io.Writer
 }
 
-func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, error) {
-	var filler, extender mpb.BarFiller
+func (p Part) newBar(curTry *uint32, msgCh chan string) (*mpb.Bar, error) {
+	var filler mpb.BarFiller
 	total := p.total()
 	if total < 0 {
 		p.logger.Println("Session must be not resumable")
@@ -58,17 +58,10 @@ func (p Part) newBar(curTry *uint32, single bool, msgCh chan string) (*mpb.Bar, 
 	} else {
 		filler = distinctBarRefiller(baseBarStyle()).Build()
 	}
-	if single {
-		extender = mpb.BarFillerFunc(func(w io.Writer, _ decor.Statistics) error {
-			_, err := fmt.Fprintln(w)
-			return err
-		})
-	}
 	p.logger.Println("Setting bar total:", total)
 	bar, err := p.progress.Add(total, filler,
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.order),
-		mpb.BarExtender(extender, true),
 		mpb.PrependDecorators(
 			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msgCh, 15),
 			decor.Conditional(total == 0,
@@ -237,7 +230,7 @@ func (p *Part) download(
 					}
 				}
 				if bar == nil {
-					bar, err = p.newBar(&curTry, p.single, msgCh)
+					bar, err = p.newBar(&curTry, msgCh)
 					if err != nil {
 						return false, err
 					}
@@ -277,7 +270,7 @@ func (p *Part) download(
 					return false, err
 				}
 				if bar == nil {
-					bar, err = p.newBar(&curTry, true, msgCh)
+					bar, err = p.newBar(&curTry, msgCh)
 					if err != nil {
 						return false, err
 					}
@@ -334,8 +327,8 @@ func (p *Part) download(
 					p.Written += int64(wn)
 					if p.total() <= 0 {
 						bar.SetTotal(p.Written, false)
-					} else {
-						p.incrTotalBar(wn)
+					} else if !p.single {
+						p.totalIncr <- wn
 					}
 				}
 				bar.EwmaIncrBy(wn, rDur+sleep)
