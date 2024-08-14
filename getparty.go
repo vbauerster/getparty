@@ -325,8 +325,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 				cancel()
 			}()
-			maxTry := cmd.opt.MaxRetry
-			return p.download(session.location, session.OutputName, timeout, sleep, maxTry)
+			return p.download(session.location, session.OutputName, timeout, sleep, cmd.opt.MaxRetry)
 		})
 	}
 
