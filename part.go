@@ -49,7 +49,7 @@ type Part struct {
 	debugOut  io.Writer
 }
 
-func (p Part) newBar(curTry *uint32, msgCh chan string) (*mpb.Bar, error) {
+func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 	var filler mpb.BarFiller
 	total := p.total()
 	if total < 0 {
