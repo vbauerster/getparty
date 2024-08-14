@@ -368,7 +368,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 }
 
 func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(bool) {
-	pTotal := session.totalWritten()
+	size := session.totalWritten()
 	start := time.Now()
 	return func(isPanic bool) {
 		log := func() {}
@@ -379,7 +379,7 @@ func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(b
 		}()
 		tw := session.totalWritten()
 		if session.isResumable() && tw != session.ContentLength {
-			if tw-pTotal != 0 { // if some bytes were written
+			if tw != size { // if some bytes were written
 				session.Elapsed += time.Since(start)
 				var name string
 				if isPanic {
