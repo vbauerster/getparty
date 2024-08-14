@@ -41,13 +41,11 @@ Application Options:
       --max-redirect=n                             max redirections allowed, 0 for infinite (default: 10)
   -t, --timeout=sec                                context timeout (default: 15)
   -l, --speed-limit=[1|2|3|4|5]                    speed limit gauge
-  -o, --output=FILE                                output file name
   -s, --session=FILE                               session state of incomplete download, file with json extension
   -U, --user-agent=[chrome|firefox|safari|edge]    User-Agent header (default: getparty/ver)
       --username=                                  basic http auth username
       --password=                                  basic http auth password
   -H, --header=key:value                           http header, can be specified more than once
-  -f, --force                                      overwrite existing file silently
   -q, --quiet                                      quiet mode, no progress bars
   -d, --debug                                      enable debug to stderr
   -v, --version                                    show version
@@ -55,6 +53,11 @@ Application Options:
 Https Options:
   -c, --certs-file=certs.crt                       root certificates to use when verifying server certificates
       --no-check-cert                              don't verify the server's certificate chain and host name
+
+Output Options:
+  -o, --output.name=FILE                           output file name
+  -f, --output.overwrite                           overwrite existing file silently
+      --output.use-path                            resolve name from url path first (default: Content-Disposition header)
 
 Best-mirror Options:
   -m, --mirror.list=FILE|-                         mirror list input
