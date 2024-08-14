@@ -25,8 +25,8 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer func() {
-		signal.Stop(quit)
 		cancel(nil)
+		signal.Stop(quit)
 	}()
 	go func() {
 		select {
