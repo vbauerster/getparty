@@ -377,9 +377,9 @@ func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(b
 			fmt.Fprintln(cmd.getOut())
 			log()
 		}()
-		total := session.totalWritten()
-		if session.isResumable() && total != session.ContentLength {
-			if total-pTotal != 0 { // if some bytes were written
+		tw := session.totalWritten()
+		if session.isResumable() && tw != session.ContentLength {
+			if tw-pTotal != 0 { // if some bytes were written
 				session.Elapsed += time.Since(start)
 				var name string
 				if isPanic {
@@ -400,7 +400,7 @@ func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(b
 			}
 		} else {
 			log = func() {
-				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, total)
+				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 			}
 		}
 	}
@@ -792,9 +792,9 @@ func runTotalBar(
 		}
 		bar.Abort(false)
 	}()
-	if written := session.totalWritten(); written != 0 {
-		bar.SetCurrent(written)
-		bar.SetRefill(written)
+	if tw := session.totalWritten(); tw != 0 {
+		bar.SetCurrent(tw)
+		bar.SetRefill(tw)
 		bar.DecoratorAverageAdjust(time.Now().Add(-session.Elapsed))
 	}
 	return nil

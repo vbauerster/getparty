@@ -93,8 +93,8 @@ func (s Session) summary(loggers [LEVELS]*log.Logger) {
 	case s.isResumable():
 		summary := fmt.Sprintf("%d (%.1f)", s.ContentLength, decor.SizeB1024(s.ContentLength))
 		loggers[INFO].Printf(format, summary)
-		if total := s.totalWritten(); total != 0 {
-			remaining := s.ContentLength - total
+		if tw := s.totalWritten(); tw != 0 {
+			remaining := s.ContentLength - tw
 			loggers[INFO].Printf("Remaining: %d (%.1f)", remaining, decor.SizeB1024(remaining))
 		}
 	case s.ContentLength < 0:
