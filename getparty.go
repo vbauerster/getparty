@@ -264,8 +264,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		mpb.WithWidth(64),
 	)
 
-	stateHandler := cmd.makeStateHandler(session, progress)
-	defer stateHandler(false)
+	written := session.totalWritten()
+	stateHandler := cmd.makeStateHandler(written)
+	defer stateHandler(progress, session, false)
 
 	nopBar, err := progress.Add(0, nil)
 	if err != nil {
@@ -316,7 +317,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 							cancel()
 						}
 						close(totalIncr)
-						stateHandler(true)
+						stateHandler(progress, session, true)
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
 				}
@@ -339,7 +340,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
 	case <-statusOK.ctx.Done():
 		if !single {
-			err := runTotalBar(progress, session, &doneCount, totalIncr)
+			err := runTotalBar(progress, session, written, &doneCount, totalIncr)
 			if err != nil {
 				return err
 			}
@@ -366,10 +367,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(bool) {
-	size := session.totalWritten()
+func (cmd Cmd) makeStateHandler(written int64) func(*mpb.Progress, *Session, bool) {
 	start := time.Now()
-	return func(isPanic bool) {
+	return func(progress *mpb.Progress, session *Session, isPanic bool) {
 		log := func() {}
 		defer func() {
 			progress.Wait()
@@ -378,7 +378,7 @@ func (cmd Cmd) makeStateHandler(session *Session, progress *mpb.Progress) func(b
 		}()
 		tw := session.totalWritten()
 		if session.isResumable() && tw != session.ContentLength {
-			if tw != size { // if some bytes were written
+			if tw != written { // if some bytes were written
 				session.Elapsed += time.Since(start)
 				var name string
 				if isPanic {
@@ -763,6 +763,7 @@ func isServerError(status int) bool {
 func runTotalBar(
 	progress *mpb.Progress,
 	session *Session,
+	written int64,
 	doneCount *uint32,
 	incrCh <-chan int,
 ) error {
@@ -791,9 +792,9 @@ func runTotalBar(
 		}
 		bar.Abort(false)
 	}()
-	if tw := session.totalWritten(); tw != 0 {
-		bar.SetCurrent(tw)
-		bar.SetRefill(tw)
+	if written != 0 {
+		bar.SetCurrent(written)
+		bar.SetRefill(written)
 		bar.DecoratorAverageAdjust(time.Now().Add(-session.Elapsed))
 	}
 	return nil
