@@ -103,36 +103,36 @@ func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
 	return d
 }
 
-func (s *peak) EwmaUpdate(n int64, dur time.Duration) {
+func (d *peak) EwmaUpdate(n int64, dur time.Duration) {
 	if n <= 0 {
-		s.zDur += dur
+		d.zDur += dur
 		return
 	}
-	durPerByte := float64(s.zDur+dur) / float64(n)
+	durPerByte := float64(d.zDur+dur) / float64(n)
 	if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) {
-		s.zDur += dur
+		d.zDur += dur
 		return
 	}
-	s.zDur = 0
-	s.mean.Add(durPerByte)
-	switch s.updCount {
+	d.zDur = 0
+	d.mean.Add(durPerByte)
+	switch d.updCount {
 	case ewma.WARMUP_SAMPLES:
-		durPerByte = s.mean.Value()
-		if s.min == 0 || durPerByte < s.min {
-			s.min = durPerByte
+		durPerByte = d.mean.Value()
+		if d.min == 0 || durPerByte < d.min {
+			d.min = durPerByte
 		}
 	default:
-		s.updCount++
+		d.updCount++
 	}
 }
 
-func (s *peak) Decor(stat decor.Statistics) (string, int) {
-	if stat.Completed && s.msg == "" {
-		if s.min == 0 {
-			s.msg = "N/A"
+func (d *peak) Decor(stat decor.Statistics) (string, int) {
+	if stat.Completed && d.msg == "" {
+		if d.min == 0 {
+			d.msg = "N/A"
 		} else {
-			s.msg = fmt.Sprintf(s.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/s.min))))
+			d.msg = fmt.Sprintf(d.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/d.min))))
 		}
 	}
-	return s.Format(s.msg)
+	return d.Format(d.msg)
 }
