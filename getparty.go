@@ -292,6 +292,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	client.CheckRedirect = nil
 
 	for i, p := range session.Parts {
+		p.order = i + 1
+		p.name = fmt.Sprintf("P%02d", i+1)
+		p.initDebugLogger(debugOut, fmt.Sprintf("[%s:R%%02d] ", p.name))
 		if p.Written != 0 && p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
 			continue
@@ -301,13 +304,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.ctx = ctx
 		p.client = client
 		p.statusOK = statusOK
-		p.name = fmt.Sprintf("P%02d", i+1)
-		p.order = i + 1
 		p.single = single
 		p.progress = progress
 		p.totalIncr = totalIncr
 		p.patcher = cmd.patcher
-		p.debugOut = debugOut
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {

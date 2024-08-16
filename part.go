@@ -36,17 +36,17 @@ type Part struct {
 	Written int64
 	Elapsed time.Duration
 
-	ctx       context.Context
-	client    *http.Client
-	progress  *mpb.Progress
-	logger    *log.Logger
-	statusOK  *http200Context
-	patcher   func(*http.Request)
-	totalIncr chan<- int
-	name      string
-	order     int
-	single    bool
-	debugOut  io.Writer
+	ctx            context.Context
+	client         *http.Client
+	progress       *mpb.Progress
+	logger         *log.Logger
+	statusOK       *http200Context
+	patcher        func(*http.Request)
+	totalIncr      chan<- int
+	order          int
+	single         bool
+	name           string
+	prefixTemplate string
 }
 
 func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
@@ -94,6 +94,11 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 	return bar, nil
 }
 
+func (p *Part) initDebugLogger(out io.Writer, prefixTemplate string) {
+	p.logger = log.New(out, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
+	p.prefixTemplate = prefixTemplate
+}
+
 func (p *Part) download(
 	location, outputBase string,
 	timeout, sleep time.Duration,
@@ -101,8 +106,6 @@ func (p *Part) download(
 ) (err error) {
 	var fpart *os.File
 	var totalSlept time.Duration
-	prefixTemplate := fmt.Sprintf("[%s:R%%02d] ", p.name)
-	p.logger = log.New(p.debugOut, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
 	defer func() {
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", p.Elapsed)
@@ -175,7 +178,7 @@ func (p *Part) download(
 				go func(prefix string) {
 					fmt.Fprintf(p.progress, "%s%s\n", prefix, unwrapOrErr(err).Error())
 				}(p.logger.Prefix())
-				p.logger.SetPrefix(fmt.Sprintf(prefixTemplate, attempt+1))
+				p.logger.SetPrefix(fmt.Sprintf(p.prefixTemplate, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
 			}()
 
