@@ -71,9 +71,9 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 		mpb.AppendDecorators(
 			decor.Conditional(total == 0,
 				decor.Name(""),
-				decor.OnCompleteOrOnAbort(decor.NewAverageETA(
+				decor.OnCompleteOrOnAbort(decor.EwmaNormalizedETA(
 					decor.ET_STYLE_MMSS,
-					time.Now(),
+					30,
 					decor.FixedIntervalTimeNormalizer(30),
 					decor.WCSyncWidth,
 				), ":"),
@@ -89,7 +89,6 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 	if p.Written != 0 {
 		p.logger.Println("Setting bar current:", p.Written)
 		bar.SetCurrent(p.Written)
-		bar.DecoratorAverageAdjust(time.Now().Add(-p.Elapsed))
 	}
 	return bar, nil
 }
