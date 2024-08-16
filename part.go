@@ -102,6 +102,7 @@ func (p *Part) download(location, outputBase string, timeout, sleep time.Duratio
 	var fpart *os.File
 	var totalSlept time.Duration
 	defer func() {
+		p.statusOK.cancel()
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", p.elapsed)
 		p.logger.Println("Total Slept:", totalSlept)
