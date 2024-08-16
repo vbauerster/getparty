@@ -99,11 +99,7 @@ func (p *Part) initDebugLogger(out io.Writer, prefixTemplate string) {
 	p.prefixTemplate = prefixTemplate
 }
 
-func (p *Part) download(
-	location, outputBase string,
-	timeout, sleep time.Duration,
-	maxTry uint,
-) (err error) {
+func (p *Part) download(location, outputBase string, timeout, sleep time.Duration, maxTry uint) (err error) {
 	var fpart *os.File
 	var totalSlept time.Duration
 	defer func() {
