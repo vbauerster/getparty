@@ -280,7 +280,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	statusOK := new(http200Context)
 	statusOK.first = make(chan int)
 	statusOK.ctx, statusOK.cancel = context.WithCancel(cmd.Ctx)
-	defer statusOK.cancel()
 
 	var doneCount uint32
 	var eg errgroup.Group
@@ -316,6 +315,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						for _, cancel := range cancelMap {
 							cancel()
 						}
+						statusOK.cancel()
 						close(totalIncr)
 						stateHandler(progress, session, true)
 					})
@@ -325,6 +325,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 				cancel()
+				statusOK.cancel()
 			}()
 			return p.download(session.location, session.OutputName, timeout, sleep, cmd.opt.MaxRetry)
 		})
