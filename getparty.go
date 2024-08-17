@@ -765,8 +765,21 @@ func runTotalBar(
 	written int64,
 	doneCount *uint32,
 	incrCh <-chan int,
-) error {
-	bar, err := progress.Add(session.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
+) (err error) {
+	var bar *mpb.Bar
+	var start time.Time
+	if written != 0 {
+		defer func() {
+			if err == nil {
+				bar.SetCurrent(written)
+				bar.SetRefill(written)
+			}
+		}()
+		start = time.Now().Add(-session.Elapsed)
+	} else {
+		start = time.Now()
+	}
+	bar, err = progress.Add(session.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(len(session.Parts)+1),
 		mpb.PrependDecorators(
@@ -776,8 +789,12 @@ func runTotalBar(
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 		),
 		mpb.AppendDecorators(
-			decor.OnCompleteOrOnAbort(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
-			decor.AverageSpeed(decor.SizeB1024(0), "%.1f", decor.WCSyncSpace),
+			decor.OnCompleteOrOnAbort(decor.NewAverageETA(
+				decor.ET_STYLE_MMSS,
+				start,
+				decor.FixedIntervalTimeNormalizer(30),
+				decor.WCSyncWidth), ":"),
+			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
 			decor.Name("", decor.WCSyncSpace),
 			decor.Name("", decor.WCSyncSpace),
 		),
@@ -791,11 +808,6 @@ func runTotalBar(
 		}
 		bar.Abort(false)
 	}()
-	if written != 0 {
-		bar.SetCurrent(written)
-		bar.SetRefill(written)
-		bar.DecoratorAverageAdjust(time.Now().Add(-session.Elapsed))
-	}
 	return nil
 }
 
