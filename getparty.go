@@ -310,7 +310,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
 			defer func() {
-				if e := recover(); e != nil {
+				if v := recover(); v != nil {
 					recoverHandler.Do(func() {
 						for _, cancel := range cancelMap {
 							cancel()
@@ -319,7 +319,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						close(totalIncr)
 						stateHandler(progress, session, true)
 					})
-					panic(fmt.Sprintf("%s panic: %v", p.name, e)) // https://go.dev/play/p/55nmnsXyfSA
+					panic(fmt.Sprintf("%s panic: %v", p.name, v)) // https://go.dev/play/p/55nmnsXyfSA
 				}
 				if p.isDone() {
 					atomic.AddUint32(&doneCount, 1)
