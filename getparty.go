@@ -766,21 +766,9 @@ func runTotalBar(
 	written int64,
 	doneCount *uint32,
 	incrCh <-chan int,
-) (err error) {
-	var bar *mpb.Bar
-	var start time.Time
-	if written != 0 {
-		defer func() {
-			if err == nil {
-				bar.SetCurrent(written)
-				bar.SetRefill(written)
-			}
-		}()
-		start = time.Now().Add(-session.Elapsed)
-	} else {
-		start = time.Now()
-	}
-	bar, err = progress.Add(session.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
+) error {
+	start := time.Now().Add(-session.Elapsed)
+	bar, err := progress.Add(session.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(len(session.Parts)+1),
 		mpb.PrependDecorators(
@@ -809,6 +797,10 @@ func runTotalBar(
 		}
 		bar.Abort(false)
 	}()
+	if written != 0 {
+		bar.SetCurrent(written)
+		bar.SetRefill(written)
+	}
 	return nil
 }
 
