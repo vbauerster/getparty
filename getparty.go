@@ -354,7 +354,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		return err
 	}
-
 	if !single {
 		err = concatenateParts(progress, session)
 		if err != nil {
