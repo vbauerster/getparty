@@ -46,7 +46,6 @@ type Part struct {
 	single         bool
 	name           string
 	prefixTemplate string
-	elapsed        time.Duration
 }
 
 func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
@@ -100,11 +99,11 @@ func (p *Part) initDebugLogger(out io.Writer, prefixTemplate string) {
 
 func (p *Part) download(location, outputBase string, timeout, sleep time.Duration, maxTry uint) (err error) {
 	var fpart *os.File
-	var totalSlept time.Duration
+	var totalElapsed, totalSlept time.Duration
 	defer func() {
 		p.statusOK.cancel()
 		p.logger.Println("Total Written:", p.Written)
-		p.logger.Println("Total Elapsed:", p.elapsed)
+		p.logger.Println("Total Elapsed:", totalElapsed)
 		p.logger.Println("Total Slept:", totalSlept)
 		if fpart != nil {
 			p.logger.Printf("Closing: %q", fpart.Name())
@@ -147,7 +146,7 @@ func (p *Part) download(location, outputBase string, timeout, sleep time.Duratio
 				elapsed := time.Since(start)
 				timer.Stop()
 				cancel()
-				p.elapsed += elapsed
+				totalElapsed += elapsed
 				totalSlept += slept
 				p.logger.Println("Written:", p.Written-pWritten)
 				p.logger.Println("Elapsed:", elapsed)
