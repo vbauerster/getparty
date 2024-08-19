@@ -40,7 +40,7 @@ Application Options:
   -r, --max-retry=n                                max retries per each part, 0 for infinite (default: 10)
       --max-redirect=n                             max redirections allowed, 0 for infinite (default: 10)
   -t, --timeout=sec                                context timeout (default: 15)
-  -b, --buf-size=KiB[4|8|16]                       buffer size in KiB (default: 8)
+  -b, --buf-size=KiB[2|4|8|16]                     buffer size, prefer smaller for slow connection (default: 8)
   -l, --speed-limit=[1|2|3|4|5]                    speed limit gauge
   -s, --session=FILE                               session state of incomplete download, file with json extension
   -U, --user-agent=[chrome|firefox|safari|edge]    User-Agent header (default: getparty/ver)
