@@ -341,7 +341,8 @@ func (p *Part) download(
 			}
 
 			if p.total() <= 0 && err == io.EOF {
-				p.Stop = p.Written - 1 // so p.isDone() retruns true
+				// make sure next p.total() result is never negative
+				p.Stop = p.Written - 1
 				bar.EnableTriggerComplete()
 			}
 
@@ -372,8 +373,7 @@ func (p Part) total() int64 {
 }
 
 func (p Part) isDone() bool {
-	total := p.total()
-	return total >= 0 && p.Written == total
+	return p.Written == p.total()
 }
 
 func (p Part) checkSize(stat fs.FileInfo) error {
