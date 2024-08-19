@@ -99,8 +99,9 @@ func (p *Part) initDebugLogger(out io.Writer, prefixTemplate string) {
 
 func (p *Part) download(
 	location, outputBase string,
-	timeout, sleep time.Duration,
-	bufSize, maxTry uint) (err error) {
+	bufSize, maxTry uint,
+	sleep, timeout time.Duration,
+) (err error) {
 	var fpart *os.File
 	var totalElapsed, totalSlept time.Duration
 	defer func() {

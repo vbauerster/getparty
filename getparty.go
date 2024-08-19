@@ -328,7 +328,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				cancel()
 				statusOK.cancel()
 			}()
-			return p.download(session.location, session.OutputName, timeout, sleep, cmd.opt.BufferSize, cmd.opt.MaxRetry)
+			return p.download(session.location, session.OutputName, cmd.opt.BufferSize, cmd.opt.MaxRetry, sleep, timeout)
 		})
 	}
 
