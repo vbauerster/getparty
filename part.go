@@ -293,11 +293,12 @@ func (p *Part) download(
 
 			var buf [bufMax]byte
 			var sleepCtx context.Context
+			sleepCancel := func() {}
 			bufLen := bufMax >> (8 / bufSize)
 			p.logger.Println("Buffer size:", bufLen)
-			sleepCancel := func() {}
 			fuser := makeUnexpectedEOFFuser(p.logger)
 			timer.Reset(timeout) // because client.Do has taken some time
+
 			for n := bufLen; n == bufLen || fuser(err); sleepCancel() {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buf[:bufLen])
