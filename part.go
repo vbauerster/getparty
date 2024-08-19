@@ -372,7 +372,8 @@ func (p Part) total() int64 {
 }
 
 func (p Part) isDone() bool {
-	return p.Written != 0 && p.Written == p.total()
+	total := p.total()
+	return total >= 0 && p.Written == total
 }
 
 func (p Part) checkSize(stat fs.FileInfo) error {

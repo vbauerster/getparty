@@ -295,7 +295,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.order = i + 1
 		p.name = fmt.Sprintf("P%02d", i+1)
 		p.initDebugLogger(debugOut, fmt.Sprintf("[%s:R%%02d] ", p.name))
-		if p.isDone() {
+		if p.Written != 0 && p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
 			continue
 		}
