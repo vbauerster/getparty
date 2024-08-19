@@ -294,7 +294,7 @@ func (p *Part) download(
 			var buf [bufMax]byte
 			var sleepCtx context.Context
 			sleepCancel := func() {}
-			bufLen := bufMax >> (8 / bufSize)
+			bufLen := int(bufSize * 1024)
 			p.logger.Println("Buffer size:", bufLen)
 			fuser := makeUnexpectedEOFFuser(p.logger)
 			timer.Reset(timeout) // because client.Do has taken some time
