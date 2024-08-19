@@ -19,7 +19,7 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
-const bufLen = 4096
+const bufMax = 1 << 14
 
 var globTry uint32
 
@@ -97,7 +97,10 @@ func (p *Part) initDebugLogger(out io.Writer, prefixTemplate string) {
 	p.prefixTemplate = prefixTemplate
 }
 
-func (p *Part) download(location, outputBase string, timeout, sleep time.Duration, maxTry uint) (err error) {
+func (p *Part) download(
+	location, outputBase string,
+	timeout, sleep time.Duration,
+	bufSize, maxTry uint) (err error) {
 	var fpart *os.File
 	var totalElapsed, totalSlept time.Duration
 	defer func() {
@@ -287,14 +290,16 @@ func (p *Part) download(location, outputBase string, timeout, sleep time.Duratio
 				return false, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 			}
 
-			var buf [bufLen]byte
+			var buf [bufMax]byte
 			var sleepCtx context.Context
+			bufLen := bufMax >> (8 / bufSize)
+			p.logger.Println("Buffer size:", bufLen)
 			sleepCancel := func() {}
 			fuser := makeUnexpectedEOFFuser(p.logger)
 			timer.Reset(timeout) // because client.Do has taken some time
 			for n := bufLen; n == bufLen || fuser(err); sleepCancel() {
 				start := time.Now()
-				n, err = io.ReadFull(resp.Body, buf[:])
+				n, err = io.ReadFull(resp.Body, buf[:bufLen])
 				rDur := time.Since(start)
 
 				if timer.Reset(timeout + sleep) {
