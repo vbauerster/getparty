@@ -129,6 +129,7 @@ func (p *Part) download(
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
 
+	var buf [bufMax]byte
 	bufLen := int(bufSize * 1024)
 	p.logger.Println("ReadFull buf len:", bufLen)
 
@@ -294,7 +295,6 @@ func (p *Part) download(
 				return false, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 			}
 
-			var buf [bufMax]byte
 			var sleepCtx context.Context
 			sleepCancel := func() {}
 			fuser := makeUnexpectedEOFFuser(p.logger)
