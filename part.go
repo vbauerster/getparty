@@ -129,7 +129,7 @@ func (p *Part) download(
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
 
-	var buf [bufMax]byte
+	var buffer [bufMax]byte
 	bufLen := int(bufSize * 1024)
 	p.logger.Println("ReadFull buf len:", bufLen)
 
@@ -302,7 +302,7 @@ func (p *Part) download(
 
 			for n := bufLen; n == bufLen || fuser(err); sleepCancel() {
 				start := time.Now()
-				n, err = io.ReadFull(resp.Body, buf[:bufLen])
+				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
 				rDur := time.Since(start)
 
 				if timer.Reset(timeout + sleep) {
@@ -322,7 +322,7 @@ func (p *Part) download(
 					timeout += 5 * time.Second
 				}
 
-				wn, werr := fpart.Write(buf[:n])
+				wn, werr := fpart.Write(buffer[:n])
 				if werr != nil {
 					sleepCancel()
 					return false, errors.Wrap(werr, "Write error")
