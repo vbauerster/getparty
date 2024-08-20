@@ -295,6 +295,7 @@ func (p *Part) download(
 				return false, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
 			}
 
+			var resetOk bool
 			var sleepCtx context.Context
 			sleepCancel := func() {}
 			fuser := makeUnexpectedEOFFuser(p.logger)
@@ -311,10 +312,11 @@ func (p *Part) download(
 						sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
 						slept += sleep
 					}
-					if timeout != resetTimeout {
+					if timeout != resetTimeout && resetOk {
 						reset()
 						timeout = resetTimeout
 					}
+					resetOk = true
 				} else if timeout < maxTimeout*time.Second {
 					// timer has expired and f passed to time.AfterFunc has been started in its own goroutine
 					// deferred timer.Stop will cancel former timer.Reset which scheduled f to run again
