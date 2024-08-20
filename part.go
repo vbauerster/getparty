@@ -130,7 +130,7 @@ func (p *Part) download(
 	resetTimeout := timeout
 
 	bufLen := int(bufSize * 1024)
-	p.logger.Println("Buffer size:", bufLen)
+	p.logger.Println("ReadFull buf len:", bufLen)
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
