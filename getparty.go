@@ -54,7 +54,7 @@ const (
 	projectHome = "https://github.com/vbauerster/getparty"
 
 	umask               = 0644
-	maxTimeout          = 180
+	maxTimeout          = 60
 	refreshRate         = 200
 	hUserAgentKey       = "User-Agent"
 	hContentDisposition = "Content-Disposition"
