@@ -789,7 +789,7 @@ func runTotalBar(
 			decor.OnCompleteOrOnAbort(decor.NewAverageETA(
 				decor.ET_STYLE_MMSS,
 				start,
-				decor.FixedIntervalTimeNormalizer(30),
+				nil,
 				decor.WCSyncWidth), ":"),
 			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
 			decor.Name("", decor.WCSyncSpace),

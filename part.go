@@ -72,8 +72,8 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 				decor.Name(""),
 				decor.OnCompleteOrOnAbort(decor.EwmaNormalizedETA(
 					decor.ET_STYLE_MMSS,
-					30,
-					decor.FixedIntervalTimeNormalizer(30),
+					60,
+					decor.FixedIntervalTimeNormalizer(60),
 					decor.WCSyncWidth,
 				), ":"),
 			),
