@@ -254,6 +254,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cmd.loggers[INFO].Printf("Saving to: %q", session.OutputName)
 
 	if session.restored {
+		if cmd.opt.UserAgent != "" {
+			session.HeaderMap[hUserAgentKey] = userAgents[cmd.opt.UserAgent]
+		}
 		cmd.patcher = makeReqPatcher(userinfo, session.HeaderMap)
 	}
 
