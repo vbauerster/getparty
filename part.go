@@ -129,6 +129,8 @@ func (p *Part) download(
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
 
+	p.logger.Println("Buffer size:", bufSize*1024)
+
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
 			ctx, cancel := context.WithCancel(p.ctx)
@@ -295,7 +297,6 @@ func (p *Part) download(
 			var sleepCtx context.Context
 			sleepCancel := func() {}
 			bufLen := int(bufSize * 1024)
-			p.logger.Println("Buffer size:", bufLen)
 			fuser := makeUnexpectedEOFFuser(p.logger)
 			timer.Reset(timeout) // because client.Do has taken some time
 
