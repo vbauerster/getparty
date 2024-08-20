@@ -669,6 +669,9 @@ func (cmd Cmd) getTimeout() time.Duration {
 	if cmd.opt.Timeout == 0 {
 		return 15 * time.Second
 	}
+	if cmd.opt.Timeout > maxTimeout {
+		return maxTimeout * time.Second
+	}
 	return time.Duration(cmd.opt.Timeout) * time.Second
 }
 
