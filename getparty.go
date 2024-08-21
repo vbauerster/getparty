@@ -251,15 +251,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.patcher = makeReqPatcher(userinfo, session.HeaderMap)
 	}
 
-	debugOut := cmd.getErr()
-	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
-	stateHandler := cmd.makeStateHandler(progress)
-	defer stateHandler(session, false)
-
-	statusOK := new(http200Context)
-	statusOK.first = make(chan int)
-	statusOK.ctx, statusOK.cancel = context.WithCancel(cmd.Ctx)
-
 	var doneCount uint32
 	var eg errgroup.Group
 	var recoverHandler sync.Once
@@ -267,6 +258,15 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	sleep := time.Duration(cmd.opt.SpeedLimit*60) * time.Millisecond
 	single := len(session.Parts) == 1
 	cancelMap := make(map[int]func())
+
+	statusOK := new(http200Context)
+	statusOK.first = make(chan int)
+	statusOK.ctx, statusOK.cancel = context.WithCancel(cmd.Ctx)
+
+	debugOut := cmd.getErr()
+	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
+	stateHandler := cmd.makeStateHandler(progress)
+	defer stateHandler(session, false)
 
 	for i, p := range session.Parts {
 		p.order = i + 1
