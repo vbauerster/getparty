@@ -1,16 +1,27 @@
 package getparty
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
 )
+
+type progress struct {
+	*mpb.Progress
+	nopBar    *mpb.Bar
+	totalIncr chan int
+	out       io.Writer
+}
 
 // Session represents download session state
 type Session struct {
@@ -149,4 +160,98 @@ func (s Session) checkSizeOfEachPart() error {
 		}
 	}
 	return nil
+}
+
+func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
+	p := mpb.NewWithContext(ctx,
+		mpb.WithOutput(out),
+		mpb.WithDebugOutput(err),
+		mpb.WithRefreshRate(refreshRate*time.Millisecond),
+		mpb.WithWidth(64),
+	)
+	return &progress{
+		Progress:  p,
+		nopBar:    p.MustAdd(0, nil),
+		totalIncr: make(chan int, len(s.Parts)),
+		out:       out,
+	}
+}
+
+func (s Session) runTotalBar(progress *progress, written int64, doneCount *uint32) error {
+	start := time.Now().Add(-s.Elapsed)
+	bar, err := progress.Add(s.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(len(s.Parts)+1),
+		mpb.PrependDecorators(
+			decor.Any(func(_ decor.Statistics) string {
+				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(doneCount), len(s.Parts))
+			}, decor.WCSyncWidthR),
+			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
+		),
+		mpb.AppendDecorators(
+			decor.OnCompleteOrOnAbort(decor.NewAverageETA(
+				decor.ET_STYLE_MMSS,
+				start,
+				nil,
+				decor.WCSyncWidth), ":"),
+			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+		),
+	)
+	if err != nil {
+		return err
+	}
+	go func() {
+		for n := range progress.totalIncr {
+			bar.IncrBy(n)
+		}
+		bar.Abort(false)
+	}()
+	if written != 0 {
+		bar.SetCurrent(written)
+		bar.SetRefill(written)
+	}
+	return nil
+}
+
+func (s Session) concatenateParts(progress *progress) error {
+	if tw := s.totalWritten(); tw != s.ContentLength {
+		return errors.Errorf("Written count mismatch: written=%d ContentLength=%d", tw, s.ContentLength)
+	}
+
+	bar, err := progress.Add(int64(len(s.Parts)-1), baseBarStyle().Build(),
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(len(s.Parts)+2),
+		mpb.PrependDecorators(
+			decor.Name("Concatenating", decor.WCSyncWidthR),
+			decor.NewPercentage("%d", decor.WCSyncSpace),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+		),
+	)
+	if err != nil {
+		return err
+	}
+
+	dst, err := os.OpenFile(s.OutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
+	if err != nil {
+		return err
+	}
+
+	for _, p := range s.Parts {
+		err := p.writeTo(dst)
+		if err != nil {
+			bar.Abort(false)
+			_ = dst.Close()
+			return err
+		}
+		bar.Increment()
+	}
+
+	return firstErr(dst.Sync(), dst.Close())
 }

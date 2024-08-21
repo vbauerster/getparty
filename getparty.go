@@ -23,8 +23,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
-	"github.com/vbauerster/mpb/v8"
-	"github.com/vbauerster/mpb/v8/decor"
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
@@ -111,13 +109,6 @@ type options struct {
 	} `positional-args:"yes"`
 }
 
-type progress struct {
-	*mpb.Progress
-	nopBar    *mpb.Bar
-	totalIncr chan int
-	out       io.Writer
-}
-
 type Cmd struct {
 	Ctx     context.Context
 	Out     io.Writer
@@ -158,21 +149,6 @@ func (cmd Cmd) Exit(err error) (status int) {
 	default:
 		cmd.loggers[ERRO].Println(err.Error())
 		return 3
-	}
-}
-
-func (cmd Cmd) newProgress(parts int, out, err io.Writer) *progress {
-	p := mpb.NewWithContext(cmd.Ctx,
-		mpb.WithOutput(out),
-		mpb.WithDebugOutput(err),
-		mpb.WithRefreshRate(refreshRate*time.Millisecond),
-		mpb.WithWidth(64),
-	)
-	return &progress{
-		Progress:  p,
-		nopBar:    p.MustAdd(0, nil),
-		totalIncr: make(chan int, parts),
-		out:       out,
 	}
 }
 
@@ -282,9 +258,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.patcher = makeReqPatcher(userinfo, session.HeaderMap)
 	}
 
-	written := session.totalWritten()
 	debugOut := cmd.getErr()
-	progress := cmd.newProgress(len(session.Parts), cmd.getOut(), debugOut)
+	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
+	written := session.totalWritten()
 	stateHandler := cmd.makeStateHandler(progress, written)
 	defer stateHandler(session, false)
 
@@ -351,7 +327,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
 	case <-statusOK.ctx.Done():
 		if !single {
-			err := runTotalBar(progress, session, written, &doneCount, totalIncr)
+			err := session.runTotalBar(progress, written, &doneCount)
 			if err != nil {
 				return err
 			}
@@ -366,7 +342,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	if !single {
-		err = concatenateParts(progress, session)
+		err = session.concatenateParts(progress)
 		if err != nil {
 			return err
 		}
@@ -773,88 +749,4 @@ func isRedirect(status int) bool {
 
 func isServerError(status int) bool {
 	return status > 499 && status < 600
-}
-
-func runTotalBar(
-	progress *progress,
-	session *Session,
-	written int64,
-	doneCount *uint32,
-) error {
-	start := time.Now().Add(-session.Elapsed)
-	bar, err := progress.Add(session.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
-		mpb.BarFillerTrim(),
-		mpb.BarPriority(len(session.Parts)+1),
-		mpb.PrependDecorators(
-			decor.Any(func(_ decor.Statistics) string {
-				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(doneCount), len(session.Parts))
-			}, decor.WCSyncWidthR),
-			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
-		),
-		mpb.AppendDecorators(
-			decor.OnCompleteOrOnAbort(decor.NewAverageETA(
-				decor.ET_STYLE_MMSS,
-				start,
-				nil,
-				decor.WCSyncWidth), ":"),
-			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-		),
-	)
-	if err != nil {
-		return err
-	}
-	go func() {
-		for n := range progress.totalIncr {
-			bar.IncrBy(n)
-		}
-		bar.Abort(false)
-	}()
-	if written != 0 {
-		bar.SetCurrent(written)
-		bar.SetRefill(written)
-	}
-	return nil
-}
-
-func concatenateParts(progress *progress, session *Session) error {
-	if tw := session.totalWritten(); tw != session.ContentLength {
-		return errors.Errorf("Written count mismatch: written=%d ContentLength=%d", tw, session.ContentLength)
-	}
-
-	bar, err := progress.Add(int64(len(session.Parts)-1), baseBarStyle().Build(),
-		mpb.BarFillerTrim(),
-		mpb.BarPriority(len(session.Parts)+2),
-		mpb.PrependDecorators(
-			decor.Name("Concatenating", decor.WCSyncWidthR),
-			decor.NewPercentage("%d", decor.WCSyncSpace),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-		),
-	)
-	if err != nil {
-		return err
-	}
-
-	dst, err := os.OpenFile(session.OutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
-	if err != nil {
-		return err
-	}
-
-	for _, p := range session.Parts {
-		err := p.writeTo(dst)
-		if err != nil {
-			bar.Abort(false)
-			_ = dst.Close()
-			return err
-		}
-		bar.Increment()
-	}
-
-	return firstErr(dst.Sync(), dst.Close())
 }
