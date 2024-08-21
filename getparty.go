@@ -370,7 +370,7 @@ func (cmd Cmd) makeStateHandler(progress *progress, start <-chan time.Time) func
 				}
 				err := session.dumpState(name)
 				conclude = func() {
-					fmt.Println(progress.out)
+					fmt.Fprintln(progress.out)
 					if err != nil {
 						cmd.loggers[ERRO].Println(err.Error())
 					} else {
@@ -380,7 +380,7 @@ func (cmd Cmd) makeStateHandler(progress *progress, start <-chan time.Time) func
 			}
 		} else {
 			conclude = func() {
-				fmt.Println(progress.out)
+				fmt.Fprintln(progress.out)
 				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 			}
 		}
