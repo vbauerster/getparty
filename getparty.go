@@ -353,14 +353,14 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeStateHandler(p *progress, written int64) func(*Session, bool) {
+func (cmd Cmd) makeStateHandler(progress *progress, written int64) func(*Session, bool) {
 	start := time.Now()
 	return func(session *Session, isPanic bool) {
-		close(p.totalIncr)
-		p.topBar.EnableTriggerComplete()
-		conclude := func() { fmt.Fprintln(p.out) }
+		close(progress.totalIncr)
+		progress.topBar.EnableTriggerComplete()
+		conclude := func() { fmt.Fprintln(progress.out) }
 		defer func() {
-			p.Wait()
+			progress.Wait()
 			conclude()
 		}()
 		if tw := session.totalWritten(); session.isResumable() && tw != session.ContentLength {
@@ -374,7 +374,7 @@ func (cmd Cmd) makeStateHandler(p *progress, written int64) func(*Session, bool)
 				}
 				err := session.dumpState(name)
 				conclude = func() {
-					fmt.Println(p.out)
+					fmt.Println(progress.out)
 					if err != nil {
 						cmd.loggers[ERRO].Println(err.Error())
 					} else {
@@ -384,7 +384,7 @@ func (cmd Cmd) makeStateHandler(p *progress, written int64) func(*Session, bool)
 			}
 		} else {
 			conclude = func() {
-				fmt.Println(p.out)
+				fmt.Println(progress.out)
 				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 			}
 		}
