@@ -111,6 +111,13 @@ type options struct {
 	} `positional-args:"yes"`
 }
 
+type progress struct {
+	*mpb.Progress
+	nopBar    *mpb.Bar
+	totalIncr chan int
+	out       io.Writer
+}
+
 type Cmd struct {
 	Ctx     context.Context
 	Out     io.Writer
@@ -151,6 +158,21 @@ func (cmd Cmd) Exit(err error) (status int) {
 	default:
 		cmd.loggers[ERRO].Println(err.Error())
 		return 3
+	}
+}
+
+func (cmd Cmd) newProgress(parts int, out, err io.Writer) *progress {
+	p := mpb.NewWithContext(cmd.Ctx,
+		mpb.WithOutput(out),
+		mpb.WithDebugOutput(err),
+		mpb.WithRefreshRate(refreshRate*time.Millisecond),
+		mpb.WithWidth(64),
+	)
+	return &progress{
+		Progress:  p,
+		nopBar:    p.MustAdd(0, nil),
+		totalIncr: make(chan int, parts),
+		out:       out,
 	}
 }
 
@@ -260,26 +282,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.patcher = makeReqPatcher(userinfo, session.HeaderMap)
 	}
 
-	debugOut := cmd.getErr()
-	progress := mpb.NewWithContext(cmd.Ctx,
-		mpb.WithDebugOutput(debugOut),
-		mpb.WithOutput(cmd.getOut()),
-		mpb.WithRefreshRate(refreshRate*time.Millisecond),
-		mpb.WithWidth(64),
-	)
-
 	written := session.totalWritten()
-	stateHandler := cmd.makeStateHandler(written)
-	defer stateHandler(progress, session, false)
-
-	nopBar, err := progress.Add(0, nil)
-	if err != nil {
-		return err
-	}
-	defer nopBar.EnableTriggerComplete()
-
-	totalIncr := make(chan int, len(session.Parts))
-	defer close(totalIncr)
+	debugOut := cmd.getErr()
+	progress := cmd.newProgress(len(session.Parts), cmd.getOut(), debugOut)
+	stateHandler := cmd.makeStateHandler(progress, written)
+	defer stateHandler(session, false)
 
 	statusOK := new(http200Context)
 	statusOK.first = make(chan int)
@@ -310,7 +317,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.statusOK = statusOK
 		p.single = single
 		p.progress = progress
-		p.totalIncr = totalIncr
 		p.patcher = cmd.patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() error {
@@ -321,8 +327,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 							cancel()
 						}
 						statusOK.cancel()
-						close(totalIncr)
-						stateHandler(progress, session, true)
+						stateHandler(session, true)
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, v)) // https://go.dev/play/p/55nmnsXyfSA
 				}
@@ -372,13 +377,15 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeStateHandler(written int64) func(*mpb.Progress, *Session, bool) {
+func (cmd Cmd) makeStateHandler(p *progress, written int64) func(*Session, bool) {
 	start := time.Now()
-	return func(progress *mpb.Progress, session *Session, isPanic bool) {
+	return func(session *Session, isPanic bool) {
+		close(p.totalIncr)
+		p.nopBar.EnableTriggerComplete()
 		log := func() {}
 		defer func() {
-			progress.Wait()
-			fmt.Fprintln(cmd.getOut())
+			p.Wait()
+			fmt.Fprintln(p.out)
 			log()
 		}()
 		tw := session.totalWritten()
@@ -769,11 +776,10 @@ func isServerError(status int) bool {
 }
 
 func runTotalBar(
-	progress *mpb.Progress,
+	progress *progress,
 	session *Session,
 	written int64,
 	doneCount *uint32,
-	incrCh <-chan int,
 ) error {
 	start := time.Now().Add(-session.Elapsed)
 	bar, err := progress.Add(session.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
@@ -800,7 +806,7 @@ func runTotalBar(
 		return err
 	}
 	go func() {
-		for n := range incrCh {
+		for n := range progress.totalIncr {
 			bar.IncrBy(n)
 		}
 		bar.Abort(false)
@@ -812,7 +818,7 @@ func runTotalBar(
 	return nil
 }
 
-func concatenateParts(progress *mpb.Progress, session *Session) error {
+func concatenateParts(progress *progress, session *Session) error {
 	if tw := session.totalWritten(); tw != session.ContentLength {
 		return errors.Errorf("Written count mismatch: written=%d ContentLength=%d", tw, session.ContentLength)
 	}

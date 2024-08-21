@@ -37,11 +37,10 @@ type Part struct {
 
 	ctx            context.Context
 	client         *http.Client
-	progress       *mpb.Progress
+	progress       *progress
 	logger         *log.Logger
 	statusOK       *http200Context
 	patcher        func(*http.Request)
-	totalIncr      chan<- int
 	order          int
 	single         bool
 	name           string
@@ -334,7 +333,7 @@ func (p *Part) download(
 					if p.total() <= 0 {
 						bar.SetTotal(p.Written, false)
 					} else if !p.single {
-						p.totalIncr <- wn
+						p.progress.totalIncr <- wn
 					}
 				}
 				bar.EwmaIncrBy(wn, rDur+sleep)
