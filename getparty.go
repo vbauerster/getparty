@@ -260,8 +260,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
-	written := session.totalWritten()
-	stateHandler := cmd.makeStateHandler(progress, written)
+	stateHandler := cmd.makeStateHandler(progress)
 	defer stateHandler(session, false)
 
 	statusOK := new(http200Context)
@@ -327,7 +326,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
 	case <-statusOK.ctx.Done():
 		if !single {
-			err := session.runTotalBar(progress, written, &doneCount)
+			err := session.runTotalBar(progress, &doneCount)
 			if err != nil {
 				return err
 			}
@@ -353,7 +352,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeStateHandler(progress *progress, written int64) func(*Session, bool) {
+func (cmd Cmd) makeStateHandler(progress *progress) func(*Session, bool) {
 	start := time.Now()
 	return func(session *Session, isPanic bool) {
 		close(progress.totalIncr)
@@ -364,7 +363,7 @@ func (cmd Cmd) makeStateHandler(progress *progress, written int64) func(*Session
 			conclude()
 		}()
 		if tw := session.totalWritten(); session.isResumable() && tw != session.ContentLength {
-			if tw != written { // if some bytes were written
+			if tw != progress.written { // if some bytes were written
 				session.Elapsed += time.Since(start)
 				var name string
 				if isPanic {

@@ -20,6 +20,7 @@ type progress struct {
 	*mpb.Progress
 	topBar    *mpb.Bar
 	totalIncr chan int
+	written   int64
 	out       io.Writer
 }
 
@@ -173,11 +174,12 @@ func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress 
 		Progress:  p,
 		topBar:    p.MustAdd(0, nil),
 		totalIncr: make(chan int, len(s.Parts)),
+		written:   s.totalWritten(),
 		out:       out,
 	}
 }
 
-func (s Session) runTotalBar(progress *progress, written int64, doneCount *uint32) error {
+func (s Session) runTotalBar(progress *progress, doneCount *uint32) error {
 	start := time.Now().Add(-s.Elapsed)
 	bar, err := progress.Add(s.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
 		mpb.BarFillerTrim(),
@@ -208,9 +210,9 @@ func (s Session) runTotalBar(progress *progress, written int64, doneCount *uint3
 		}
 		bar.Abort(false)
 	}()
-	if written != 0 {
-		bar.SetCurrent(written)
-		bar.SetRefill(written)
+	if progress.written != 0 {
+		bar.SetCurrent(progress.written)
+		bar.SetRefill(progress.written)
 	}
 	return nil
 }
