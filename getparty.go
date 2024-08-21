@@ -265,7 +265,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
-	stateHandler := cmd.makeStateHandler(progress)
+	start := make(chan time.Time, 1)
+	stateHandler := cmd.makeStateHandler(progress, start)
 	defer stateHandler(session, false)
 
 	for i, p := range session.Parts {
@@ -325,6 +326,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}
 
+	start <- time.Now()
+
 	err = eg.Wait()
 	if err != nil {
 		if context.Cause(cmd.Ctx) == ErrCanceledByUser {
@@ -344,8 +347,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeStateHandler(progress *progress) func(*Session, bool) {
-	start := time.Now()
+func (cmd Cmd) makeStateHandler(progress *progress, start <-chan time.Time) func(*Session, bool) {
 	return func(session *Session, isPanic bool) {
 		close(progress.totalIncr)
 		progress.topBar.EnableTriggerComplete()
@@ -356,12 +358,12 @@ func (cmd Cmd) makeStateHandler(progress *progress) func(*Session, bool) {
 		}()
 		if tw := session.totalWritten(); session.isResumable() && tw != session.ContentLength {
 			if tw != progress.written { // if some bytes were written
-				session.Elapsed += time.Since(start)
 				var name string
 				if isPanic {
 					name = session.OutputName + ".panic"
 				} else {
 					name = session.OutputName + ".json"
+					session.Elapsed += time.Since(<-start)
 				}
 				err := session.dumpState(name)
 				conclude = func() {
