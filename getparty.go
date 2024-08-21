@@ -232,13 +232,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	client := &http.Client{
 		Transport: rtBuilder.pool(cmd.opt.Parts > 1).build(),
 		Jar:       jar,
-		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-			max := int(cmd.opt.MaxRedirect)
-			if max != 0 && len(via) > max {
-				return errors.WithMessage(ErrMaxRedirect, "Stopping")
-			}
-			return http.ErrUseLastResponse
-		},
 	}
 	session, err := cmd.getState(client)
 	if err != nil {
@@ -274,7 +267,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	sleep := time.Duration(cmd.opt.SpeedLimit*60) * time.Millisecond
 	single := len(session.Parts) == 1
 	cancelMap := make(map[int]func())
-	client.CheckRedirect = nil
 
 	for i, p := range session.Parts {
 		p.order = i + 1
@@ -415,6 +407,16 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 }
 
 func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
+	client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
+		max := int(cmd.opt.MaxRedirect)
+		if max != 0 && len(via) > max {
+			return errors.WithMessage(ErrMaxRedirect, "Stopping")
+		}
+		return http.ErrUseLastResponse
+	}
+	defer func() {
+		client.CheckRedirect = nil
+	}()
 	for {
 		switch {
 		case cmd.opt.SessionName != "":
