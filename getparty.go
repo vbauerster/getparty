@@ -309,27 +309,26 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
-	var now time.Time
 	select {
 	case id := <-statusOK.first:
-		now = time.Now()
+		now := time.Now()
 		delete(cancelMap, id)
 		for _, cancel := range cancelMap {
 			cancel()
 		}
 		single = true
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
+		start <- now
 	case <-statusOK.ctx.Done():
-		now = time.Now()
+		now := time.Now()
 		if !single {
 			err := session.runTotalBar(progress, &doneCount, now)
 			if err != nil {
 				return err
 			}
 		}
+		start <- now
 	}
-
-	start <- now
 
 	err = eg.Wait()
 	if err != nil {
