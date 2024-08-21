@@ -179,8 +179,8 @@ func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress 
 	}
 }
 
-func (s Session) runTotalBar(progress *progress, doneCount *uint32) error {
-	start := time.Now().Add(-s.Elapsed)
+func (s Session) runTotalBar(progress *progress, doneCount *uint32, start time.Time) error {
+	start = start.Add(-s.Elapsed)
 	bar, err := progress.Add(s.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(len(s.Parts)+1),
