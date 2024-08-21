@@ -358,14 +358,12 @@ func (cmd Cmd) makeStateHandler(p *progress, written int64) func(*Session, bool)
 	return func(session *Session, isPanic bool) {
 		close(p.totalIncr)
 		p.topBar.EnableTriggerComplete()
-		log := func() {}
+		conclude := func() { fmt.Fprintln(p.out) }
 		defer func() {
 			p.Wait()
-			fmt.Fprintln(p.out)
-			log()
+			conclude()
 		}()
-		tw := session.totalWritten()
-		if session.isResumable() && tw != session.ContentLength {
+		if tw := session.totalWritten(); session.isResumable() && tw != session.ContentLength {
 			if tw != written { // if some bytes were written
 				session.Elapsed += time.Since(start)
 				var name string
@@ -375,18 +373,18 @@ func (cmd Cmd) makeStateHandler(p *progress, written int64) func(*Session, bool)
 					name = session.OutputName + ".json"
 				}
 				err := session.dumpState(name)
-				if err != nil {
-					log = func() {
+				conclude = func() {
+					fmt.Println(p.out)
+					if err != nil {
 						cmd.loggers[ERRO].Println(err.Error())
-					}
-				} else {
-					log = func() {
+					} else {
 						cmd.loggers[INFO].Printf("Session state saved to %q", name)
 					}
 				}
 			}
 		} else {
-			log = func() {
+			conclude = func() {
+				fmt.Println(p.out)
 				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 			}
 		}
