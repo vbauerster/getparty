@@ -357,7 +357,7 @@ func (cmd Cmd) makeStateHandler(p *progress, written int64) func(*Session, bool)
 	start := time.Now()
 	return func(session *Session, isPanic bool) {
 		close(p.totalIncr)
-		p.nopBar.EnableTriggerComplete()
+		p.topBar.EnableTriggerComplete()
 		log := func() {}
 		defer func() {
 			p.Wait()

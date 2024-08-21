@@ -18,7 +18,7 @@ import (
 
 type progress struct {
 	*mpb.Progress
-	nopBar    *mpb.Bar
+	topBar    *mpb.Bar
 	totalIncr chan int
 	out       io.Writer
 }
@@ -171,7 +171,7 @@ func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress 
 	)
 	return &progress{
 		Progress:  p,
-		nopBar:    p.MustAdd(0, nil),
+		topBar:    p.MustAdd(0, nil),
 		totalIncr: make(chan int, len(s.Parts)),
 		out:       out,
 	}
