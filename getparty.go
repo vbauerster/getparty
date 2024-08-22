@@ -311,14 +311,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	select {
 	case id := <-statusOK.first:
-		now := time.Now()
+		start <- time.Now()
 		delete(cancelMap, id)
 		for _, cancel := range cancelMap {
 			cancel()
 		}
 		single = true
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
-		start <- now
 	case <-statusOK.ctx.Done():
 		now := time.Now()
 		start <- now
