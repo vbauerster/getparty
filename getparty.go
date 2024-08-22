@@ -321,13 +321,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		start <- now
 	case <-statusOK.ctx.Done():
 		now := time.Now()
+		start <- now
 		if !single {
 			err := session.runTotalBar(progress, &doneCount, now)
 			if err != nil {
 				return err
 			}
 		}
-		start <- now
 	}
 
 	err = eg.Wait()
