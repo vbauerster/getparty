@@ -24,6 +24,11 @@ type progress struct {
 	out       io.Writer
 }
 
+func (p *progress) Wait() {
+	p.Progress.Wait()
+	fmt.Fprintln(p.out)
+}
+
 // Session represents download session state
 type Session struct {
 	restored      bool

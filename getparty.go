@@ -353,11 +353,6 @@ func (cmd Cmd) makeStateHandler(progress *progress, start <-chan time.Time) func
 	return func(session *Session, isPanic bool) {
 		close(progress.totalIncr)
 		progress.topBar.EnableTriggerComplete()
-		conclude := func() { fmt.Fprintln(progress.out) }
-		defer func() {
-			progress.Wait()
-			conclude()
-		}()
 		if tw := session.totalWritten(); session.isResumable() && tw != session.ContentLength {
 			if tw != progress.written { // if some bytes were written
 				var name string
@@ -368,21 +363,16 @@ func (cmd Cmd) makeStateHandler(progress *progress, start <-chan time.Time) func
 					session.Elapsed += time.Since(<-start)
 				}
 				err := session.dumpState(name)
-				conclude = func() {
-					fmt.Fprintln(progress.out)
-					if err != nil {
-						cmd.loggers[ERRO].Println(err.Error())
-					} else {
-						cmd.loggers[INFO].Printf("Session state saved to %q", name)
-					}
+				if err != nil {
+					defer cmd.loggers[ERRO].Println(err.Error())
+				} else {
+					defer cmd.loggers[INFO].Printf("Session state saved to %q", name)
 				}
 			}
 		} else {
-			conclude = func() {
-				fmt.Fprintln(progress.out)
-				cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
-			}
+			defer cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 		}
+		progress.Wait()
 	}
 }
 
