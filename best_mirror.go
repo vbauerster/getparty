@@ -72,6 +72,9 @@ func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 	}
 	pq := cmd.batchMirrors(input, transport)
 	topn := int(cmd.opt.BestMirror.TopN)
+	if topn == 0 {
+		topn = pq.Len()
+	}
 	for i := 0; i < topn && pq.Len() != 0; i++ {
 		m := heap.Pop(&pq).(*mirror)
 		top = append(top, m.url)
