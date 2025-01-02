@@ -48,6 +48,9 @@ type Session struct {
 }
 
 func (s *Session) calcParts(parts uint) error {
+	if parts == 0 {
+		return ErrZeroParts
+	}
 	if !s.isResumable() {
 		parts = 1
 	}

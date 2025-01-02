@@ -45,6 +45,7 @@ const (
 	ErrCanceledByUser = ExpectedError("Canceled by user")
 	ErrMaxRedirect    = ExpectedError("Max redirections")
 	ErrMaxRetry       = ExpectedError("Max retries")
+	ErrZeroParts      = ExpectedError("No parts no work")
 )
 
 const (
@@ -235,12 +236,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	session, err := cmd.getState(client)
 	if err != nil {
+		if err == ErrZeroParts && session != nil {
+			session.summary(cmd.loggers)
+		}
 		return err
 	}
 	session.summary(cmd.loggers)
-	if cmd.opt.Parts == 0 {
-		return nil
-	}
 
 	cmd.loggers[INFO].Printf("Saving to: %q", session.OutputName)
 
@@ -451,12 +452,9 @@ func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
 			state := session.OutputName + ".json"
 			if _, err := os.Stat(state); err != nil {
 				if errors.Is(err, os.ErrNotExist) {
-					if cmd.opt.Parts == 0 {
-						return session, nil
-					}
 					err := session.calcParts(cmd.opt.Parts)
 					if err != nil {
-						return nil, err
+						return session, err
 					}
 					exist, err := session.isOutputFileExist()
 					if err != nil {
