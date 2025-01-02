@@ -131,16 +131,13 @@ func (s Session) summary(loggers [LEVELS]*log.Logger) {
 
 func (s Session) isOutputFileExist() (bool, error) {
 	stat, err := os.Stat(s.OutputName)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
-		}
-		return false, err
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
 	}
-	if stat.IsDir() {
+	if err == nil && stat.IsDir() {
 		return true, errors.Wrapf(os.ErrInvalid, "%q is a directory", s.OutputName)
 	}
-	return true, nil
+	return true, err
 }
 
 func (s Session) checkContentSums(other Session) error {
