@@ -171,11 +171,16 @@ func (s Session) checkSizeOfEachPart() error {
 }
 
 func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
+	n := 1 // account for topBar
+	if !s.Single {
+		n += 2 // account for total and concat bars
+	}
 	p := mpb.NewWithContext(ctx,
 		mpb.WithOutput(out),
 		mpb.WithDebugOutput(err),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
+		mpb.WithQueueLen(len(s.Parts)+n),
 	)
 	return &progress{
 		Progress:  p,
