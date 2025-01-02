@@ -256,7 +256,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var recoverHandler sync.Once
 	timeout := cmd.getTimeout()
 	sleep := time.Duration(cmd.opt.SpeedLimit*60) * time.Millisecond
-	single := len(session.Parts) == 1
 	cancelMap := make(map[int]func())
 
 	statusOK := new(http200Context)
@@ -283,7 +282,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.ctx = ctx
 		p.client = client
 		p.statusOK = statusOK
-		p.single = single
+		p.single = session.Single
 		p.progress = progress
 		p.patcher = cmd.patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
@@ -316,12 +315,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		for _, cancel := range cancelMap {
 			cancel()
 		}
-		single = true
+		session.Single = true
 		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
 	case <-statusOK.ctx.Done():
 		now := time.Now()
 		start <- now
-		if !single {
+		if !session.Single {
 			err := session.runTotalBar(progress, &doneCount, now)
 			if err != nil {
 				return err
@@ -336,7 +335,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		return err
 	}
-	if !single {
+	if !session.Single {
 		err = session.concatenateParts(progress)
 		if err != nil {
 			return err
