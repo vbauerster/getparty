@@ -451,22 +451,19 @@ func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
 			}
 			session.HeaderMap = cmd.opt.HeaderMap
 			state := session.OutputName + ".json"
-			if _, err := os.Stat(state); err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					err := session.calcParts(cmd.opt.Parts)
-					if err != nil {
-						return session, err
-					}
-					exist, err := session.isOutputFileExist()
-					if err != nil {
-						return nil, err
-					}
-					if exist {
-						return session, cmd.overwriteIfConfirmed(session.OutputName)
-					}
-					return session, nil
+			if _, err := os.Stat(state); errors.Is(err, os.ErrNotExist) {
+				err := session.calcParts(cmd.opt.Parts)
+				if err != nil {
+					return session, err
 				}
-				return nil, err
+				exist, err := session.isOutputFileExist()
+				if err != nil {
+					return nil, err
+				}
+				if exist {
+					return session, cmd.overwriteIfConfirmed(session.OutputName)
+				}
+				return session, nil
 			}
 			cmd.loggers[DEBUG].Printf("Reusing existing state: %q", state)
 			cmd.opt.SessionName = state
