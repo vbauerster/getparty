@@ -330,7 +330,7 @@ func (p *Part) download(
 					if err != nil {
 						werr = errors.WithMessage(werr, err.Error())
 					}
-					return false, errors.Wrap(werr, "Write error")
+					return false, errors.Wrapf(werr, "Write to %q", fpart.Name())
 				}
 				if wn != 0 {
 					p.Written += int64(wn)
