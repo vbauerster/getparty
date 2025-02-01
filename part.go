@@ -332,13 +332,11 @@ func (p *Part) download(
 					}
 					return false, errors.Wrapf(werr, "Write to %q", fpart.Name())
 				}
-				if wn != 0 {
-					p.Written += int64(wn)
-					if p.total() <= 0 {
-						bar.SetTotal(p.Written, false)
-					} else if !p.single {
-						p.progress.totalIncr <- wn
-					}
+				p.Written += int64(wn)
+				if p.total() <= 0 {
+					bar.SetTotal(p.Written, false)
+				} else if !p.single {
+					p.progress.totalIncr <- wn
 				}
 				bar.EwmaIncrBy(wn, rDur+sleep)
 				if sleepCtx != nil {
