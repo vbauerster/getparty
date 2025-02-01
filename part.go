@@ -326,6 +326,10 @@ func (p *Part) download(
 				wn, werr := fpart.Write(buffer[:n])
 				if werr != nil {
 					sleepCancel()
+					err := fpart.Truncate(p.Written)
+					if err != nil {
+						werr = errors.WithMessage(werr, err.Error())
+					}
 					return false, errors.Wrap(werr, "Write error")
 				}
 				if wn != 0 {
