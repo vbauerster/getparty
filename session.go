@@ -24,6 +24,16 @@ type progress struct {
 	out       io.Writer
 }
 
+func (p *progress) increment(n int) {
+	select {
+	case p.totalIncr <- n:
+	default:
+		go func() {
+			p.totalIncr <- n
+		}()
+	}
+}
+
 func (p *progress) Wait() {
 	p.Progress.Wait()
 	fmt.Fprintln(p.out)
