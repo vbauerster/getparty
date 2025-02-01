@@ -18,18 +18,18 @@ import (
 
 type progress struct {
 	*mpb.Progress
-	topBar    *mpb.Bar
-	totalIncr chan int
-	written   int64
-	out       io.Writer
+	topBar  *mpb.Bar
+	total   chan int
+	written int64
+	out     io.Writer
 }
 
 func (p *progress) increment(n int) {
 	select {
-	case p.totalIncr <- n:
+	case p.total <- n:
 	default:
 		go func() {
-			p.totalIncr <- n
+			p.total <- n
 		}()
 	}
 }
@@ -193,11 +193,11 @@ func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress 
 		mpb.WithQueueLen(len(s.Parts)+n),
 	)
 	return &progress{
-		Progress:  p,
-		topBar:    p.MustAdd(0, nil),
-		totalIncr: make(chan int, len(s.Parts)),
-		written:   s.totalWritten(),
-		out:       out,
+		Progress: p,
+		topBar:   p.MustAdd(0, nil),
+		total:    make(chan int, len(s.Parts)),
+		written:  s.totalWritten(),
+		out:      out,
 	}
 }
 
@@ -227,7 +227,7 @@ func (s Session) runTotalBar(progress *progress, doneCount *uint32, start time.T
 		return err
 	}
 	go func() {
-		for n := range progress.totalIncr {
+		for n := range progress.total {
 			bar.IncrBy(n)
 		}
 		bar.Abort(false)

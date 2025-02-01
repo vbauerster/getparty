@@ -352,7 +352,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 func (cmd Cmd) makeStateHandler(progress *progress, start <-chan time.Time) func(*Session, bool) {
 	return func(session *Session, isPanic bool) {
 		go func() {
-			close(progress.totalIncr)
+			close(progress.total)
 			progress.topBar.EnableTriggerComplete()
 		}()
 		if tw := session.totalWritten(); session.isResumable() && tw != session.ContentLength {
