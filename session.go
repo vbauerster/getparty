@@ -199,9 +199,9 @@ func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress 
 	}
 }
 
-func (s Session) runTotalBar(progress *progress, doneCount *uint32, start time.Time) error {
+func (s Session) runTotalBar(progress *progress, doneCount *uint32, start time.Time) {
 	start = start.Add(-s.Elapsed)
-	bar, err := progress.Add(s.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
+	bar := progress.MustAdd(s.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(len(s.Parts)+1),
 		mpb.PrependDecorators(
@@ -221,9 +221,6 @@ func (s Session) runTotalBar(progress *progress, doneCount *uint32, start time.T
 			decor.Name("", decor.WCSyncSpace),
 		),
 	)
-	if err != nil {
-		return err
-	}
 	go func() {
 		for n := range progress.total {
 			bar.IncrBy(n)
@@ -234,7 +231,6 @@ func (s Session) runTotalBar(progress *progress, doneCount *uint32, start time.T
 		bar.SetCurrent(progress.written)
 		bar.SetRefill(progress.written)
 	}
-	return nil
 }
 
 func (s Session) concatenateParts(progress *progress) error {

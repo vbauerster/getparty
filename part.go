@@ -247,7 +247,6 @@ func (p *Part) download(
 				}
 				select {
 				case p.statusOK.first <- p.order:
-					p.statusOK.cancel()
 					p.single = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1

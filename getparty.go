@@ -45,6 +45,7 @@ const (
 	ErrCanceledByUser = ExpectedError("Canceled by user")
 	ErrMaxRedirect    = ExpectedError("Max redirections")
 	ErrMaxRetry       = ExpectedError("Max retries")
+	ErrNoPartial      = ExpectedError("No partial content")
 	ErrZeroParts      = ExpectedError("No parts no work")
 	ErrTooFragmented  = ExpectedError("Too many parts for such pathetic download")
 )
@@ -262,7 +263,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	statusOK := new(http200Context)
 	statusOK.first = make(chan int)
-	statusOK.ctx, statusOK.cancel = context.WithCancel(cmd.Ctx)
+	statusOK.ctx, statusOK.cancel = context.WithCancel(context.Background())
 
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
@@ -295,7 +296,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						for _, cancel := range cancelMap {
 							cancel()
 						}
-						statusOK.cancel()
 						stateHandler(session, true)
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, v)) // https://go.dev/play/p/55nmnsXyfSA
@@ -304,31 +304,35 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 				cancel()
-				statusOK.cancel()
 			}()
 			return p.download(session.location, session.OutputName, cmd.opt.BufferSize, cmd.opt.MaxRetry, sleep, timeout)
 		})
 	}
 
-	select {
-	case id := <-statusOK.first:
-		start <- time.Now()
-		delete(cancelMap, id)
-		for _, cancel := range cancelMap {
-			cancel()
-		}
-		session.Single = true
-		cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
-	case <-statusOK.ctx.Done():
-		now := time.Now()
-		start <- now
-		if !session.Single {
-			err := session.runTotalBar(progress, &doneCount, now)
-			if err != nil {
-				return err
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	go func() {
+		select {
+		case id := <-statusOK.first:
+			for k, cancel := range cancelMap {
+				if k != id {
+					cancel()
+				}
 			}
+			statusOK.cancel()
+			cancel(ErrNoPartial)
+			start <- time.Now()
+			cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
+		case <-statusOK.ctx.Done(): // it's independent of cmd.Ctx
+			now := time.Now()
+			start <- now
+			if !session.Single {
+				session.runTotalBar(progress, &doneCount, now)
+			}
+		case <-ctx.Done():
+			statusOK.cancel()
 		}
-	}
+	}()
 
 	err = eg.Wait()
 	if err != nil {
@@ -336,6 +340,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			return ErrCanceledByUser
 		}
 		return err
+	}
+	if context.Cause(ctx) == ErrNoPartial {
+		session.Single = true
 	}
 	if !session.Single {
 		err = session.concatenateParts(progress)
