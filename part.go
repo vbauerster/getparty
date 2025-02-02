@@ -335,8 +335,8 @@ func (p *Part) download(
 				p.Written += int64(wn)
 				if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
-				} else if !p.single {
-					p.progress.increment(wn)
+				} else if !p.single && wn != 0 {
+					p.progress.total <- wn
 				}
 				bar.EwmaIncrBy(wn, rDur+sleep)
 				if sleepCtx != nil {

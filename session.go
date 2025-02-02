@@ -24,16 +24,6 @@ type progress struct {
 	out     io.Writer
 }
 
-func (p *progress) increment(n int) {
-	select {
-	case p.total <- n:
-	default:
-		go func() {
-			p.total <- n
-		}()
-	}
-}
-
 func (p *progress) Wait() {
 	close(p.total)
 	p.topBar.EnableTriggerComplete()
