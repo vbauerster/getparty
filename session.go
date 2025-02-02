@@ -153,13 +153,12 @@ func (s Session) checkContentSums(other Session) error {
 }
 
 func (s Session) checkSizeOfEachPart() error {
-	single := len(s.Parts) == 1
 	for i, p := range s.Parts {
 		if p.Written == 0 {
 			continue
 		}
 		p.order = i + 1
-		p.single = single
+		p.single = s.Single
 		stat, err := os.Stat(p.outputName(s.OutputName))
 		if err != nil {
 			return err
