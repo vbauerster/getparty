@@ -102,11 +102,11 @@ func (p *Part) download(
 	sleep, timeout time.Duration,
 ) (err error) {
 	var fpart *os.File
-	var totalElapsed, totalSlept time.Duration
+	var totalElapsed, totalIdle time.Duration
 	defer func() {
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)
-		p.logger.Println("Total Slept:", totalSlept)
+		p.logger.Println("Total Idle:", totalIdle)
 		if fpart != nil {
 			p.logger.Printf("Closing: %q", fpart.Name())
 			err = firstErr(err, fpart.Close())
@@ -145,7 +145,7 @@ func (p *Part) download(
 					p.logger.Println(msg, "msg dropped")
 				}
 			})
-			var slept time.Duration
+			var idle time.Duration
 			pWritten := p.Written
 			start := time.Now()
 			defer func() {
@@ -153,10 +153,10 @@ func (p *Part) download(
 				timer.Stop()
 				cancel()
 				totalElapsed += elapsed
-				totalSlept += slept
+				totalIdle += idle
 				p.logger.Println("Written:", p.Written-pWritten)
 				p.logger.Println("Elapsed:", elapsed)
-				p.logger.Println("Slept:", slept)
+				p.logger.Println("Idle:", idle)
 				if !retry || err == nil || context.Cause(p.ctx) == ErrCanceledByUser {
 					return
 				}
@@ -309,7 +309,7 @@ func (p *Part) download(
 					// put off f passed to time.AfterFunc to be called for the next reset duration
 					if sleep != 0 {
 						sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
-						slept += sleep
+						idle += sleep
 					}
 					if timeout != resetTimeout && resetOk {
 						reset()
