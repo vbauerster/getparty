@@ -173,14 +173,15 @@ func (s Session) checkSizeOfEachPart() error {
 }
 
 func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
-	total := 1
+	var total chan int
+	qlen := 1
 	for _, p := range s.Parts {
 		if !p.isDone() {
-			total++
+			qlen++
 		}
 	}
-	qlen := total
 	if !s.Single {
+		total = make(chan int, qlen)
 		qlen += 2 // account for total and concat bars
 	}
 	p := mpb.NewWithContext(ctx,
@@ -193,7 +194,7 @@ func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress 
 	return &progress{
 		Progress: p,
 		topBar:   p.MustAdd(0, nil),
-		total:    make(chan int, total),
+		total:    total,
 		written:  s.totalWritten(),
 		out:      out,
 	}
