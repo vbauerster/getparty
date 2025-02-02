@@ -35,6 +35,8 @@ func (p *progress) increment(n int) {
 }
 
 func (p *progress) Wait() {
+	close(p.total)
+	p.topBar.EnableTriggerComplete()
 	p.Progress.Wait()
 	fmt.Fprintln(p.out)
 }
