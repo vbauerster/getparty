@@ -184,10 +184,16 @@ func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress 
 		mpb.WithWidth(64),
 		mpb.WithQueueLen(len(s.Parts)+n),
 	)
+	total := 1
+	for _, p := range s.Parts {
+		if !p.isDone() {
+			total++
+		}
+	}
 	return &progress{
 		Progress: p,
 		topBar:   p.MustAdd(0, nil),
-		total:    make(chan int, len(s.Parts)),
+		total:    make(chan int, total),
 		written:  s.totalWritten(),
 		out:      out,
 	}
