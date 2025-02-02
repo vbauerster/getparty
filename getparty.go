@@ -280,7 +280,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			continue
 		}
 		ctx, cancel := context.WithCancel(cmd.Ctx)
-		cancelMap[i+1] = cancel
+		cancelMap[p.order] = cancel
 		p.ctx = ctx
 		p.client = client
 		p.statusOK = statusOK
