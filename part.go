@@ -164,7 +164,7 @@ func (p *Part) download(
 					atomic.AddUint32(&globTry, 1)
 				case maxTry:
 					atomic.AddUint32(&globTry, ^uint32(0))
-					retry, err = false, errors.WithMessage(ErrMaxRetry, "Stopping")
+					retry, err = false, errors.WithStack(ErrMaxRetry)
 					fmt.Fprintf(p.progress, "%s%s (%.1f / %.1f)\n",
 						p.logger.Prefix(),
 						err.Error(),
@@ -228,13 +228,13 @@ func (p *Part) download(
 				if fpart == nil {
 					fpart, err = os.OpenFile(p.outputName(outputBase), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
-						return false, err
+						return false, errors.WithStack(err)
 					}
 				}
 				if bar == nil {
 					bar, err = p.newBar(&curTry, msgCh)
 					if err != nil {
-						return false, err
+						return false, errors.WithStack(err)
 					}
 				}
 				if p.Written != 0 {
@@ -263,24 +263,24 @@ func (p *Part) download(
 					p.logger.Printf("Closing: %q", fpart.Name())
 					err := fpart.Close()
 					if err != nil {
-						return false, err
+						return false, errors.WithStack(err)
 					}
 				}
 				fpart, err = os.OpenFile(outputBase, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 				if err != nil {
-					return false, err
+					return false, errors.WithStack(err)
 				}
 				if bar == nil {
 					bar, err = p.newBar(&curTry, msgCh)
 					if err != nil {
-						return false, err
+						return false, errors.WithStack(err)
 					}
 				} else {
 					bar.SetCurrent(0)
 					p.Written = 0
 				}
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-				return true, errors.Wrap(UnexpectedHttpStatus(resp.StatusCode), resp.Status)
+				return true, errors.WithMessage(UnexpectedHttpStatus(resp.StatusCode), resp.Status)
 			default:
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))

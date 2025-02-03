@@ -413,7 +413,7 @@ func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
 	client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
 		max := int(cmd.opt.MaxRedirect)
 		if max != 0 && len(via) > max {
-			return errors.WithMessage(ErrMaxRedirect, "Stopping")
+			return ErrMaxRedirect
 		}
 		return http.ErrUseLastResponse
 	}
@@ -511,7 +511,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
-					return false, err
+					return false, errors.WithStack(err)
 				}
 
 				if cmd.patcher != nil {
@@ -527,9 +527,12 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					cmd.loggers[WARN].Println(unwrapOrErr(err).Error())
 					cmd.loggers[DEBUG].Println(err.Error())
 					if attempt != 0 && attempt == cmd.opt.MaxRetry {
-						return false, errors.WithMessage(ErrMaxRetry, "Stopping")
+						return false, errors.WithStack(ErrMaxRetry)
 					}
-					return !errors.Is(err, ErrMaxRedirect), err
+					if errors.Is(err, ErrMaxRedirect) {
+						return false, errors.WithStack(err)
+					}
+					return true, err
 				}
 
 				if jar := client.Jar; jar != nil {
@@ -549,22 +552,25 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					redirected = true
 					loc, err := resp.Location()
 					if err != nil {
-						return false, err
+						return false, errors.WithStack(err)
 					}
 					location = loc.String()
 					if resp.Body != nil {
-						resp.Body.Close()
+						err := resp.Body.Close()
+						if err != nil {
+							return false, errors.WithStack(err)
+						}
 					}
 					continue
 				}
 
 				if resp.StatusCode != http.StatusOK {
-					cmd.loggers[WARN].Println("HTTP response:", resp.Status)
 					err := errors.Wrap(UnexpectedHttpStatus(resp.StatusCode), resp.Status)
+					cmd.loggers[WARN].Println(err.Error())
 					if isServerError(resp.StatusCode) { // server error may be temporary
 						return attempt != cmd.opt.MaxRetry, err
 					}
-					return false, err
+					return false, err // err is already with stack
 				}
 
 				cmd.loggers[INFO].Println("HTTP response:", resp.Status)
@@ -609,7 +615,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					Redirected:    redirected,
 				}
 
-				return false, resp.Body.Close()
+				return false, errors.WithStack(resp.Body.Close())
 			}
 		})
 	return session, err
