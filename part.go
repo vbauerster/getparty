@@ -146,15 +146,14 @@ func (p *Part) download(
 				}
 			})
 			var idle time.Duration
-			pWritten := p.Written
 			start := time.Now()
-			defer func() {
+			defer func(written int64) {
 				elapsed := time.Since(start)
 				timer.Stop()
 				cancel()
 				totalElapsed += elapsed
 				totalIdle += idle
-				p.logger.Println("Written:", p.Written-pWritten)
+				p.logger.Println("Written:", p.Written-written)
 				p.logger.Println("Elapsed:", elapsed)
 				p.logger.Println("Idle:", idle)
 				if !retry || err == nil || context.Cause(p.ctx) == ErrCanceledByUser {
@@ -181,7 +180,7 @@ func (p *Part) download(
 				}(p.logger.Prefix())
 				p.logger.SetPrefix(fmt.Sprintf(p.prefixTemplate, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
-			}()
+			}(p.Written)
 
 			p.logger.Printf("GET(%s): %s", timeout, req.URL)
 
