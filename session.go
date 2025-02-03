@@ -25,7 +25,9 @@ type progress struct {
 }
 
 func (p *progress) Wait() {
-	close(p.total)
+	if p.total != nil {
+		close(p.total)
+	}
 	p.topBar.EnableTriggerComplete()
 	p.Progress.Wait()
 	fmt.Fprintln(p.out)
