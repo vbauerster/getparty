@@ -261,7 +261,7 @@ func (p *Part) download(
 				}
 				if fpart != nil {
 					p.logger.Printf("Closing: %q", fpart.Name())
-					err = firstErr(err, fpart.Close())
+					err := fpart.Close()
 					if err != nil {
 						return false, err
 					}
