@@ -340,10 +340,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		session.Single = true
 	}
 	if err != nil {
-		if context.Cause(cmd.Ctx) == ErrCanceledByUser {
-			return ErrCanceledByUser
-		}
-		return err
+		return firstErr(context.Cause(cmd.Ctx), err)
 	}
 	if !session.Single {
 		err = session.concatenateParts(progress)
