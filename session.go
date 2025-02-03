@@ -237,7 +237,7 @@ func (s Session) runTotalBar(progress *progress, doneCount *uint32, start time.T
 
 func (s Session) concatenateParts(progress *progress) error {
 	if tw := s.totalWritten(); tw != s.ContentLength {
-		return errors.Errorf("Written count mismatch: written=%d ContentLength=%d", tw, s.ContentLength)
+		return errors.Errorf("ContentLength mismatch: written=%d ContentLength=%d", tw, s.ContentLength)
 	}
 
 	bar, err := progress.Add(int64(len(s.Parts)-1), baseBarStyle().Build(),
