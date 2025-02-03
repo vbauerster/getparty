@@ -116,7 +116,7 @@ func (p *Part) download(
 
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	if p.patcher != nil {
 		p.patcher(req)
