@@ -148,9 +148,9 @@ func (p *Part) download(
 			var idle time.Duration
 			start := time.Now()
 			defer func(written int64) {
-				elapsed := time.Since(start)
 				timer.Stop()
 				cancel()
+				elapsed := time.Since(start)
 				totalElapsed += elapsed
 				totalIdle += idle
 				p.logger.Println("Written:", p.Written-written)
