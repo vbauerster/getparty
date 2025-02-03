@@ -29,8 +29,9 @@ import (
 )
 
 type (
-	ExpectedError string
-	BadHttpStatus int
+	ExpectedError      string
+	BadHttpStatus      int
+	singleModeFallback int
 )
 
 func (e ExpectedError) Error() string {
@@ -41,12 +42,15 @@ func (e BadHttpStatus) Error() string {
 	return fmt.Sprintf("Bad status: %d", int(e))
 }
 
+func (e singleModeFallback) Error() string {
+	return fmt.Sprintf("P%02d: single mode fallback", int(e))
+}
+
 const (
 	ErrBadInvariant   = ExpectedError("Bad invariant")
 	ErrCanceledByUser = ExpectedError("Canceled by user")
 	ErrMaxRedirect    = ExpectedError("Max redirections")
 	ErrMaxRetry       = ExpectedError("Max retries")
-	ErrNoPartial      = ExpectedError("No partial content")
 	ErrZeroParts      = ExpectedError("No parts no work")
 	ErrTooFragmented  = ExpectedError("Too many parts for such pathetic download")
 )
@@ -321,9 +325,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 			}
 			statusOK.cancel()
-			cancel(ErrNoPartial)
 			start <- time.Now()
-			cmd.loggers[DEBUG].Printf("P%02d got http status 200", id)
+			err := singleModeFallback(id)
+			cmd.loggers[DEBUG].Println(err.Error())
+			cancel(err)
 		case <-statusOK.ctx.Done(): // it's independent of cmd.Ctx
 			now := time.Now()
 			start <- now
@@ -336,7 +341,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}()
 
 	err = eg.Wait()
-	if context.Cause(ctx) == ErrNoPartial {
+	if id, ok := context.Cause(ctx).(singleModeFallback); ok && !session.Single {
+		session.Parts[0], session.Parts = session.Parts[int(id)-1], session.Parts[:1]
 		session.Single = true
 	}
 	if err != nil {
