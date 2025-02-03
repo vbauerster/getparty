@@ -336,14 +336,14 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}()
 
 	err = eg.Wait()
+	if context.Cause(ctx) == ErrNoPartial {
+		session.Single = true
+	}
 	if err != nil {
 		if context.Cause(cmd.Ctx) == ErrCanceledByUser {
 			return ErrCanceledByUser
 		}
 		return err
-	}
-	if context.Cause(ctx) == ErrNoPartial {
-		session.Single = true
 	}
 	if !session.Single {
 		err = session.concatenateParts(progress)
