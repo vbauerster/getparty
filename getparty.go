@@ -28,13 +28,14 @@ import (
 	"golang.org/x/term"
 )
 
-type ExpectedError string
+type (
+	ExpectedError string
+	BadHttpStatus int
+)
 
 func (e ExpectedError) Error() string {
 	return string(e)
 }
-
-type BadHttpStatus int
 
 func (e BadHttpStatus) Error() string {
 	return fmt.Sprintf("Bad status: %d", int(e))
