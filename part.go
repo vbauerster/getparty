@@ -332,7 +332,13 @@ func (p *Part) download(
 				}
 				p.Written += int64(wn)
 				if p.total() <= 0 {
-					bar.SetTotal(p.Written, false)
+					if err == io.EOF {
+						// make sure next p.total() result is never negative
+						p.Stop = p.Written - 1
+						bar.SetTotal(p.Written, true)
+					} else {
+						bar.SetTotal(p.Written, false)
+					}
 				} else if !p.single && wn != 0 {
 					p.progress.total <- wn
 				}
@@ -340,12 +346,6 @@ func (p *Part) download(
 				if sleepCtx != nil {
 					<-sleepCtx.Done()
 				}
-			}
-
-			if p.total() <= 0 && err == io.EOF {
-				// make sure next p.total() result is never negative
-				p.Stop = p.Written - 1
-				bar.EnableTriggerComplete()
 			}
 
 			if p.isDone() {
