@@ -132,6 +132,12 @@ func (p *Part) download(
 	bufLen := int(bufSize * 1024)
 	p.logger.Println("ReadFull buf len:", bufLen)
 
+	trace := &httptrace.ClientTrace{
+		GotConn: func(connInfo httptrace.GotConnInfo) {
+			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
+		},
+	}
+
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
 			ctx, cancel := context.WithCancel(p.ctx)
@@ -187,12 +193,6 @@ func (p *Part) download(
 			req.Header.Set(hRange, p.getRange())
 			for k, v := range req.Header {
 				p.logger.Printf("Request Header: %s: %v", k, v)
-			}
-
-			trace := &httptrace.ClientTrace{
-				GotConn: func(connInfo httptrace.GotConnInfo) {
-					p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
-				},
 			}
 
 			resp, err := p.client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
