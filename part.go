@@ -280,16 +280,16 @@ func (p *Part) download(
 					p.Written = 0
 				}
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-				return true, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
+				return true, errors.Wrap(UnexpectedHttpStatus(resp.StatusCode), resp.Status)
 			default:
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))
 				}
-				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), BadHttpStatus(resp.StatusCode).Error())
+				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), UnexpectedHttpStatus(resp.StatusCode).Error())
 				if bar != nil {
 					bar.Abort(true)
 				}
-				return false, errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
+				return false, errors.Wrap(UnexpectedHttpStatus(resp.StatusCode), resp.Status)
 			}
 
 			var resetOk bool

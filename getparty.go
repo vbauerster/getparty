@@ -29,17 +29,17 @@ import (
 )
 
 type (
-	ExpectedError      string
-	BadHttpStatus      int
-	singleModeFallback int
+	ExpectedError        string
+	UnexpectedHttpStatus int
+	singleModeFallback   int
 )
 
 func (e ExpectedError) Error() string {
 	return string(e)
 }
 
-func (e BadHttpStatus) Error() string {
-	return fmt.Sprintf("Bad status: %d", int(e))
+func (e UnexpectedHttpStatus) Error() string {
+	return fmt.Sprintf("Unexpected http status: %d", int(e))
 }
 
 func (e singleModeFallback) Error() string {
@@ -560,7 +560,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				if resp.StatusCode != http.StatusOK {
 					cmd.loggers[WARN].Println("HTTP response:", resp.Status)
-					err := errors.Wrap(BadHttpStatus(resp.StatusCode), resp.Status)
+					err := errors.Wrap(UnexpectedHttpStatus(resp.StatusCode), resp.Status)
 					if isServerError(resp.StatusCode) { // server error may be temporary
 						return attempt != cmd.opt.MaxRetry, err
 					}
