@@ -235,7 +235,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	client := &http.Client{
 		Transport: rtBuilder.pool(cmd.opt.Parts > 1).build(),
@@ -355,7 +355,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}
 	if cmd.opt.SessionName != "" {
-		return os.Remove(cmd.opt.SessionName)
+		return errors.WithStack(os.Remove(cmd.opt.SessionName))
 	}
 	return nil
 }
@@ -389,11 +389,11 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 	if cmd.opt.Https.CertsFileName != "" {
 		buf, err := os.ReadFile(cmd.opt.Https.CertsFileName)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		pool, err := x509.SystemCertPool()
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		if ok := pool.AppendCertsFromPEM(buf); !ok {
 			return nil, errors.Errorf("bad cert file %q", cmd.opt.Https.CertsFileName)
@@ -488,7 +488,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 	}()
 
 	if client.CheckRedirect == nil {
-		return nil, errors.New("expected non nil client.CheckRedirect")
+		return nil, errors.WithStack(errors.New("expected non nil client.CheckRedirect"))
 	}
 
 	location := rawURL
@@ -675,7 +675,7 @@ func (cmd Cmd) getErr() io.Writer {
 
 func (cmd Cmd) invariantCheck() error {
 	if cmd.Ctx == nil || cmd.Out == nil || cmd.Err == nil {
-		return ErrBadInvariant
+		return errors.WithStack(ErrBadInvariant)
 	}
 	return nil
 }

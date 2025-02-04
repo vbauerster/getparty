@@ -88,17 +88,19 @@ func (s *Session) calcParts(parts uint) error {
 func (s *Session) loadState(name string) error {
 	f, err := os.Open(name)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
-	return firstErr(json.NewDecoder(f).Decode(s), f.Close())
+	err = firstErr(json.NewDecoder(f).Decode(s), f.Close())
+	return errors.WithStack(err)
 }
 
 func (s *Session) dumpState(name string) error {
 	f, err := os.Create(name)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
-	return firstErr(json.NewEncoder(f).Encode(s), f.Close())
+	err = firstErr(json.NewEncoder(f).Encode(s), f.Close())
+	return errors.WithStack(err)
 }
 
 func (s Session) isResumable() bool {
@@ -163,7 +165,7 @@ func (s Session) checkSizeOfEachPart() error {
 		p.single = s.Single
 		stat, err := os.Stat(p.outputName(s.OutputName))
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		err = p.checkSize(stat)
 		if err != nil {
@@ -255,12 +257,12 @@ func (s Session) concatenateParts(progress *progress) error {
 		),
 	)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	dst, err := os.OpenFile(s.OutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	for _, p := range s.Parts {
@@ -268,10 +270,11 @@ func (s Session) concatenateParts(progress *progress) error {
 		if err != nil {
 			bar.Abort(false)
 			_ = dst.Close()
-			return err
+			return errors.WithStack(err)
 		}
 		bar.Increment()
 	}
 
-	return firstErr(dst.Sync(), dst.Close())
+	err = firstErr(dst.Sync(), dst.Close())
+	return errors.WithStack(err)
 }
