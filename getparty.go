@@ -196,8 +196,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			if err != nil {
 				return err
 			}
-			if cmd.Ctx.Err() != nil && context.Cause(cmd.Ctx) == ErrCanceledByUser {
-				return ErrCanceledByUser
+			if err := context.Cause(cmd.Ctx); err != nil {
+				return err
 			}
 			cmd.opt.AuthPass = string(pass)
 			fmt.Fprintln(cmd.Out)
