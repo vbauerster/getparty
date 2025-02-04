@@ -32,6 +32,13 @@ type (
 	ExpectedError        string
 	UnexpectedHttpStatus int
 	singleModeFallback   int
+	sessionState         int
+)
+
+const (
+	sessionDefault sessionState = iota
+	sessionDumped
+	sessionCompleted
 )
 
 func (e ExpectedError) Error() string {
@@ -273,11 +280,27 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
 	start := make(chan time.Time, 1)
-	stateHandler := cmd.makeStateHandler(progress, start)
+	stateHandler := cmd.makeStateHandler(session, progress.written)
 	defer func() {
-		if e := stateHandler(session); e != nil {
+		select {
+		case start := <-start:
+			session.Elapsed += time.Since(start)
+		default:
+		}
+		name := session.OutputName + ".json"
+		tw := session.totalWritten()
+		state, e := stateHandler(name, tw)
+		progress.Wait()
+		if e != nil {
 			cmd.loggers[ERRO].Println("Session save failure:", e.Error())
 			err = firstErr(err, e)
+			return
+		}
+		switch state {
+		case sessionDumped:
+			cmd.loggers[INFO].Printf("Session state saved to %q", name)
+		case sessionCompleted:
+			cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 		}
 	}()
 
@@ -306,7 +329,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						for _, cancel := range cancelMap {
 							cancel()
 						}
-						_ = session.dumpState(session.OutputName + ".panic")
+						_, _ = stateHandler(session.OutputName+".panic", session.totalWritten())
 						progress.Wait()
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, v)) // https://go.dev/play/p/55nmnsXyfSA
@@ -366,24 +389,19 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeStateHandler(progress *progress, start <-chan time.Time) func(*Session) error {
-	return func(session *Session) error {
-		tw := session.totalWritten()
-		if session.isResumable() && tw != session.ContentLength {
-			if tw != progress.written { // if some bytes were written
-				name := session.OutputName + ".json"
-				session.Elapsed += time.Since(<-start)
+func (cmd Cmd) makeStateHandler(session *Session, initialWritten int64) func(string, int64) (sessionState, error) {
+	return func(name string, written int64) (sessionState, error) {
+		if session.isResumable() && written != session.ContentLength {
+			if written != initialWritten { // if some bytes were written
 				err := session.dumpState(name)
 				if err != nil {
-					return err
+					return sessionDefault, err
 				}
-				defer cmd.loggers[INFO].Printf("Session state saved to %q", name)
+				return sessionDumped, nil
 			}
-		} else {
-			defer cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
+			return sessionDefault, nil
 		}
-		progress.Wait()
-		return nil
+		return sessionCompleted, nil
 	}
 }
 
