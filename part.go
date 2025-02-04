@@ -285,11 +285,12 @@ func (p *Part) download(
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))
 				}
-				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), UnexpectedHttpStatus(resp.StatusCode).Error())
+				err := errors.Wrap(UnexpectedHttpStatus(resp.StatusCode), resp.Status)
+				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
 				if bar != nil {
 					bar.Abort(true)
 				}
-				return false, errors.Wrap(UnexpectedHttpStatus(resp.StatusCode), resp.Status)
+				return false, err
 			}
 
 			var resetOk bool
