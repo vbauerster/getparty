@@ -274,7 +274,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
 	start := make(chan time.Time, 1)
 	stateHandler := cmd.makeStateHandler(progress, start)
-	defer stateHandler(session, false)
+	defer func() {
+		if e := stateHandler(session); e != nil {
+			cmd.loggers[ERRO].Println("Session save failure:", e.Error())
+			err = firstErr(err, e)
+		}
+	}()
 
 	for i, p := range session.Parts {
 		p.order = i + 1
@@ -301,7 +306,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						for _, cancel := range cancelMap {
 							cancel()
 						}
-						stateHandler(session, true)
+						_ = session.dumpState(session.OutputName + ".panic")
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, v)) // https://go.dev/play/p/55nmnsXyfSA
 				}
@@ -360,28 +365,24 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeStateHandler(progress *progress, start <-chan time.Time) func(*Session, bool) {
-	return func(session *Session, isPanic bool) {
-		if tw := session.totalWritten(); session.isResumable() && tw != session.ContentLength {
+func (cmd Cmd) makeStateHandler(progress *progress, start <-chan time.Time) func(*Session) error {
+	return func(session *Session) error {
+		tw := session.totalWritten()
+		if session.isResumable() && tw != session.ContentLength {
 			if tw != progress.written { // if some bytes were written
-				var name string
-				if isPanic {
-					name = session.OutputName + ".panic"
-				} else {
-					name = session.OutputName + ".json"
-					session.Elapsed += time.Since(<-start)
-				}
+				name := session.OutputName + ".json"
+				session.Elapsed += time.Since(<-start)
 				err := session.dumpState(name)
 				if err != nil {
-					defer cmd.loggers[ERRO].Println(err.Error())
-				} else {
-					defer cmd.loggers[INFO].Printf("Session state saved to %q", name)
+					return err
 				}
+				defer cmd.loggers[INFO].Printf("Session state saved to %q", name)
 			}
 		} else {
 			defer cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 		}
 		progress.Wait()
+		return nil
 	}
 }
 
