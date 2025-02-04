@@ -529,7 +529,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					if attempt != 0 && attempt == cmd.opt.MaxRetry {
 						return false, errors.WithStack(ErrMaxRetry)
 					}
-					if errors.Is(err, ErrMaxRedirect) {
+					if err == ErrMaxRedirect {
 						return false, errors.WithStack(err)
 					}
 					return true, err
