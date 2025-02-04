@@ -137,18 +137,18 @@ func (cmd Cmd) Exit(err error) (status int) {
 			cmd.loggers[DEBUG].Printf("Exit error: %+v", err)
 		}
 	}()
-	switch cause := errors.Cause(err).(type) {
+	switch err := errors.Cause(err).(type) {
 	case nil:
 		return 0
 	case *flags.Error:
-		if cause.Type == flags.ErrHelp {
+		if err.Type == flags.ErrHelp {
 			// cmd invoked with --help switch
 			return 0
 		}
 		cmd.parser.WriteHelp(cmd.Err)
 		return 2
 	case ExpectedError:
-		if cause == ErrBadInvariant {
+		if err == ErrBadInvariant {
 			log.Default().Println(err.Error())
 		} else {
 			cmd.loggers[ERRO].Println(err.Error())
