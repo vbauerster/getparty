@@ -65,7 +65,7 @@ func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 	} else {
 		fd, err := os.Open(cmd.opt.BestMirror.Mirrors)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		input = fd
 		fdClose = fd.Close
@@ -80,7 +80,7 @@ func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 		top = append(top, m.url)
 		cmd.loggers[INFO].Printf("%s: %q", m.queryDur.Truncate(time.Microsecond), m.url)
 	}
-	return top, fdClose()
+	return top, errors.WithStack(fdClose())
 }
 
 func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) mirrorPQ {

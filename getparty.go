@@ -194,7 +194,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			fmt.Fprint(cmd.Out, "Enter password: ")
 			pass, err := term.ReadPassword(int(os.Stdin.Fd()))
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			if err := context.Cause(cmd.Ctx); err != nil {
 				return err
