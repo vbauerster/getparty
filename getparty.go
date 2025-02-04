@@ -496,7 +496,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 	template := "GET:R%02d %%q"
 
 	err = backoff.RetryWithContext(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
-		func(attempt uint, _ func()) (retry bool, err error) {
+		func(attempt uint, _ func()) (bool, error) {
 			ctx, cancel := context.WithTimeout(cmd.Ctx, timeout)
 			defer func() {
 				cancel()
