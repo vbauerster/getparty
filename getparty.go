@@ -621,30 +621,29 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 	return session, err
 }
 
-func (cmd Cmd) overwriteIfConfirmed(name string) error {
+func (cmd Cmd) overwriteIfConfirmed(name string) (err error) {
 	if cmd.opt.Output.Overwrite {
 		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
-		return os.Remove(name)
+		return errors.WithStack(os.Remove(name))
 	}
-	var answer string
-	fmt.Fprintf(cmd.Err, "File %q already exists, overwrite? [Y/n] ", name)
-	if _, err := fmt.Scanf("%s", &answer); err != nil {
-		if err.Error() == "unexpected newline" {
-			answer = "y"
-		} else {
-			return err
-		}
+	fmt.Fprintf(cmd.Err, "%q already exists, overwrite? [Y/n] ", name)
+	state, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return errors.WithStack(err)
 	}
-	switch answer {
-	case "y", "Y":
-		if cmd.Ctx.Err() == nil {
-			cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
-			return os.Remove(name)
-		}
-		if context.Cause(cmd.Ctx) != ErrCanceledByUser {
-			return cmd.Ctx.Err()
-		}
-		fallthrough
+	defer func() {
+		err = firstErr(err, errors.WithStack(term.Restore(int(os.Stdin.Fd()), state)))
+		fmt.Fprintln(cmd.Err)
+	}()
+	b := make([]byte, 1)
+	_, err = os.Stdin.Read(b)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	switch b[0] {
+	case 'y', 'Y', '\r':
+		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
+		return errors.WithStack(os.Remove(name))
 	default:
 		return ErrCanceledByUser
 	}
