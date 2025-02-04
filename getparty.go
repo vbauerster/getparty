@@ -279,8 +279,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
-	start := make(chan time.Time, 1)
 	stateHandler := cmd.makeStateHandler(session, progress.written)
+	start := make(chan time.Time, 1)
 	defer func() {
 		select {
 		case start := <-start:
