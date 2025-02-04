@@ -307,6 +307,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 							cancel()
 						}
 						_ = session.dumpState(session.OutputName + ".panic")
+						progress.Wait()
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, v)) // https://go.dev/play/p/55nmnsXyfSA
 				}
