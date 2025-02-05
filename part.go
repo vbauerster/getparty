@@ -327,7 +327,7 @@ func (p *Part) download(
 					sleepCancel()
 					err := fpart.Truncate(p.Written)
 					if err != nil {
-						werr = errors.WithMessage(werr, err.Error())
+						p.logger.Println("Truncate:", err.Error())
 					}
 					return false, errors.Wrapf(werr, "Write to %q", fpart.Name())
 				}
