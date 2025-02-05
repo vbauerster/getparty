@@ -329,8 +329,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						for _, cancel := range cancelMap {
 							cancel()
 						}
-						_, _ = stateHandler(session.OutputName+".panic", session.totalWritten())
+						name := session.OutputName + ".panic"
+						state, err := stateHandler(name, session.totalWritten())
 						progress.Wait()
+						if err == nil && state == sessionDumped {
+							cmd.loggers[INFO].Printf("Session state saved to %q", name)
+						}
 					})
 					panic(fmt.Sprintf("%s panic: %v", p.name, v)) // https://go.dev/play/p/55nmnsXyfSA
 				}
