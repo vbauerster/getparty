@@ -275,7 +275,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	status := new(httpStatusContext)
 	status.ctx, status.cancel = context.WithCancelCause(context.Background())
-	status.ok, status.done = make(chan int), make(chan struct{})
+	status.ok, status.quit = make(chan int), make(chan struct{})
 
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
@@ -368,12 +368,12 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			if !session.Single {
 				session.runTotalBar(progress, &doneCount, now)
 			}
-		case <-status.done:
+		case <-status.quit:
 		}
 	}()
 
 	err = eg.Wait()
-	close(status.done)
+	close(status.quit)
 	status.cancel(nil)
 
 	if id, ok := context.Cause(status.ctx).(singleModeFallback); ok && !session.Single {
