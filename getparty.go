@@ -274,8 +274,8 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	cancelMap := make(map[int]func())
 
 	status := new(httpStatusContext)
-	status.ok = make(chan int)
 	status.ctx, status.cancel = context.WithCancelCause(context.Background())
+	status.ok, status.done = make(chan int), make(chan struct{})
 
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
@@ -343,8 +343,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	go func() {
 		select {
 		case id := <-status.ok: // on http.StatusOK
@@ -366,12 +364,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			if !session.Single {
 				session.runTotalBar(progress, &doneCount, now)
 			}
-		case <-ctx.Done():
-			status.cancel(nil)
+		case <-status.done:
 		}
 	}()
 
 	err = eg.Wait()
+	close(status.done)
+	status.cancel(nil)
 	if id, ok := context.Cause(status.ctx).(singleModeFallback); ok && !session.Single {
 		session.Parts[0], session.Parts = session.Parts[int(id)-1], session.Parts[:1]
 		session.Single = true

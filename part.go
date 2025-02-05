@@ -27,6 +27,7 @@ type httpStatusContext struct {
 	ctx    context.Context
 	cancel context.CancelCauseFunc
 	ok     chan int
+	done   chan struct{}
 }
 
 // Part represents state of each download part
