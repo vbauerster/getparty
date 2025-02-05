@@ -180,10 +180,10 @@ func readLines(r io.Reader) <-chan *mirror {
 				index++
 			}
 		}
-		close(ch)
 		if err := scanner.Err(); err != nil {
 			panic(err)
 		}
+		close(ch)
 	}()
 	return ch
 }
