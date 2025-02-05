@@ -273,9 +273,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	sleep := time.Duration(cmd.opt.SpeedLimit*60) * time.Millisecond
 	cancelMap := make(map[int]func())
 
-	statusOK := new(http200Context)
-	statusOK.first = make(chan int)
-	statusOK.ctx, statusOK.cancel = context.WithCancel(context.Background())
+	status := new(httpStatusContext)
+	status.ok = make(chan int)
+	status.ctx, status.cancel = context.WithCancelCause(context.Background())
 
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
@@ -317,7 +317,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cancelMap[p.order] = cancel
 		p.ctx = ctx
 		p.client = client
-		p.statusOK = statusOK
+		p.status = status
 		p.single = session.Single
 		p.progress = progress
 		p.patcher = cmd.patcher
@@ -347,25 +347,24 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	defer cancel(nil)
 	go func() {
 		select {
-		case id := <-statusOK.first:
+		case id := <-status.ok: // on http.StatusOK
 			for k, cancel := range cancelMap {
 				if k != id {
 					cancel()
 				}
 			}
-			statusOK.cancel()
 			start <- time.Now()
 			err := singleModeFallback(id)
 			cmd.loggers[DEBUG].Println(err.Error())
 			cancel(err)
-		case <-statusOK.ctx.Done(): // it's independent of cmd.Ctx
+		case <-status.ctx.Done():
 			now := time.Now()
 			start <- now
 			if !session.Single {
 				session.runTotalBar(progress, &doneCount, now)
 			}
 		case <-ctx.Done():
-			statusOK.cancel()
+			status.cancel(nil)
 		}
 	}()
 
