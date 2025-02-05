@@ -306,7 +306,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	for i, p := range session.Parts {
 		p.order = i + 1
-		p.name = fmt.Sprintf("P%02d", i+1)
+		p.name = fmt.Sprintf("P%02d", p.order)
 		p.initDebugLogger(debugOut, fmt.Sprintf("[%s:R%%02d] ", p.name))
 		// at ContentLength = 0 p.isDone() is always true therefore we shouldn't skip written = 0 part
 		if p.Written != 0 && p.isDone() {
