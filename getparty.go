@@ -336,7 +336,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 							cmd.loggers[INFO].Printf("Session state saved to %q", name)
 						}
 					})
-					panic(fmt.Sprintf("%s panic: %v", p.name, v)) // https://go.dev/play/p/55nmnsXyfSA
+					panic(fmt.Errorf("%s: %v", p.name, v)) // https://go.dev/play/p/55nmnsXyfSA
 				}
 				if p.isDone() {
 					atomic.AddUint32(&doneCount, 1)
@@ -359,7 +359,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			err := singleModeFallback(id)
 			status.cancel(err)
 			if context.Cause(status.ctx) != err {
-				panic(err.Error() + " failure")
+				panic(err)
 			}
 			cmd.loggers[DEBUG].Println(err.Error())
 		case <-status.ctx.Done():

@@ -248,7 +248,7 @@ func (p *Part) download(
 						p.Stop = resp.ContentLength - 1
 					}
 					if p.Written != 0 {
-						panic(fmt.Sprintf("expected to start with written=0 got %d", p.Written))
+						panic(fmt.Errorf("Expected zero written got %d", p.Written))
 					}
 				case <-p.status.ctx.Done():
 					if err := context.Cause(p.status.ctx); err == unexpectedOk {
@@ -389,7 +389,7 @@ func (p Part) checkSize(stat fs.FileInfo) error {
 
 func (p Part) outputName(base string) string {
 	if p.order == 0 {
-		panic("part is not initialized")
+		panic(errors.New("Part is not initialized"))
 	}
 	if p.single {
 		return base
