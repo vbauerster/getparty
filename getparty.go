@@ -375,6 +375,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	err = eg.Wait()
 	close(status.done)
 	status.cancel(nil)
+
 	if id, ok := context.Cause(status.ctx).(singleModeFallback); ok && !session.Single {
 		session.Parts[0], session.Parts = session.Parts[int(id)-1], session.Parts[:1]
 		session.Single = true
