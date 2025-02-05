@@ -242,7 +242,6 @@ func (p *Part) download(
 			case http.StatusOK: // no partial content, download with single part
 				select {
 				case p.status.ok <- p.order:
-					p.status.cancel(nil)
 					p.single = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1

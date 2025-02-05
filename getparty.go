@@ -343,20 +343,23 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
-	ctx, cancel := context.WithCancelCause(context.Background())
-	defer cancel(nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
 		select {
 		case id := <-status.ok: // on http.StatusOK
+			start <- time.Now()
 			for k, cancel := range cancelMap {
 				if k != id {
 					cancel()
 				}
 			}
-			start <- time.Now()
 			err := singleModeFallback(id)
+			status.cancel(err)
+			if context.Cause(status.ctx) != err {
+				panic(err.Error() + " failure")
+			}
 			cmd.loggers[DEBUG].Println(err.Error())
-			cancel(err)
 		case <-status.ctx.Done():
 			now := time.Now()
 			start <- now
@@ -369,7 +372,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}()
 
 	err = eg.Wait()
-	if id, ok := context.Cause(ctx).(singleModeFallback); ok && !session.Single {
+	if id, ok := context.Cause(status.ctx).(singleModeFallback); ok && !session.Single {
 		session.Parts[0], session.Parts = session.Parts[int(id)-1], session.Parts[:1]
 		session.Single = true
 	}
