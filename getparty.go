@@ -136,10 +136,7 @@ type Cmd struct {
 
 func (cmd Cmd) Exit(err error) (status int) {
 	defer func() {
-		if status == 0 {
-			return
-		}
-		if cmd.loggers[DEBUG] != nil {
+		if status != 0 && cmd.loggers[DEBUG] != nil {
 			// if there is stack trace available, +v will include it
 			cmd.loggers[DEBUG].Printf("Exit error: %+v", err)
 		}
