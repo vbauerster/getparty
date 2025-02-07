@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"container/heap"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -150,7 +151,7 @@ func queryMirror(
 		return resp.Body.Close()
 	}
 	if resp.Body != nil {
-		resp.Body.Close()
+		return errors.Join(UnexpectedHttpStatus(resp.StatusCode), resp.Body.Close())
 	}
 	return UnexpectedHttpStatus(resp.StatusCode)
 }
