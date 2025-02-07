@@ -1,9 +1,26 @@
 package getparty
 
 import (
+	"errors"
 	"fmt"
 	"runtime/debug"
 )
+
+func firstErr(errors ...error) error {
+	for _, err := range errors {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func unwrapOrErr(err error) error {
+	if e := errors.Unwrap(err); e != nil {
+		return e
+	}
+	return err
+}
 
 func withMessage(err error, message string) error {
 	if err == nil {

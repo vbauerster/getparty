@@ -711,22 +711,6 @@ func (cmd Cmd) invariantCheck() error {
 	return nil
 }
 
-func unwrapOrErr(err error) error {
-	if e := errors.Unwrap(err); e != nil {
-		return e
-	}
-	return err
-}
-
-func firstErr(errors ...error) error {
-	for _, err := range errors {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*http.Request) {
 	return func(req *http.Request) {
 		if req == nil {
