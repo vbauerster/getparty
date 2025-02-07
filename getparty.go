@@ -143,7 +143,10 @@ func (cmd Cmd) Exit(err error) (status int) {
 		if cmd.opt.Debug && status != 4 {
 			cmd.loggers[DEBUG].Printf("ERROR: %s", err.Error())
 			if e := (*stack)(nil); errors.As(err, &e) {
-				cmd.Err.Write(e.stack)
+				_, err := cmd.Err.Write(e.stack)
+				if err != nil {
+					panic(err)
+				}
 			}
 		}
 	}()
