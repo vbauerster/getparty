@@ -248,7 +248,7 @@ func (p *Part) download(
 						p.Stop = resp.ContentLength - 1
 					}
 					if p.Written != 0 {
-						panic(fmt.Errorf("Expected zero written got %d", p.Written))
+						panic(fmt.Errorf("expected zero written got %d", p.Written))
 					}
 				case <-p.status.ctx.Done():
 					if err := context.Cause(p.status.ctx); err == unexpectedOk {
@@ -355,7 +355,7 @@ func (p *Part) download(
 					p.logger.Println("Part is done")
 					return false, withStack(fpart.Sync())
 				}
-				return false, withStack(fmt.Errorf("Expected EOF, got: %w", err))
+				return false, withStack(fmt.Errorf("expected EOF, got: %w", err))
 			}
 
 			// err is never nil here
