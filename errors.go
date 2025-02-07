@@ -44,4 +44,4 @@ type stack struct {
 	stack []byte
 }
 
-func (w *stack) Unwrap() error { return w.error }
+func (s *stack) Unwrap() error { return s.error }
