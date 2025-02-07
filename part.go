@@ -2,6 +2,7 @@ package getparty
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -12,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
 	"github.com/vbauerster/mpb/v8"
@@ -112,12 +112,12 @@ func (p *Part) download(
 			p.logger.Printf("Closing: %q", fpart.Name())
 			err = firstErr(err, fpart.Close())
 		}
-		err = errors.WithMessage(err, p.name)
+		err = withMessage(err, p.name)
 	}()
 
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	if err != nil {
-		return errors.WithStack(err)
+		return withStack(err)
 	}
 	if p.patcher != nil {
 		p.patcher(req)
@@ -171,7 +171,7 @@ func (p *Part) download(
 					atomic.AddUint32(&globTry, 1)
 				case maxTry:
 					atomic.AddUint32(&globTry, ^uint32(0))
-					retry, err = false, errors.WithStack(ErrMaxRetry)
+					retry, err = false, withStack(ErrMaxRetry)
 					fmt.Fprintf(p.progress, "%s%s (%.1f / %.1f)\n",
 						p.logger.Prefix(),
 						err.Error(),
@@ -228,13 +228,13 @@ func (p *Part) download(
 				if fpart == nil {
 					fpart, err = os.OpenFile(p.outputName(outputBase), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
-						return false, errors.WithStack(err)
+						return false, withStack(err)
 					}
 				}
 				if bar == nil {
 					bar, err = p.newBar(&curTry, msgCh)
 					if err != nil {
-						return false, errors.WithStack(err)
+						return false, withStack(err)
 					}
 				}
 				if p.Written != 0 {
@@ -263,17 +263,17 @@ func (p *Part) download(
 					p.logger.Printf("Closing: %q", fpart.Name())
 					err := fpart.Close()
 					if err != nil {
-						return false, errors.WithStack(err)
+						return false, withStack(err)
 					}
 				}
 				fpart, err = os.OpenFile(outputBase, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 				if err != nil {
-					return false, errors.WithStack(err)
+					return false, withStack(err)
 				}
 				if bar == nil {
 					bar, err = p.newBar(&curTry, msgCh)
 					if err != nil {
-						return false, errors.WithStack(err)
+						return false, withStack(err)
 					}
 				} else {
 					bar.SetCurrent(0)
@@ -285,7 +285,7 @@ func (p *Part) download(
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))
 				}
-				err := errors.Wrap(UnexpectedHttpStatus(resp.StatusCode), resp.Status)
+				err := withStack(UnexpectedHttpStatus(resp.StatusCode))
 				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
 				if bar != nil {
 					bar.Abort(true)
@@ -328,8 +328,9 @@ func (p *Part) download(
 					err := fpart.Truncate(p.Written)
 					if err != nil {
 						p.logger.Println("Truncate:", err.Error())
+						return false, withStack(errors.Join(err, werr))
 					}
-					return false, errors.Wrapf(werr, "Write to %q", fpart.Name())
+					return false, withStack(werr)
 				}
 				p.Written += int64(wn)
 				if p.total() <= 0 {
@@ -352,9 +353,9 @@ func (p *Part) download(
 			if p.isDone() {
 				if err == io.EOF {
 					p.logger.Println("Part is done")
-					return false, errors.WithStack(fpart.Sync())
+					return false, withStack(fpart.Sync())
 				}
-				return false, errors.Wrap(err, "Expected EOF")
+				return false, withStack(fmt.Errorf("Expected EOF, got: %w", err))
 			}
 
 			// err is never nil here
@@ -382,7 +383,7 @@ func (p Part) isDone() bool {
 func (p Part) checkSize(stat fs.FileInfo) error {
 	size := stat.Size()
 	if size != p.Written {
-		return errors.Errorf("%q size mismatch: expected %d got %d", stat.Name(), p.Written, size)
+		return withStack(fmt.Errorf("%q size mismatch: expected %d got %d", stat.Name(), p.Written, size))
 	}
 	return nil
 }

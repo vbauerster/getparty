@@ -3,6 +3,7 @@ package getparty
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -11,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
 )
@@ -88,19 +88,19 @@ func (s *Session) calcParts(parts uint) error {
 func (s *Session) loadState(name string) error {
 	f, err := os.Open(name)
 	if err != nil {
-		return errors.WithStack(err)
+		return withStack(err)
 	}
 	err = firstErr(json.NewDecoder(f).Decode(s), f.Close())
-	return errors.WithStack(err)
+	return withStack(err)
 }
 
 func (s *Session) dumpState(name string) error {
 	f, err := os.Create(name)
 	if err != nil {
-		return errors.WithStack(err)
+		return withStack(err)
 	}
 	err = firstErr(json.NewEncoder(f).Encode(s), f.Close())
-	return errors.WithStack(err)
+	return withStack(err)
 }
 
 func (s Session) isResumable() bool {
@@ -141,17 +141,17 @@ func (s Session) isOutputFileExist() (bool, error) {
 		return false, nil
 	}
 	if err == nil && stat.IsDir() {
-		return true, errors.Wrapf(os.ErrInvalid, "%q is a directory", s.OutputName)
+		return true, fmt.Errorf("%q is a directory", s.OutputName)
 	}
 	return true, err
 }
 
 func (s Session) checkContentSums(other Session) error {
 	if s.ContentLength != other.ContentLength {
-		return errors.Errorf("ContentLength mismatch: expected %d got %d", s.ContentLength, other.ContentLength)
+		return fmt.Errorf("ContentLength mismatch: expected %d got %d", s.ContentLength, other.ContentLength)
 	}
 	if s.ContentMD5 != other.ContentMD5 {
-		return errors.Errorf("%s mismatch: expected %q got %q", hContentMD5, s.ContentMD5, other.ContentMD5)
+		return fmt.Errorf("%s mismatch: expected %q got %q", hContentMD5, s.ContentMD5, other.ContentMD5)
 	}
 	return nil
 }
@@ -165,7 +165,7 @@ func (s Session) checkSizeOfEachPart() error {
 		p.single = s.Single
 		stat, err := os.Stat(p.outputName(s.OutputName))
 		if err != nil {
-			return errors.WithStack(err)
+			return withStack(err)
 		}
 		err = p.checkSize(stat)
 		if err != nil {
@@ -239,7 +239,7 @@ func (s Session) runTotalBar(progress *progress, doneCount *uint32, start time.T
 
 func (s Session) concatenateParts(progress *progress) error {
 	if tw := s.totalWritten(); tw != s.ContentLength {
-		return errors.Errorf("ContentLength mismatch: written=%d ContentLength=%d", tw, s.ContentLength)
+		return withStack(fmt.Errorf("ContentLength mismatch: written=%d ContentLength=%d", tw, s.ContentLength))
 	}
 
 	bar, err := progress.Add(int64(len(s.Parts)-1), baseBarStyle().Build(),
@@ -257,12 +257,12 @@ func (s Session) concatenateParts(progress *progress) error {
 		),
 	)
 	if err != nil {
-		return errors.WithStack(err)
+		return withStack(err)
 	}
 
 	dst, err := os.OpenFile(s.OutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 	if err != nil {
-		return errors.WithStack(err)
+		return withStack(err)
 	}
 
 	for _, p := range s.Parts {
@@ -270,11 +270,11 @@ func (s Session) concatenateParts(progress *progress) error {
 		if err != nil {
 			bar.Abort(false)
 			_ = dst.Close()
-			return errors.WithStack(err)
+			return withStack(err)
 		}
 		bar.Increment()
 	}
 
 	err = firstErr(dst.Sync(), dst.Close())
-	return errors.WithStack(err)
+	return withStack(err)
 }

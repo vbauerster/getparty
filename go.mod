@@ -4,7 +4,6 @@ require (
 	github.com/VividCortex/ewma v1.2.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/jessevdk/go-flags v1.6.1
-	github.com/pkg/errors v0.9.1
 	github.com/vbauerster/backoff v0.2.0
 	github.com/vbauerster/mpb/v8 v8.9.1
 	golang.org/x/net v0.34.0
@@ -19,4 +18,4 @@ require (
 	golang.org/x/sys v0.29.0 // indirect
 )
 
-go 1.18
+go 1.20

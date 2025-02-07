@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -20,7 +21,6 @@ import (
 	"time"
 
 	flags "github.com/jessevdk/go-flags"
-	"github.com/pkg/errors"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
 	"golang.org/x/net/publicsuffix"
@@ -135,39 +135,44 @@ type Cmd struct {
 }
 
 func (cmd Cmd) Exit(err error) (status int) {
+	if err == nil {
+		return 0
+	}
+
 	defer func() {
-		if status != 0 && cmd.loggers[DEBUG] != nil {
-			// if there is stack trace available, +v will include it
-			cmd.loggers[DEBUG].Printf("Exit error: %+v", err)
+		if cmd.opt.Debug && status != 4 {
+			cmd.loggers[DEBUG].Printf("ERROR: %s", err.Error())
+			if e := (*stack)(nil); errors.As(err, &e) {
+				cmd.Err.Write(e.stack)
+			}
 		}
 	}()
-	switch err := errors.Cause(err).(type) {
-	case nil:
-		return 0
-	case *flags.Error:
-		if err.Type == flags.ErrHelp {
+
+	if e := ExpectedError(""); errors.As(err, &e) {
+		if e == ErrBadInvariant {
+			log.Default().Println(e.Error())
+			return 4
+		}
+		cmd.loggers[ERRO].Println(e.Error())
+		return 1
+	}
+
+	if e := (*flags.Error)(nil); errors.As(err, &e) {
+		if e.Type == flags.ErrHelp {
 			// cmd invoked with --help switch
 			return 0
 		}
 		cmd.parser.WriteHelp(cmd.Err)
 		return 2
-	case ExpectedError:
-		if err == ErrBadInvariant {
-			log.Default().Println(err.Error())
-		} else {
-			cmd.loggers[ERRO].Println(err.Error())
-		}
-		return 1
-	default:
-		cmd.loggers[ERRO].Println(err.Error())
-		return 3
 	}
+
+	cmd.loggers[ERRO].Println(err.Error())
+	return 3
 }
 
 func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	defer func() {
-		// just add method name, without stack trace at the point
-		err = errors.WithMessage(err, "run")
+		err = withMessage(err, "run")
 	}()
 
 	err = cmd.invariantCheck()
@@ -198,7 +203,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			fmt.Fprint(cmd.Out, "Enter password: ")
 			pass, err := term.ReadPassword(int(os.Stdin.Fd()))
 			if err != nil {
-				return errors.WithStack(err)
+				return withStack(err)
 			}
 			if err := context.Cause(cmd.Ctx); err != nil {
 				return err
@@ -239,7 +244,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
-		return errors.WithStack(err)
+		return withStack(err)
 	}
 	client := &http.Client{
 		Transport: rtBuilder.pool(cmd.opt.Parts > 1).build(),
@@ -390,7 +395,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}
 	if cmd.opt.SessionName != "" {
-		return errors.WithStack(os.Remove(cmd.opt.SessionName))
+		return withStack(os.Remove(cmd.opt.SessionName))
 	}
 	return nil
 }
@@ -415,14 +420,14 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 	if cmd.opt.Https.CertsFileName != "" {
 		buf, err := os.ReadFile(cmd.opt.Https.CertsFileName)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, withStack(err)
 		}
 		pool, err := x509.SystemCertPool()
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, withStack(err)
 		}
 		if ok := pool.AppendCertsFromPEM(buf); !ok {
-			return nil, errors.Errorf("bad cert file %q", cmd.opt.Https.CertsFileName)
+			return nil, withStack(fmt.Errorf("bad cert file %q", cmd.opt.Https.CertsFileName))
 		}
 		return &tls.Config{
 			InsecureSkipVerify: cmd.opt.Https.InsecureSkipVerify,
@@ -510,11 +515,11 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 		if redirected {
 			client.CloseIdleConnections()
 		}
-		err = errors.WithMessage(err, "follow")
+		err = withMessage(err, "follow")
 	}()
 
 	if client.CheckRedirect == nil {
-		return nil, errors.WithStack(errors.New("expected non nil client.CheckRedirect"))
+		return nil, withStack(errors.New("expected non nil client.CheckRedirect"))
 	}
 
 	location := rawURL
@@ -537,7 +542,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
-					return false, errors.WithStack(err)
+					return false, withStack(err)
 				}
 
 				if cmd.patcher != nil {
@@ -553,10 +558,10 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					cmd.loggers[WARN].Println(unwrapOrErr(err).Error())
 					cmd.loggers[DEBUG].Println(err.Error())
 					if attempt != 0 && attempt == cmd.opt.MaxRetry {
-						return false, errors.WithStack(ErrMaxRetry)
+						return false, withStack(ErrMaxRetry)
 					}
 					if err == ErrMaxRedirect {
-						return false, errors.WithStack(err)
+						return false, withStack(err)
 					}
 					return true, err
 				}
@@ -578,20 +583,20 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					redirected = true
 					loc, err := resp.Location()
 					if err != nil {
-						return false, errors.WithStack(err)
+						return false, withStack(err)
 					}
 					location = loc.String()
 					if resp.Body != nil {
 						err := resp.Body.Close()
 						if err != nil {
-							return false, errors.WithStack(err)
+							return false, withStack(err)
 						}
 					}
 					continue
 				}
 
 				if resp.StatusCode != http.StatusOK {
-					err := errors.Wrap(UnexpectedHttpStatus(resp.StatusCode), resp.Status)
+					err := withStack(UnexpectedHttpStatus(resp.StatusCode))
 					cmd.loggers[WARN].Println(err.Error())
 					if isServerError(resp.StatusCode) { // server error may be temporary
 						return attempt != cmd.opt.MaxRetry, err
@@ -641,7 +646,7 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					Redirected:    redirected,
 				}
 
-				return false, errors.WithStack(resp.Body.Close())
+				return false, withStack(resp.Body.Close())
 			}
 		})
 	return session, err
@@ -650,26 +655,26 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 func (cmd Cmd) overwriteIfConfirmed(name string) (err error) {
 	if cmd.opt.Output.Overwrite {
 		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
-		return errors.WithStack(os.Remove(name))
+		return withStack(os.Remove(name))
 	}
 	fmt.Fprintf(cmd.Err, "%q already exists, overwrite? [Y/n] ", name)
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		return errors.WithStack(err)
+		return withStack(err)
 	}
 	defer func() {
-		err = firstErr(err, errors.WithStack(term.Restore(int(os.Stdin.Fd()), state)))
+		err = firstErr(err, withStack(term.Restore(int(os.Stdin.Fd()), state)))
 		fmt.Fprintln(cmd.Err)
 	}()
 	b := make([]byte, 1)
 	_, err = os.Stdin.Read(b)
 	if err != nil {
-		return errors.WithStack(err)
+		return withStack(err)
 	}
 	switch b[0] {
 	case 'y', 'Y', '\r':
 		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
-		return errors.WithStack(os.Remove(name))
+		return withStack(os.Remove(name))
 	default:
 		return ErrCanceledByUser
 	}
@@ -701,7 +706,7 @@ func (cmd Cmd) getErr() io.Writer {
 
 func (cmd Cmd) invariantCheck() error {
 	if cmd.Ctx == nil || cmd.Out == nil || cmd.Err == nil {
-		return errors.WithStack(ErrBadInvariant)
+		return ErrBadInvariant
 	}
 	return nil
 }
