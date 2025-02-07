@@ -696,14 +696,14 @@ func (cmd Cmd) getTimeout() time.Duration {
 }
 
 func (cmd Cmd) getOut() io.Writer {
-	if cmd.opt.Quiet {
+	if cmd.opt == nil || cmd.opt.Quiet {
 		return io.Discard
 	}
 	return cmd.Out
 }
 
 func (cmd Cmd) getErr() io.Writer {
-	if cmd.opt.Debug {
+	if cmd.opt != nil && cmd.opt.Debug {
 		return cmd.Err
 	}
 	return io.Discard
