@@ -364,9 +364,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			err := singleModeFallback(id)
 			status.cancel(err)
 			if session.restored && !session.Single {
+				cancelMap[id]()
 				panic(fmt.Errorf("P%02d: got http status ok while restored session was partial", id))
 			}
 			if context.Cause(status.ctx) != err {
+				cancelMap[id]()
 				panic(fmt.Errorf("%s failure: some other part got partial content first", err.Error()))
 			}
 			cmd.loggers[DEBUG].Println(err.Error())
