@@ -140,7 +140,11 @@ func (cmd Cmd) Exit(err error) (status int) {
 	}
 
 	defer func() {
-		if cmd.opt.Debug && status != 4 {
+		switch status {
+		case 0, 2, 4:
+			return
+		}
+		if cmd.opt != nil && cmd.opt.Debug {
 			cmd.loggers[DEBUG].Printf("ERROR: %s", err.Error())
 			if e := (*stack)(nil); errors.As(err, &e) {
 				_, err := cmd.Err.Write(e.stack)
