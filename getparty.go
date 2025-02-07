@@ -50,7 +50,7 @@ func (e UnexpectedHttpStatus) Error() string {
 }
 
 func (e singleModeFallback) Error() string {
-	return fmt.Sprintf("P%02d: single mode fallback", int(e))
+	return fmt.Sprintf("P%02d: fallback to single mode", int(e))
 }
 
 const (
@@ -359,7 +359,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				panic(fmt.Errorf("P%02d: got http status ok while restored session was partial", id))
 			}
 			if context.Cause(status.ctx) != err {
-				panic(err)
+				panic(fmt.Errorf("%s failure: some other part got partial content first", err.Error()))
 			}
 			cmd.loggers[DEBUG].Println(err.Error())
 		case <-status.ctx.Done():
