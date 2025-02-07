@@ -355,6 +355,9 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 			err := singleModeFallback(id)
 			status.cancel(err)
+			if session.restored && !session.Single {
+				panic(fmt.Errorf("P%02d: got http status ok while restored session was partial", id))
+			}
 			if context.Cause(status.ctx) != err {
 				panic(err)
 			}
