@@ -558,10 +558,10 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 					cmd.loggers[WARN].Println(unwrapOrErr(err).Error())
 					cmd.loggers[DEBUG].Println(err.Error())
 					if attempt != 0 && attempt == cmd.opt.MaxRetry {
-						return false, withStack(ErrMaxRetry)
+						return false, ErrMaxRetry
 					}
 					if err == ErrMaxRedirect {
-						return false, withStack(err)
+						return false, err
 					}
 					return true, err
 				}

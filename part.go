@@ -171,7 +171,7 @@ func (p *Part) download(
 					atomic.AddUint32(&globTry, 1)
 				case maxTry:
 					atomic.AddUint32(&globTry, ^uint32(0))
-					retry, err = false, withStack(ErrMaxRetry)
+					retry, err = false, ErrMaxRetry
 					fmt.Fprintf(p.progress, "%s%s (%.1f / %.1f)\n",
 						p.logger.Prefix(),
 						err.Error(),
