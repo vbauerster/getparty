@@ -338,6 +338,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						for _, cancel := range cancelMap {
 							cancel()
 						}
+						select {
+						case start := <-start:
+							session.Elapsed += time.Since(start)
+						default:
+						}
 						name := session.OutputName + ".panic"
 						state, err := stateHandler(name, session.totalWritten())
 						progress.Wait()
