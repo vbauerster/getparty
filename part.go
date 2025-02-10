@@ -223,14 +223,12 @@ func (p *Part) download(
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				p.status.cancel(errUnexpectedOK)
 				if fpart == nil {
+					p.status.cancel(errUnexpectedOK)
 					fpart, err = os.OpenFile(p.outputName(outputBase), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
 						return false, withStack(err)
 					}
-				}
-				if bar == nil {
 					bar, err = p.newBar(&curTry, msgCh)
 					if err != nil {
 						return false, withStack(err)
