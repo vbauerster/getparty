@@ -125,7 +125,6 @@ func (p *Part) download(
 
 	var bar *mpb.Bar
 	var curTry uint32
-	unexpectedOk := UnexpectedHttpStatus(http.StatusOK)
 	msgCh := make(chan string, 1)
 	resetTimeout := timeout
 
@@ -224,7 +223,7 @@ func (p *Part) download(
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				p.status.cancel(unexpectedOk)
+				p.status.cancel(errUnexpectedOK)
 				if fpart == nil {
 					fpart, err = os.OpenFile(p.outputName(outputBase), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
@@ -251,7 +250,7 @@ func (p *Part) download(
 						panic(fmt.Errorf("expected zero written got %d", p.Written))
 					}
 				case <-p.status.ctx.Done():
-					if err := context.Cause(p.status.ctx); err == unexpectedOk {
+					if err := context.Cause(p.status.ctx); err == errUnexpectedOK {
 						panic(err)
 					}
 					if !p.single {

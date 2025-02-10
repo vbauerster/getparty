@@ -60,6 +60,7 @@ const (
 	ErrMaxRetry       = ExpectedError("Max retries")
 	ErrZeroParts      = ExpectedError("No parts no work")
 	ErrTooFragmented  = ExpectedError("Too many parts for such pathetic download")
+	errUnexpectedOK   = UnexpectedHttpStatus(http.StatusOK)
 )
 
 const (
