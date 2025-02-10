@@ -244,11 +244,8 @@ func (p *Part) download(
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
-					if fpart != nil {
-						panic(errors.New("expected uninitialized fpart"))
-					}
-					if bar != nil {
-						panic(errors.New("expected uninitialized bar"))
+					if fpart != nil || bar != nil {
+						panic(fmt.Errorf("expected uninitialized got: fpart=%#v bar=%#v", fpart, bar))
 					}
 					fpart, err = os.OpenFile(outputBase, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 					if err != nil {
