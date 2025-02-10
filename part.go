@@ -237,7 +237,7 @@ func (p *Part) download(
 				if p.Written != 0 {
 					go bar.SetRefill(p.Written)
 				}
-			case http.StatusOK: // no partial content, download with single part
+			case http.StatusOK: // no partial content, fallback to single part mode
 				select {
 				case p.status.ok <- p.order:
 					p.single = true
