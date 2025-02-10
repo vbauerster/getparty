@@ -244,37 +244,38 @@ func (p *Part) download(
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
-					if p.Written != 0 {
-						panic(fmt.Errorf("expected zero written got %d", p.Written))
+					if fpart != nil {
+						panic(errors.New("expected uninitialized fpart"))
 					}
-				case <-p.status.ctx.Done():
-					if err := context.Cause(p.status.ctx); err == errUnexpectedOK {
-						panic(err)
+					if bar != nil {
+						panic(errors.New("expected uninitialized bar"))
 					}
-					if !p.single {
-						p.logger.Println("Stopping: some other part got status 200")
-						return false, nil
-					}
-				}
-				if fpart != nil {
-					p.logger.Printf("Closing: %q", fpart.Name())
-					err := fpart.Close()
+					fpart, err = os.OpenFile(outputBase, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 					if err != nil {
 						return false, withStack(err)
 					}
-				}
-				fpart, err = os.OpenFile(outputBase, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
-				if err != nil {
-					return false, withStack(err)
-				}
-				if bar == nil {
 					bar, err = p.newBar(&curTry, msgCh)
 					if err != nil {
 						return false, withStack(err)
 					}
-				} else {
-					bar.SetCurrent(0)
+				case <-p.status.ctx.Done():
+					if !p.single {
+						err := context.Cause(p.status.ctx)
+						if err == errUnexpectedOK {
+							panic(err)
+						}
+						p.logger.Printf("Stop: %v", err)
+						return false, withStack(err)
+					}
+				}
+				if p.Written != 0 {
+					// on retry and status ok there is no way to resume so retry from scratch
+					err := fpart.Truncate(0)
+					if err != nil {
+						return false, withStack(err)
+					}
 					p.Written = 0
+					bar.SetCurrent(0)
 				}
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 				return true, UnexpectedHttpStatus(resp.StatusCode)
