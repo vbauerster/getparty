@@ -261,8 +261,9 @@ func (p *Part) download(
 						if err == errUnexpectedOK {
 							panic(err)
 						}
-						p.logger.Printf("Stop: %v", err)
-						return false, withStack(err)
+						// if either bar gets status ok, other bars shall quit silently
+						p.logger.Printf("Quit: %v", err)
+						return false, nil
 					}
 				}
 				if p.Written != 0 {
