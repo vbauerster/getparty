@@ -36,8 +36,8 @@ type (
 )
 
 const (
-	sessionDefault sessionState = iota
-	sessionDumped
+	sessionUncompleted sessionState = iota
+	sessionUncompletedWithDump
 	sessionCompleted
 )
 
@@ -301,7 +301,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		state, err := stateHandler(name, tw, err)
 		progress.Wait()
 		switch state {
-		case sessionDumped:
+		case sessionUncompletedWithDump:
 			if err != nil {
 				cmd.loggers[ERRO].Println("Session save failure:", err.Error())
 			} else {
@@ -349,7 +349,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						name := session.OutputName + ".panic"
 						state, err := stateHandler(name, session.totalWritten(), err)
 						progress.Wait()
-						if err == nil && state == sessionDumped {
+						if err == nil && state == sessionUncompletedWithDump {
 							cmd.loggers[INFO].Printf("Session state saved to %q", name)
 						}
 					})
@@ -420,7 +420,7 @@ func (cmd Cmd) makeStateHandler(session *Session, initialWritten int64) func(str
 	if !session.isResumable() {
 		return func(_ string, _ int64, err error) (sessionState, error) {
 			if err != nil {
-				return sessionDefault, err
+				return sessionUncompleted, err
 			}
 			return sessionCompleted, err
 		}
@@ -428,9 +428,9 @@ func (cmd Cmd) makeStateHandler(session *Session, initialWritten int64) func(str
 	return func(name string, written int64, err error) (sessionState, error) {
 		if written != session.ContentLength {
 			if written != initialWritten { // if some bytes were written
-				return sessionDumped, session.dumpState(name)
+				return sessionUncompletedWithDump, session.dumpState(name)
 			}
-			return sessionDefault, err
+			return sessionUncompleted, err
 		}
 		return sessionCompleted, err
 	}
