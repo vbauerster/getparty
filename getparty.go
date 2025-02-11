@@ -381,7 +381,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 				cancelMap[id]()
 				panic(fmt.Errorf("%s failure: some other part got partial content first", err.Error()))
 			}
-			cmd.loggers[DEBUG].Println(err.Error())
 		case <-status.ctx.Done():
 			now := time.Now()
 			start <- now
