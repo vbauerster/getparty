@@ -297,19 +297,20 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			session.Elapsed += time.Since(start)
 		default:
 		}
-		name := session.OutputName + ".json"
-		tw := session.totalWritten()
-		state, e := stateHandler(name, tw)
+		name, tw := session.OutputName+".json", session.totalWritten()
+		state, err := stateHandler(name, tw, err)
 		progress.Wait()
-		if e != nil {
-			cmd.loggers[ERRO].Println("Session save failure:", e.Error())
-			err = firstErr(err, e)
-			return
-		}
 		switch state {
 		case sessionDumped:
-			cmd.loggers[INFO].Printf("Session state saved to %q", name)
+			if err != nil {
+				cmd.loggers[ERRO].Println("Session save failure:", err.Error())
+			} else {
+				cmd.loggers[INFO].Printf("Session state saved to %q", name)
+			}
 		case sessionCompleted:
+			if err != nil {
+				panic(fmt.Errorf("session completed with error: %s", err.Error()))
+			}
 			cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 		}
 	}()
@@ -335,6 +336,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		eg.Go(func() error {
 			defer func() {
 				if v := recover(); v != nil {
+					err := fmt.Errorf("%s: %v", p.name, v)
 					recoverHandler.Do(func() {
 						for _, cancel := range cancelMap {
 							cancel()
@@ -345,13 +347,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						default:
 						}
 						name := session.OutputName + ".panic"
-						state, err := stateHandler(name, session.totalWritten())
+						state, err := stateHandler(name, session.totalWritten(), err)
 						progress.Wait()
 						if err == nil && state == sessionDumped {
 							cmd.loggers[INFO].Printf("Session state saved to %q", name)
 						}
 					})
-					panic(fmt.Errorf("%s: %v", p.name, v)) // https://go.dev/play/p/55nmnsXyfSA
+					panic(err) // https://go.dev/play/p/55nmnsXyfSA
 				}
 				if p.isDone() {
 					atomic.AddUint32(&doneCount, 1)
@@ -414,19 +416,23 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeStateHandler(session *Session, initialWritten int64) func(string, int64) (sessionState, error) {
-	return func(name string, written int64) (sessionState, error) {
-		if session.isResumable() && written != session.ContentLength {
-			if written != initialWritten { // if some bytes were written
-				err := session.dumpState(name)
-				if err != nil {
-					return sessionDefault, err
-				}
-				return sessionDumped, nil
+func (cmd Cmd) makeStateHandler(session *Session, initialWritten int64) func(string, int64, error) (sessionState, error) {
+	if !session.isResumable() {
+		return func(_ string, _ int64, err error) (sessionState, error) {
+			if err != nil {
+				return sessionDefault, err
 			}
-			return sessionDefault, nil
+			return sessionCompleted, err
 		}
-		return sessionCompleted, nil
+	}
+	return func(name string, written int64, err error) (sessionState, error) {
+		if written != session.ContentLength {
+			if written != initialWritten { // if some bytes were written
+				return sessionDumped, session.dumpState(name)
+			}
+			return sessionDefault, err
+		}
+		return sessionCompleted, err
 	}
 }
 
