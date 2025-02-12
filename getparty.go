@@ -37,7 +37,8 @@ type (
 
 const (
 	sessionUncompleted sessionState = iota
-	sessionUncompletedWithDump
+	sessionUncompletedWithAdvance
+	sessionCompletedWithError
 	sessionCompleted
 )
 
@@ -289,7 +290,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
-	stateHandler := cmd.makeStateHandler(session, progress.written)
+	stateQuery := cmd.makeStateQuery(session, progress.written)
 	start := make(chan time.Time, 1)
 	defer func() {
 		select {
@@ -298,19 +299,22 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		default:
 		}
 		name, tw := session.OutputName+".json", session.totalWritten()
-		state, err := stateHandler(name, tw, err)
-		progress.Wait()
-		switch state {
-		case sessionUncompletedWithDump:
+		switch stateQuery(tw, err) {
+		case sessionUncompleted:
+			progress.Wait()
+		case sessionUncompletedWithAdvance:
+			err := session.dumpState(name)
+			progress.Wait()
 			if err != nil {
-				cmd.loggers[ERRO].Println("Session save failure:", err.Error())
+				cmd.loggers[ERRO].Println("Session state save failure:", err.Error())
 			} else {
 				cmd.loggers[INFO].Printf("Session state saved to %q", name)
 			}
+		case sessionCompletedWithError:
+			progress.Wait()
+			cmd.loggers[ERRO].Println("Session completed with error:", err.Error())
 		case sessionCompleted:
-			if err != nil {
-				panic(fmt.Errorf("session completed with error: %s", err.Error()))
-			}
+			progress.Wait()
 			cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 		}
 	}()
@@ -347,10 +351,17 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 						default:
 						}
 						name := session.OutputName + ".panic"
-						state, err := stateHandler(name, session.totalWritten(), err)
-						progress.Wait()
-						if err == nil && state == sessionUncompletedWithDump {
-							cmd.loggers[INFO].Printf("Session state saved to %q", name)
+						state := stateQuery(session.totalWritten(), err)
+						if state == sessionUncompletedWithAdvance {
+							err := session.dumpState(name)
+							progress.Wait()
+							if err != nil {
+								cmd.loggers[ERRO].Println("Session state save failure:", err.Error())
+							} else {
+								cmd.loggers[INFO].Printf("Session state saved to %q", name)
+							}
+						} else {
+							progress.Wait()
 						}
 					})
 					panic(err) // https://go.dev/play/p/55nmnsXyfSA
@@ -416,23 +427,26 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (cmd Cmd) makeStateHandler(session *Session, initialWritten int64) func(string, int64, error) (sessionState, error) {
+func (cmd Cmd) makeStateQuery(session *Session, initialWritten int64) func(int64, error) sessionState {
 	if !session.isResumable() {
-		return func(_ string, _ int64, err error) (sessionState, error) {
+		return func(_ int64, err error) sessionState {
 			if err != nil {
-				return sessionUncompleted, err
+				return sessionUncompleted
 			}
-			return sessionCompleted, err
+			return sessionCompleted
 		}
 	}
-	return func(name string, written int64, err error) (sessionState, error) {
+	return func(written int64, err error) sessionState {
 		if written != session.ContentLength {
 			if written != initialWritten { // if some bytes were written
-				return sessionUncompletedWithDump, session.dumpState(name)
+				return sessionUncompletedWithAdvance
 			}
-			return sessionUncompleted, err
+			return sessionUncompleted
 		}
-		return sessionCompleted, err
+		if err != nil {
+			return sessionCompletedWithError
+		}
+		return sessionCompleted
 	}
 }
 
