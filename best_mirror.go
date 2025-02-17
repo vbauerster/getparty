@@ -159,6 +159,7 @@ func queryMirror(
 func readLines(r io.Reader) <-chan *mirror {
 	ch := make(chan *mirror)
 	go func() {
+		defer close(ch)
 		seen := make(map[string]bool)
 		scanner := bufio.NewScanner(r)
 		index := 0
@@ -182,7 +183,6 @@ func readLines(r io.Reader) <-chan *mirror {
 		if err := scanner.Err(); err != nil {
 			panic(err)
 		}
-		close(ch)
 	}()
 	return ch
 }
