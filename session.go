@@ -115,7 +115,7 @@ func (s Session) totalWritten() int64 {
 	return total
 }
 
-func (s Session) summary(loggers [LEVELS]*log.Logger) {
+func (s Session) summary(loggers [lEVELS]*log.Logger) {
 	format := fmt.Sprintf("Length: %%s [%s]", s.ContentType)
 	switch {
 	case s.isResumable():

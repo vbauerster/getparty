@@ -133,7 +133,7 @@ type Cmd struct {
 	opt     *options
 	parser  *flags.Parser
 	patcher func(*http.Request)
-	loggers [LEVELS]*log.Logger
+	loggers [lEVELS]*log.Logger
 }
 
 func (cmd Cmd) Exit(err error) (status int) {

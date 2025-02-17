@@ -10,7 +10,7 @@ const (
 	INFO
 	WARN
 	ERRO
-	LEVELS
+	lEVELS
 )
 
 func (cmd *Cmd) initLoggers() {
