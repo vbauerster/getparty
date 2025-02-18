@@ -282,7 +282,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var recoverHandler sync.Once
 	timeout := cmd.getTimeout()
 	sleep := time.Duration(cmd.opt.SpeedLimit*60) * time.Millisecond
-	cancelMap := make(map[int]func())
 
 	status := new(httpStatusContext)
 	status.ctx, status.cancel = context.WithCancelCause(context.Background())
@@ -328,48 +327,30 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			atomic.AddUint32(&doneCount, 1)
 			continue
 		}
-		ctx, cancel := context.WithCancel(cmd.Ctx)
-		cancelMap[p.order] = cancel
-		p.ctx = ctx
+		p.ctx, p.cancel = context.WithCancel(cmd.Ctx)
 		p.client = client
 		p.status = status
 		p.single = session.Single
 		p.progress = progress
 		p.patcher = cmd.patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
-		eg.Go(func() error {
+		eg.Go(func() (err error) {
 			defer func() {
 				if v := recover(); v != nil {
-					err := fmt.Errorf("%s: %v", p.name, v)
+					err = nil
 					recoverHandler.Do(func() {
-						for _, cancel := range cancelMap {
-							cancel()
-						}
-						select {
-						case start := <-start:
-							session.Elapsed += time.Since(start)
-						default:
-						}
-						name := session.OutputName + ".panic"
-						state := stateQuery(session.totalWritten(), err)
-						if state == sessionUncompletedWithAdvance {
-							err := session.dumpState(name)
-							progress.Wait()
-							if err != nil {
-								cmd.loggers[ERRO].Println("Session state save failure:", err.Error())
-							} else {
-								cmd.loggers[INFO].Printf("Session state saved to %q", name)
+						for _, p := range session.Parts {
+							if p.cancel != nil {
+								p.cancel()
 							}
-						} else {
-							progress.Wait()
 						}
+						err = fmt.Errorf("%s panic: %#v", p.name, v)
 					})
-					panic(err) // https://go.dev/play/p/55nmnsXyfSA
+					return
 				}
 				if p.isDone() {
 					atomic.AddUint32(&doneCount, 1)
 				}
-				cancel()
 			}()
 			return p.download(session.location, session.OutputName, cmd.opt.BufferSize, cmd.opt.MaxRetry, sleep, timeout)
 		})
@@ -379,19 +360,21 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		select {
 		case id := <-status.ok: // on http.StatusOK
 			start <- time.Now()
-			for k, cancel := range cancelMap {
-				if k != id {
-					cancel()
+			for _, p := range session.Parts {
+				if p.order != id && p.cancel != nil {
+					p.cancel()
 				}
 			}
 			err := singleModeFallback(id)
 			status.cancel(err)
 			if session.restored && !session.Single {
-				cancelMap[id]()
+				p := session.Parts[id-1]
+				p.cancel()
 				panic(fmt.Errorf("P%02d: got http status ok while restored session was partial", id))
 			}
 			if context.Cause(status.ctx) != err {
-				cancelMap[id]()
+				p := session.Parts[id-1]
+				p.cancel()
 				panic(fmt.Errorf("%s failure: some other part got partial content first", err.Error()))
 			}
 		case <-status.ctx.Done():

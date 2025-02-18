@@ -37,6 +37,7 @@ type Part struct {
 	Written int64
 
 	ctx          context.Context
+	cancel       context.CancelFunc
 	client       *http.Client
 	progress     *progress
 	logger       *log.Logger
@@ -105,6 +106,7 @@ func (p *Part) download(
 	var fpart *os.File
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
+		p.cancel()
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)
 		p.logger.Println("Total Idle:", totalIdle)
