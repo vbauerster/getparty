@@ -36,16 +36,16 @@ type Part struct {
 	Stop    int64
 	Written int64
 
-	ctx            context.Context
-	client         *http.Client
-	progress       *progress
-	logger         *log.Logger
-	status         *httpStatusContext
-	patcher        func(*http.Request)
-	order          int
-	single         bool
-	name           string
-	prefixTemplate string
+	ctx          context.Context
+	client       *http.Client
+	progress     *progress
+	logger       *log.Logger
+	status       *httpStatusContext
+	patcher      func(*http.Request)
+	order        int
+	single       bool
+	name         string
+	prefixFormat string
 }
 
 func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
@@ -94,7 +94,7 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 
 func (p *Part) initDebugLogger(out io.Writer, prefixTemplate string) {
 	p.logger = log.New(out, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
-	p.prefixTemplate = prefixTemplate
+	p.prefixFormat = prefixTemplate
 }
 
 func (p *Part) download(
@@ -184,7 +184,7 @@ func (p *Part) download(
 				go func(prefix string) {
 					fmt.Fprintf(p.progress, "%s%s\n", prefix, unwrapOrErr(err).Error())
 				}(p.logger.Prefix())
-				p.logger.SetPrefix(fmt.Sprintf(p.prefixTemplate, attempt+1))
+				p.logger.SetPrefix(fmt.Sprintf(p.prefixFormat, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
 			}(p.Written)
 
