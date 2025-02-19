@@ -348,7 +348,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					})
 					return
 				}
-				if p.isDone() {
+				if !p.single && p.isDone() {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
