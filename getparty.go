@@ -352,7 +352,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
-			return p.download(session.location, session.OutputName, cmd.opt.BufferSize, cmd.opt.MaxRetry, sleep, timeout)
+			return p.download(session.location, cmd.opt.BufferSize, cmd.opt.MaxRetry, sleep, timeout)
 		})
 	}
 

@@ -45,6 +45,7 @@ type Part struct {
 	order        int
 	single       bool
 	name         string
+	base         string
 	prefixFormat string
 }
 
@@ -94,6 +95,7 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 
 func (p *Part) init(order int, session *Session, debug io.Writer) error {
 	p.order = order
+	p.base = session.OutputName
 	p.single = session.Single
 	p.name = fmt.Sprintf("P%02d", order)
 	p.prefixFormat = fmt.Sprintf("[%s:R%%02d] ", p.name)
@@ -105,7 +107,7 @@ func (p *Part) init(order int, session *Session, debug io.Writer) error {
 }
 
 func (p *Part) download(
-	location, outputBase string,
+	location string,
 	bufSize, maxTry uint,
 	sleep, timeout time.Duration,
 ) (err error) {
@@ -233,7 +235,7 @@ func (p *Part) download(
 			case http.StatusPartialContent:
 				if fpart == nil {
 					p.status.cancel(errUnexpectedOK)
-					fpart, err = os.OpenFile(p.outputName(outputBase), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
+					fpart, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -255,7 +257,7 @@ func (p *Part) download(
 					if fpart != nil || bar != nil {
 						panic(fmt.Errorf("expected uninitialized got: fpart=%#v bar=%#v", fpart, bar))
 					}
-					fpart, err = os.OpenFile(outputBase, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
+					fpart, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -395,18 +397,18 @@ func (p Part) checkSize() error {
 	return withStack(err)
 }
 
-func (p Part) outputName(base string) string {
+func (p Part) outputName() string {
 	if p.order == 0 {
 		panic(errors.New("Part is not initialized"))
 	}
 	if p.single {
-		return base
+		return p.base
 	}
-	return fmt.Sprintf("%s.%02d", base, p.order)
+	return fmt.Sprintf("%s.%02d", p.base, p.order)
 }
 
 func (p Part) writeTo(dst *os.File) (err error) {
-	src, err := os.Open(p.outputName(dst.Name()))
+	src, err := os.Open(p.outputName())
 	if err != nil {
 		return err
 	}
@@ -418,11 +420,7 @@ func (p Part) writeTo(dst *os.File) (err error) {
 		p.logger.Printf("Removing: %q", src.Name())
 		err = os.Remove(src.Name())
 	}()
-	stat, err := src.Stat()
-	if err != nil {
-		return err
-	}
-	err = p.checkSize(stat)
+	err = p.checkSize()
 	if err != nil {
 		return err
 	}
