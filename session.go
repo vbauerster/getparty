@@ -249,7 +249,7 @@ func (s Session) concatenateParts(progress *progress) error {
 
 	dst := p.file
 	if dst == nil {
-		return withStack(errors.New("expected non nil p.file"))
+		return withStack(fmt.Errorf("expected non nil file on %s", p.name))
 	}
 
 	for _, p := range s.Parts[1:] {

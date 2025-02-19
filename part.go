@@ -416,7 +416,7 @@ func (p Part) outputName() string {
 
 func (p Part) writeTo(dst *os.File) (err error) {
 	if p.file == nil {
-		return withStack(errors.New("expected non nil p.file"))
+		return withStack(fmt.Errorf("expected non nil file on %s", p.name))
 	}
 	// The behavior of Seek on a file opened with O_APPEND is not specified.
 	// Have to reopen p.file which was initially opened with O_APPEND flag.
