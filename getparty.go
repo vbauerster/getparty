@@ -280,6 +280,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	var doneCount uint32
 	var eg errgroup.Group
 	var recoverHandler sync.Once
+	var recovered bool
 	timeout := cmd.getTimeout()
 	sleep := time.Duration(cmd.opt.SpeedLimit*60) * time.Millisecond
 
@@ -297,8 +298,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			session.Elapsed += time.Since(start)
 		default:
 		}
-		name, tw := session.OutputName+".json", session.totalWritten()
-		switch stateQuery(tw, err) {
+		var name string
+		if recovered {
+			name = session.OutputName + ".panic"
+		} else {
+			name = session.OutputName + ".json"
+		}
+		switch tw := session.totalWritten(); stateQuery(tw, err) {
 		case sessionUncompleted:
 			progress.Wait()
 		case sessionUncompletedWithAdvance:
@@ -345,6 +351,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 							}
 						}
 						err = fmt.Errorf("%s panic: %#v", p.name, v)
+						recovered = true
 					})
 					return
 				}
