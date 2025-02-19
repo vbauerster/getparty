@@ -361,7 +361,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		case id := <-status.ok: // on http.StatusOK
 			start <- time.Now()
 			for _, p := range session.Parts {
-				if p.order != id && p.cancel != nil {
+				if p.id != id && p.cancel != nil {
 					p.cancel()
 				}
 			}

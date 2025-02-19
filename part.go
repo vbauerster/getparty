@@ -35,6 +35,7 @@ type Part struct {
 	Stop    int64
 	Written int64
 
+	id           int
 	ctx          context.Context
 	cancel       context.CancelFunc
 	client       *http.Client
@@ -43,7 +44,6 @@ type Part struct {
 	logger       *log.Logger
 	status       *httpStatusContext
 	patcher      func(*http.Request)
-	order        int
 	single       bool
 	name         string
 	base         string
@@ -62,7 +62,7 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 	p.logger.Println("Setting bar total:", total)
 	bar, err := p.progress.Add(total, filler,
 		mpb.BarFillerTrim(),
-		mpb.BarPriority(p.order),
+		mpb.BarPriority(p.id),
 		mpb.PrependDecorators(
 			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msgCh, 15),
 			decor.Conditional(total == 0,
@@ -94,11 +94,11 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 	return bar, nil
 }
 
-func (p *Part) init(order int, session *Session, debug io.Writer) error {
-	p.order = order
+func (p *Part) init(id int, session *Session, debug io.Writer) error {
+	p.id = id
 	p.base = session.OutputName
 	p.single = session.Single
-	p.name = fmt.Sprintf("P%02d", order)
+	p.name = fmt.Sprintf("P%02d", id)
 	p.prefixFormat = fmt.Sprintf("[%s:R%%02d] ", p.name)
 	p.logger = log.New(debug, fmt.Sprintf(p.prefixFormat, 0), log.LstdFlags)
 	if session.restored && p.Written != 0 {
@@ -248,7 +248,7 @@ func (p *Part) download(
 				}
 			case http.StatusOK: // no partial content, fallback to single part mode
 				select {
-				case p.status.ok <- p.order:
+				case p.status.ok <- p.id:
 					p.single = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
@@ -403,13 +403,13 @@ func (p Part) checkSize() (err error) {
 }
 
 func (p Part) outputName() string {
-	if p.order == 0 {
+	if p.id == 0 {
 		panic(errors.New("Part is not initialized"))
 	}
 	if p.single {
 		return p.base
 	}
-	return fmt.Sprintf("%s.%02d", p.base, p.order)
+	return fmt.Sprintf("%s.%02d", p.base, p.id)
 }
 
 func (p Part) writeTo(dst *os.File) (err error) {
