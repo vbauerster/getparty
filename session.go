@@ -241,21 +241,29 @@ func (s Session) concatenateParts(progress *progress) error {
 		return withStack(err)
 	}
 
-	dst, err := os.OpenFile(s.OutputName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
+	p := s.Parts[0]
+	err = p.checkSize()
 	if err != nil {
-		return withStack(err)
+		return errors.Join(p.file.Close(), err)
 	}
 
-	for _, p := range s.Parts {
+	dst := p.file
+	if dst == nil {
+		return withStack(errors.New("expected non nil p.file"))
+	}
+
+	for _, p := range s.Parts[1:] {
 		err := p.writeTo(dst)
 		if err != nil {
 			bar.Abort(false)
-			_ = dst.Close()
-			return withStack(err)
+			return errors.Join(dst.Close(), err)
 		}
 		bar.Increment()
 	}
 
 	err = firstErr(dst.Sync(), dst.Close())
+	if err == nil {
+		err = os.Rename(dst.Name(), s.OutputName)
+	}
 	return withStack(err)
 }

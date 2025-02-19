@@ -38,6 +38,7 @@ type Part struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
 	client       *http.Client
+	file         *os.File
 	progress     *progress
 	logger       *log.Logger
 	status       *httpStatusContext
@@ -111,16 +112,14 @@ func (p *Part) download(
 	bufSize, maxTry uint,
 	sleep, timeout time.Duration,
 ) (err error) {
-	var fpart *os.File
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
 		p.cancel()
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)
 		p.logger.Println("Total Idle:", totalIdle)
-		if fpart != nil {
-			p.logger.Printf("Closing: %q", fpart.Name())
-			err = firstErr(err, fpart.Close())
+		if err != nil || p.single && p.file != nil {
+			p.logger.Printf("%q closed with: %v", p.file.Name(), p.file.Close())
 		}
 		err = withMessage(err, p.name)
 	}()
@@ -233,9 +232,9 @@ func (p *Part) download(
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				if fpart == nil {
+				if p.file == nil {
 					p.status.cancel(errUnexpectedOK)
-					fpart, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
+					p.file, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -254,10 +253,10 @@ func (p *Part) download(
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
-					if fpart != nil || bar != nil {
-						panic(fmt.Errorf("expected uninitialized got: fpart=%#v bar=%#v", fpart, bar))
+					if p.file != nil || bar != nil {
+						panic(fmt.Errorf("expected uninitialized got: p.file=%#v bar=%#v", p.file, bar))
 					}
-					fpart, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
+					p.file, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -278,7 +277,7 @@ func (p *Part) download(
 				}
 				if p.Written != 0 {
 					// on retry and status ok there is no way to resume so retry from scratch
-					err := fpart.Truncate(0)
+					err := p.file.Truncate(0)
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -328,10 +327,10 @@ func (p *Part) download(
 					timeout += 5 * time.Second
 				}
 
-				wn, werr := fpart.Write(buffer[:n])
+				wn, werr := p.file.Write(buffer[:n])
 				if werr != nil {
 					sleepCancel()
-					err := fpart.Truncate(p.Written)
+					err := p.file.Truncate(p.Written)
 					if err != nil {
 						p.logger.Println("Truncate:", err.Error())
 						return false, withStack(errors.Join(err, werr))
@@ -359,7 +358,7 @@ func (p *Part) download(
 			if p.isDone() {
 				if err == io.EOF {
 					p.logger.Println("Part is done")
-					return false, withStack(fpart.Sync())
+					return false, withStack(p.file.Sync())
 				}
 				return false, withStack(fmt.Errorf("expected EOF, got: %w", err))
 			}
@@ -386,8 +385,13 @@ func (p Part) isDone() bool {
 	return p.Written == p.total()
 }
 
-func (p Part) checkSize() error {
-	stat, err := os.Stat(p.outputName())
+func (p Part) checkSize() (err error) {
+	var stat os.FileInfo
+	if p.file != nil {
+		stat, err = p.file.Stat()
+	} else {
+		stat, err = os.Stat(p.outputName())
+	}
 	if err != nil {
 		return withStack(err)
 	}
@@ -408,25 +412,30 @@ func (p Part) outputName() string {
 }
 
 func (p Part) writeTo(dst *os.File) (err error) {
-	src, err := os.Open(p.outputName())
+	if p.file == nil {
+		return withStack(errors.New("expected non nil p.file"))
+	}
+	// The behavior of Seek on a file opened with O_APPEND is not specified.
+	// Have to reopen p.file which was initially opened with O_APPEND flag.
+	name := p.file.Name()
+	err = firstErr(p.checkSize(), p.file.Close())
 	if err != nil {
 		return err
+	}
+	src, err := os.Open(name)
+	if err != nil {
+		return withStack(err)
 	}
 	defer func() {
-		err = firstErr(err, src.Close())
-		if err != nil {
-			return
+		err = firstErr(err, withStack(src.Close()))
+		if err == nil {
+			p.logger.Printf("Removing: %q", src.Name())
+			err = withStack(os.Remove(src.Name()))
 		}
-		p.logger.Printf("Removing: %q", src.Name())
-		err = os.Remove(src.Name())
 	}()
-	err = p.checkSize()
-	if err != nil {
-		return err
-	}
 	n, err := io.Copy(dst, src)
 	p.logger.Printf("%d bytes copied: src=%q dst=%q", n, src.Name(), dst.Name())
-	return err
+	return withStack(err)
 }
 
 func makeUnexpectedEOFFuser(logger *log.Logger) func(error) bool {
