@@ -406,7 +406,7 @@ func (p Part) checkSize() (err error) {
 
 func (p Part) outputName() string {
 	if p.id == 0 {
-		panic(errors.New("Part is not initialized"))
+		panic(errors.New("part is not initialized"))
 	}
 	if p.single {
 		return p.base
