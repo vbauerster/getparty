@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-      - run: go version
+      - run: cp LICENSE README.md cmd/getparty
       - uses: goreleaser/goreleaser-action@v6
         with:
           workdir: cmd/getparty
