@@ -420,12 +420,11 @@ func (p Part) writeTo(dst *os.File) (err error) {
 	}
 	// The behavior of Seek on a file opened with O_APPEND is not specified.
 	// Have to reopen p.file which was initially opened with O_APPEND flag.
-	name := p.file.Name()
 	err = firstErr(p.checkSize(), p.file.Close())
 	if err != nil {
 		return err
 	}
-	src, err := os.Open(name)
+	src, err := os.Open(p.file.Name())
 	if err != nil {
 		return withStack(err)
 	}
