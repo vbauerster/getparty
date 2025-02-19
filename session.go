@@ -264,6 +264,7 @@ func (s Session) concatenateParts(progress *progress) error {
 	err = firstErr(dst.Sync(), dst.Close())
 	if err == nil {
 		err = os.Rename(dst.Name(), s.OutputName)
+		p.logger.Printf("%q renamed to %q with: %v", dst.Name(), s.OutputName, err)
 	}
 	return withStack(err)
 }
