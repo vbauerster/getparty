@@ -290,7 +290,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
-	stateQuery := cmd.makeStateQuery(session, progress.written)
+	stateQuery := cmd.makeStateQuery(session, progress.current)
 	start := make(chan time.Time, 1)
 	defer func() {
 		select {

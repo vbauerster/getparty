@@ -20,7 +20,7 @@ type progress struct {
 	*mpb.Progress
 	topBar  *mpb.Bar
 	total   chan int
-	written int64
+	current int64
 	out     io.Writer
 }
 
@@ -179,7 +179,7 @@ func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress 
 		Progress: p,
 		topBar:   p.MustAdd(0, nil),
 		total:    total,
-		written:  s.totalWritten(),
+		current:  s.totalWritten(),
 		out:      out,
 	}
 }
@@ -212,9 +212,9 @@ func (s Session) runTotalBar(progress *progress, doneCount *uint32, start time.T
 		}
 		bar.Abort(false)
 	}()
-	if progress.written != 0 {
-		bar.SetCurrent(progress.written)
-		bar.SetRefill(progress.written)
+	if progress.current != 0 {
+		bar.SetCurrent(progress.current)
+		bar.SetRefill(progress.current)
 	}
 }
 
