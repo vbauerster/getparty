@@ -375,13 +375,15 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			err := singleModeFallback(id)
 			status.cancel(err)
 			if session.restored && !session.Single {
-				p := session.Parts[id-1]
-				p.cancel()
+				if p := session.Parts[id-1]; p.cancel != nil {
+					p.cancel()
+				}
 				panic(fmt.Errorf("P%02d: got http status ok while restored session was partial", id))
 			}
 			if context.Cause(status.ctx) != err {
-				p := session.Parts[id-1]
-				p.cancel()
+				if p := session.Parts[id-1]; p.cancel != nil {
+					p.cancel()
+				}
 				panic(fmt.Errorf("%s failure: some other part got partial content first", err.Error()))
 			}
 		case <-status.ctx.Done():
