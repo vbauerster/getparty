@@ -435,7 +435,7 @@ func (p Part) writeTo(dst *os.File) (err error) {
 		}
 	}()
 	n, err := io.Copy(dst, src)
-	p.logger.Printf("%d bytes copied: src=%q dst=%q", n, src.Name(), dst.Name())
+	p.logger.Printf("%d bytes copied: dst=%q src=%q", n, dst.Name(), src.Name())
 	return withStack(err)
 }
 
