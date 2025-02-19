@@ -151,9 +151,9 @@ func queryMirror(
 		return resp.Body.Close()
 	}
 	if resp.Body != nil {
-		return errors.Join(UnexpectedHttpStatus(resp.StatusCode), resp.Body.Close())
+		err = resp.Body.Close()
 	}
-	return UnexpectedHttpStatus(resp.StatusCode)
+	return errors.Join(err, UnexpectedHttpStatus(resp.StatusCode))
 }
 
 func readLines(r io.Reader) <-chan *mirror {
