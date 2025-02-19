@@ -432,8 +432,8 @@ func (p Part) writeTo(dst *os.File) (err error) {
 	defer func() {
 		err = firstErr(err, withStack(src.Close()))
 		if err == nil {
-			p.logger.Printf("Removing: %q", src.Name())
 			err = withStack(os.Remove(src.Name()))
+			p.logger.Printf("%q removed with: %v", src.Name(), err)
 		}
 	}()
 	n, err := io.Copy(dst, src)
