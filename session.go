@@ -156,25 +156,6 @@ func (s Session) checkContentSums(other Session) error {
 	return nil
 }
 
-func (s Session) checkSizeOfEachPart() error {
-	for i, p := range s.Parts {
-		if p.Written == 0 {
-			continue
-		}
-		p.order = i + 1
-		p.single = s.Single
-		stat, err := os.Stat(p.outputName(s.OutputName))
-		if err != nil {
-			return withStack(err)
-		}
-		err = p.checkSize(stat)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
 	var total chan int
 	qlen := 1

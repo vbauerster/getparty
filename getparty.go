@@ -319,9 +319,10 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	}()
 
 	for i, p := range session.Parts {
-		p.order = i + 1
-		p.name = fmt.Sprintf("P%02d", p.order)
-		p.initDebugLogger(debugOut, fmt.Sprintf("[%s:R%%02d] ", p.name))
+		err := p.init(i+1, session, debugOut)
+		if err != nil {
+			return err
+		}
 		// at ContentLength = 0 p.isDone() is always true therefore we shouldn't skip written = 0 part
 		if p.Written != 0 && p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
@@ -330,7 +331,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		p.ctx, p.cancel = context.WithCancel(cmd.Ctx)
 		p.client = client
 		p.status = status
-		p.single = session.Single
 		p.progress = progress
 		p.patcher = cmd.patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
@@ -473,10 +473,6 @@ func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
 		case cmd.opt.SessionName != "":
 			restored := new(Session)
 			err = restored.loadState(cmd.opt.SessionName)
-			if err != nil {
-				return nil, err
-			}
-			err = restored.checkSizeOfEachPart()
 			if err != nil {
 				return nil, err
 			}

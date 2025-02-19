@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"net/http"
 	"net/http/httptrace"
@@ -93,9 +92,16 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 	return bar, nil
 }
 
-func (p *Part) initDebugLogger(out io.Writer, prefixTemplate string) {
-	p.logger = log.New(out, fmt.Sprintf(prefixTemplate, 0), log.LstdFlags)
-	p.prefixFormat = prefixTemplate
+func (p *Part) init(order int, session *Session, debug io.Writer) error {
+	p.order = order
+	p.single = session.Single
+	p.name = fmt.Sprintf("P%02d", order)
+	p.prefixFormat = fmt.Sprintf("[%s:R%%02d] ", p.name)
+	p.logger = log.New(debug, fmt.Sprintf(p.prefixFormat, 0), log.LstdFlags)
+	if session.restored && p.Written != 0 {
+		return p.checkSize()
+	}
+	return nil
 }
 
 func (p *Part) download(
@@ -378,12 +384,15 @@ func (p Part) isDone() bool {
 	return p.Written == p.total()
 }
 
-func (p Part) checkSize(stat fs.FileInfo) error {
-	size := stat.Size()
-	if size != p.Written {
-		return withStack(fmt.Errorf("%q size mismatch: expected %d got %d", stat.Name(), p.Written, size))
+func (p Part) checkSize() error {
+	stat, err := os.Stat(p.outputName())
+	if err != nil {
+		return withStack(err)
 	}
-	return nil
+	if size := stat.Size(); size != p.Written {
+		err = fmt.Errorf("%q size mismatch: expected %d got %d", stat.Name(), p.Written, size)
+	}
+	return withStack(err)
 }
 
 func (p Part) outputName(base string) string {
