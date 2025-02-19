@@ -266,6 +266,7 @@ func (p *Part) download(
 					}
 				case <-p.status.ctx.Done():
 					if !p.single {
+						p.single = true
 						err := context.Cause(p.status.ctx)
 						if err == errUnexpectedOK {
 							panic(err)
