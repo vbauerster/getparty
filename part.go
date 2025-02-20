@@ -114,11 +114,7 @@ func (p *Part) init(id int, session *Session, debug io.Writer) error {
 	return nil
 }
 
-func (p *Part) download(
-	location string,
-	bufSize, maxTry uint,
-	sleep, timeout time.Duration,
-) (err error) {
+func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout time.Duration) (err error) {
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
 		p.logger.Println("Total Written:", p.Written)
