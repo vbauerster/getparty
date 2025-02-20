@@ -102,7 +102,14 @@ func (p *Part) init(id int, session *Session, debug io.Writer) error {
 	p.prefixFormat = fmt.Sprintf("[%s:R%%02d] ", p.name)
 	p.logger = log.New(debug, fmt.Sprintf(p.prefixFormat, 0), log.LstdFlags)
 	if session.restored && p.Written != 0 {
-		return p.checkSize()
+		stat, err := os.Stat(p.outputName())
+		if err != nil {
+			return withStack(err)
+		}
+		if size := stat.Size(); size != p.Written {
+			err = fmt.Errorf("%q size mismatch: expected %d got %d", stat.Name(), p.Written, size)
+		}
+		return withStack(err)
 	}
 	return nil
 }
@@ -383,22 +390,6 @@ func (p Part) total() int64 {
 
 func (p Part) isDone() bool {
 	return p.Written == p.total()
-}
-
-func (p Part) checkSize() (err error) {
-	var stat os.FileInfo
-	if p.file != nil {
-		stat, err = p.file.Stat()
-	} else {
-		stat, err = os.Stat(p.outputName())
-	}
-	if err != nil {
-		return withStack(err)
-	}
-	if size := stat.Size(); size != p.Written {
-		err = fmt.Errorf("%q size mismatch: expected %d got %d", stat.Name(), p.Written, size)
-	}
-	return withStack(err)
 }
 
 func (p Part) outputName() string {
