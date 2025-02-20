@@ -415,7 +415,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return firstErr(context.Cause(cmd.Ctx), err)
 	}
 	if !session.Single {
-		err = cmd.concatenate(progress, session.Parts)
+		err = cmd.concatenate(session.Parts, progress)
 		if err != nil {
 			return err
 		}
@@ -768,7 +768,7 @@ func (cmd Cmd) invariantCheck() error {
 	return nil
 }
 
-func (m Cmd) concatenate(progress *progress, parts []*Part) error {
+func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 	bar, err := progress.Add(int64(len(parts)-1), baseBarStyle().Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(len(parts)+2),
