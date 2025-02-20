@@ -408,8 +408,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	if err != nil {
 		for _, p := range session.Parts {
-			if p.file != nil {
-				m.loggers[DEBUG].Printf("%q closed with: %v", p.file.Name(), firstErr(p.file.Sync(), p.file.Close()))
+			if f := p.file; f != nil {
+				m.loggers[DEBUG].Printf("%q closed with: %v", f.Name(), firstErr(f.Sync(), f.Close()))
 			}
 		}
 		return firstErr(context.Cause(m.Ctx), err)
