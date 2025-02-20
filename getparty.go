@@ -292,7 +292,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 
 	debugOut := cmd.getErr()
 	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
-	stateQuery := cmd.makeStateQuery(session, progress.current)
+	stateQuery := makeStateQuery(session, progress.current)
 	start := make(chan time.Time, 1)
 	defer func() {
 		select {
@@ -453,29 +453,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		cmd.loggers[DEBUG].Printf("%q rename to %q ok", p.file.Name(), session.OutputName)
 	}
 	return nil
-}
-
-func (cmd Cmd) makeStateQuery(session *Session, initialWritten int64) func(int64, error) sessionState {
-	if !session.isResumable() {
-		return func(_ int64, err error) sessionState {
-			if err != nil {
-				return sessionUncompleted
-			}
-			return sessionCompleted
-		}
-	}
-	return func(written int64, err error) sessionState {
-		if written != session.ContentLength {
-			if written != initialWritten { // if some bytes were written
-				return sessionUncompletedWithAdvance
-			}
-			return sessionUncompleted
-		}
-		if err != nil {
-			return sessionCompletedWithError
-		}
-		return sessionCompleted
-	}
 }
 
 func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
@@ -932,4 +909,27 @@ func isRedirect(status int) bool {
 
 func isServerError(status int) bool {
 	return status > 499 && status < 600
+}
+
+func makeStateQuery(session *Session, initialWritten int64) func(int64, error) sessionState {
+	if !session.isResumable() {
+		return func(_ int64, err error) sessionState {
+			if err != nil {
+				return sessionUncompleted
+			}
+			return sessionCompleted
+		}
+	}
+	return func(written int64, err error) sessionState {
+		if written != session.ContentLength {
+			if written != initialWritten { // if some bytes were written
+				return sessionUncompletedWithAdvance
+			}
+			return sessionUncompleted
+		}
+		if err != nil {
+			return sessionCompletedWithError
+		}
+		return sessionCompleted
+	}
 }
