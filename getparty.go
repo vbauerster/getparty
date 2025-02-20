@@ -768,7 +768,7 @@ func (cmd Cmd) invariantCheck() error {
 	return nil
 }
 
-func (cmd Cmd) concatenate(progress *progress, parts []*Part) error {
+func (m Cmd) concatenate(progress *progress, parts []*Part) error {
 	bar, err := progress.Add(int64(len(parts)-1), baseBarStyle().Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(len(parts)+2),
@@ -795,12 +795,12 @@ func (cmd Cmd) concatenate(progress *progress, parts []*Part) error {
 			if err != nil {
 				return withStack(err)
 			}
-			cmd.loggers[DEBUG].Printf("%q reopen nil file ok", p.file.Name())
+			m.loggers[DEBUG].Printf("%q reopen nil file ok", p.file.Name())
 		}
 		files = append(files, p.file)
 	}
 
-	err = concat(files, cmd.loggers[DEBUG], bar)
+	err = m.concat(files, bar)
 	if err != nil {
 		bar.Abort(false)
 		return withStack(err)
@@ -809,13 +809,44 @@ func (cmd Cmd) concatenate(progress *progress, parts []*Part) error {
 	return nil
 }
 
-func concat(s []*os.File, logger *log.Logger, bar *mpb.Bar) error {
-	if len(s) == 1 {
+func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
+	if len(files) == 1 {
 		return nil
+	}
+
+	var eg errgroup.Group
+	for i := len(files); i > 1; i -= 2 {
+		i := i
+		eg.Go(func() error {
+			err := concat(files[i-2:i], m.loggers[DEBUG])
+			bar.Increment()
+			files[i-1] = nil
+			return err
+		})
+	}
+
+	err := eg.Wait()
+	if err != nil {
+		return err
+	}
+
+	var x []*os.File
+	for _, file := range files {
+		if file != nil {
+			x = append(x, file)
+		}
+	}
+
+	return m.concat(x, bar)
+}
+
+func concat(pair []*os.File, logger *log.Logger) error {
+	if len(pair) != 2 {
+		return fmt.Errorf("unexpected pair len: %d", len(pair))
 	}
 	// The behavior of Seek on a file opened with O_APPEND is not specified.
 	// Have to reopen file which was initially opened with O_APPEND flag.
-	src, dst := s[len(s)-1], s[len(s)-2]
+	dst, src := pair[0], pair[1]
 	err := src.Close()
 	if err != nil {
 		return err
@@ -844,8 +875,7 @@ func concat(s []*os.File, logger *log.Logger, bar *mpb.Bar) error {
 	}
 	logger.Printf("%q remove ok", src.Name())
 
-	bar.Increment()
-	return concat(s[:len(s)-1], logger, bar)
+	return nil
 }
 
 func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*http.Request) {
