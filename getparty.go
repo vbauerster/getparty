@@ -498,9 +498,8 @@ func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
 				}
 				fallthrough
 			case session != nil:
-				err = restored.checkContentSums(*session)
-				if err != nil {
-					return nil, err
+				if restored.ContentLength != session.ContentLength {
+					return nil, fmt.Errorf("ContentLength mismatch: expected %d got %d", restored.ContentLength, session.ContentLength)
 				}
 				restored.location = session.location
 			default:

@@ -146,16 +146,6 @@ func (s Session) isOutputFileExist() (bool, error) {
 	return true, err
 }
 
-func (s Session) checkContentSums(other Session) error {
-	if s.ContentLength != other.ContentLength {
-		return fmt.Errorf("ContentLength mismatch: expected %d got %d", s.ContentLength, other.ContentLength)
-	}
-	if s.ContentMD5 != other.ContentMD5 {
-		return fmt.Errorf("%s mismatch: expected %q got %q", hContentMD5, s.ContentMD5, other.ContentMD5)
-	}
-	return nil
-}
-
 func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
 	var total chan int
 	qlen := 1
