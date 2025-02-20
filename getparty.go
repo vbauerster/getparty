@@ -23,6 +23,8 @@ import (
 	flags "github.com/jessevdk/go-flags"
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
+	"github.com/vbauerster/mpb/v8"
+	"github.com/vbauerster/mpb/v8/decor"
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
@@ -413,10 +415,35 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return firstErr(context.Cause(cmd.Ctx), err)
 	}
 	if !session.Single {
-		err = session.concatenateParts(progress)
+		err = cmd.concatenate(progress, session.Parts)
 		if err != nil {
 			return err
 		}
+	}
+	if p := session.Parts[0]; p.file != nil {
+		err = p.file.Sync()
+		if err != nil {
+			return withStack(err)
+		}
+		if session.isResumable() {
+			stat, err := p.file.Stat()
+			if err != nil {
+				return withStack(err)
+			}
+			if size := stat.Size(); size != session.ContentLength {
+				return withStack(fmt.Errorf("ContentLength mismatch: expected %d got %d", session.ContentLength, size))
+			}
+		}
+		err = p.file.Close()
+		if err != nil {
+			return withStack(err)
+		}
+		cmd.loggers[DEBUG].Printf("%q close ok", p.file.Name())
+		err = os.Rename(p.file.Name(), session.OutputName)
+		if err != nil {
+			return withStack(err)
+		}
+		cmd.loggers[DEBUG].Printf("%q rename to %q ok", p.file.Name(), session.OutputName)
 	}
 	if cmd.opt.SessionName != "" {
 		return withStack(os.Remove(cmd.opt.SessionName))
@@ -735,6 +762,86 @@ func (cmd Cmd) invariantCheck() error {
 		return ErrBadInvariant
 	}
 	return nil
+}
+
+func (cmd Cmd) concatenate(progress *progress, parts []*Part) error {
+	bar, err := progress.Add(int64(len(parts)-1), baseBarStyle().Build(),
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(len(parts)+2),
+		mpb.PrependDecorators(
+			decor.Name("Concatenating", decor.WCSyncWidthR),
+			decor.NewPercentage("%d", decor.WCSyncSpace),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+		),
+	)
+	if err != nil {
+		return withStack(err)
+	}
+
+	files := make([]*os.File, 0, len(parts))
+	for _, p := range parts {
+		// p.file is nil when session is restored with some complete part
+		if p.file == nil {
+			p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_APPEND, umask)
+			if err != nil {
+				return withStack(err)
+			}
+			cmd.loggers[DEBUG].Printf("%q reopen nil file ok", p.file.Name())
+		}
+		files = append(files, p.file)
+	}
+
+	err = concat(files, cmd.loggers[DEBUG], bar)
+	if err != nil {
+		bar.Abort(false)
+		return withStack(err)
+	}
+
+	return nil
+}
+
+func concat(s []*os.File, logger *log.Logger, bar *mpb.Bar) error {
+	if len(s) == 1 {
+		return nil
+	}
+	// The behavior of Seek on a file opened with O_APPEND is not specified.
+	// Have to reopen file which was initially opened with O_APPEND flag.
+	src, dst := s[len(s)-1], s[len(s)-2]
+	err := src.Close()
+	if err != nil {
+		return err
+	}
+	src, err = os.Open(src.Name())
+	if err != nil {
+		return err
+	}
+	logger.Printf("%q reopen ok", src.Name())
+
+	n, err := io.Copy(dst, src)
+	if err != nil {
+		return err
+	}
+	logger.Printf("%d bytes copied: dst=%q src=%q", n, dst.Name(), src.Name())
+
+	err = src.Close()
+	if err != nil {
+		return err
+	}
+	logger.Printf("%q close ok", src.Name())
+
+	err = os.Remove(src.Name())
+	if err != nil {
+		return err
+	}
+	logger.Printf("%q remove ok", src.Name())
+
+	bar.Increment()
+	return concat(s[:len(s)-1], logger, bar)
 }
 
 func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*http.Request) {

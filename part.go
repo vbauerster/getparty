@@ -46,7 +46,7 @@ type Part struct {
 	patcher      func(*http.Request)
 	single       bool
 	name         string
-	base         string
+	output       string
 	prefixFormat string
 }
 
@@ -96,13 +96,13 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 
 func (p *Part) init(id int, session *Session, debug io.Writer) error {
 	p.id = id
-	p.base = session.OutputName
 	p.single = session.Single
 	p.name = fmt.Sprintf("P%02d", id)
+	p.output = fmt.Sprintf("%s.%02d", session.OutputName, id)
 	p.prefixFormat = fmt.Sprintf("[%s:R%%02d] ", p.name)
 	p.logger = log.New(debug, fmt.Sprintf(p.prefixFormat, 0), log.LstdFlags)
 	if session.restored && p.Written != 0 {
-		stat, err := os.Stat(p.outputName())
+		stat, err := os.Stat(p.output)
 		if err != nil {
 			return withStack(err)
 		}
@@ -240,7 +240,7 @@ func (p *Part) download(
 			case http.StatusPartialContent:
 				if p.file == nil {
 					p.status.cancel(errUnexpectedOK)
-					p.file, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
+					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -262,7 +262,7 @@ func (p *Part) download(
 					if p.file != nil || bar != nil {
 						panic(fmt.Errorf("expected uninitialized got: p.file=%#v bar=%#v", p.file, bar))
 					}
-					p.file, err = os.OpenFile(p.outputName(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
+					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -390,42 +390,6 @@ func (p Part) total() int64 {
 
 func (p Part) isDone() bool {
 	return p.Written == p.total()
-}
-
-func (p Part) outputName() string {
-	if p.id == 0 {
-		panic(errors.New("part is not initialized"))
-	}
-	if p.single {
-		return p.base
-	}
-	return fmt.Sprintf("%s.%02d", p.base, p.id)
-}
-
-func (p Part) writeTo(dst *os.File) (err error) {
-	if p.file == nil {
-		return withStack(fmt.Errorf("expected non nil file on %s", p.name))
-	}
-	// The behavior of Seek on a file opened with O_APPEND is not specified.
-	// Have to reopen p.file which was initially opened with O_APPEND flag.
-	err = firstErr(p.checkSize(), p.file.Close())
-	if err != nil {
-		return err
-	}
-	src, err := os.Open(p.file.Name())
-	if err != nil {
-		return withStack(err)
-	}
-	defer func() {
-		err = firstErr(err, withStack(src.Close()))
-		if err == nil {
-			err = withStack(os.Remove(src.Name()))
-			p.logger.Printf("%q removed with: %v", src.Name(), err)
-		}
-	}()
-	n, err := io.Copy(dst, src)
-	p.logger.Printf("%d bytes copied: dst=%q src=%q", n, dst.Name(), src.Name())
-	return withStack(err)
 }
 
 func makeUnexpectedEOFFuser(logger *log.Logger) func(error) bool {
