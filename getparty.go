@@ -405,6 +405,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		session.Single = true
 	}
 	if err != nil {
+		for _, p := range session.Parts {
+			if p.file != nil {
+				cmd.loggers[DEBUG].Printf("%q closed with: %v", p.file.Name(), p.file.Close())
+			}
+		}
 		return firstErr(context.Cause(cmd.Ctx), err)
 	}
 	if !session.Single {

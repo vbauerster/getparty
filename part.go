@@ -117,9 +117,6 @@ func (p *Part) download(
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)
 		p.logger.Println("Total Idle:", totalIdle)
-		if err != nil || p.single && p.file != nil {
-			p.logger.Printf("%q closed with: %v", p.file.Name(), p.file.Close())
-		}
 		if p.cancel != nil {
 			p.cancel()
 		}
