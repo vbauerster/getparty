@@ -433,6 +433,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			if size := stat.Size(); size != session.ContentLength {
 				return withStack(fmt.Errorf("ContentLength mismatch: expected %d got %d", session.ContentLength, size))
 			}
+			if cmd.opt.SessionName != "" {
+				err := os.Remove(cmd.opt.SessionName)
+				if err != nil {
+					return withStack(err)
+				}
+				cmd.loggers[DEBUG].Printf("%q remove ok", cmd.opt.SessionName)
+			}
 		}
 		err = p.file.Close()
 		if err != nil {
@@ -444,9 +451,6 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			return withStack(err)
 		}
 		cmd.loggers[DEBUG].Printf("%q rename to %q ok", p.file.Name(), session.OutputName)
-	}
-	if cmd.opt.SessionName != "" {
-		return withStack(os.Remove(cmd.opt.SessionName))
 	}
 	return nil
 }
