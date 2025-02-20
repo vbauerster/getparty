@@ -365,7 +365,7 @@ func (p *Part) download(
 			if p.isDone() {
 				if err == io.EOF {
 					p.logger.Println("Part is done")
-					return false, withStack(p.file.Sync())
+					return false, nil
 				}
 				return false, withStack(fmt.Errorf("expected EOF, got: %w", err))
 			}
