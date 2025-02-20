@@ -138,7 +138,7 @@ type Cmd struct {
 	loggers [lEVELS]*log.Logger
 }
 
-func (cmd Cmd) Exit(err error) (status int) {
+func (m Cmd) Exit(err error) (status int) {
 	if err == nil {
 		return 0
 	}
@@ -148,10 +148,10 @@ func (cmd Cmd) Exit(err error) (status int) {
 		case 0, 2, 4:
 			return
 		}
-		if cmd.opt != nil && cmd.opt.Debug {
-			cmd.loggers[DEBUG].Printf("ERROR: %s", err.Error())
+		if m.opt != nil && m.opt.Debug {
+			m.loggers[DEBUG].Printf("ERROR: %s", err.Error())
 			if e := (*stack)(nil); errors.As(err, &e) {
-				_, err := cmd.Err.Write(e.stack)
+				_, err := m.Err.Write(e.stack)
 				if err != nil {
 					panic(err)
 				}
@@ -164,7 +164,7 @@ func (cmd Cmd) Exit(err error) (status int) {
 			log.Default().Println(e.Error())
 			return 4
 		}
-		cmd.loggers[ERRO].Println(e.Error())
+		m.loggers[ERRO].Println(e.Error())
 		return 1
 	}
 
@@ -173,82 +173,82 @@ func (cmd Cmd) Exit(err error) (status int) {
 			// cmd invoked with --help switch
 			return 0
 		}
-		cmd.parser.WriteHelp(cmd.Err)
+		m.parser.WriteHelp(m.Err)
 		return 2
 	}
 
-	cmd.loggers[ERRO].Println(err.Error())
+	m.loggers[ERRO].Println(err.Error())
 	return 3
 }
 
-func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
+func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	defer func() {
 		err = withMessage(err, "run")
 	}()
 
-	err = cmd.invariantCheck()
+	err = m.invariantCheck()
 	if err != nil {
 		return err
 	}
 
-	cmd.opt = new(options)
-	cmd.parser = flags.NewParser(cmd.opt, flags.Default)
-	_, err = cmd.parser.ParseArgs(args)
+	m.opt = new(options)
+	m.parser = flags.NewParser(m.opt, flags.Default)
+	_, err = m.parser.ParseArgs(args)
 	if err != nil {
 		return err
 	}
 
 	userAgents[""] = fmt.Sprintf("%s/%s", cmdName, version)
 
-	if cmd.opt.Version {
-		fmt.Fprintf(cmd.Out, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
-		fmt.Fprintf(cmd.Out, "Project home: %s\n", projectHome)
+	if m.opt.Version {
+		fmt.Fprintf(m.Out, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
+		fmt.Fprintf(m.Out, "Project home: %s\n", projectHome)
 		return nil
 	}
 
-	cmd.initLoggers()
+	m.initLoggers()
 
 	var userinfo *url.Userinfo
-	if cmd.opt.AuthUser != "" {
-		if cmd.opt.AuthPass == "" {
-			fmt.Fprint(cmd.Out, "Enter password: ")
+	if m.opt.AuthUser != "" {
+		if m.opt.AuthPass == "" {
+			fmt.Fprint(m.Out, "Enter password: ")
 			pass, err := term.ReadPassword(int(os.Stdin.Fd()))
 			if err != nil {
 				return withStack(err)
 			}
-			if err := context.Cause(cmd.Ctx); err != nil {
+			if err := context.Cause(m.Ctx); err != nil {
 				return err
 			}
-			cmd.opt.AuthPass = string(pass)
-			fmt.Fprintln(cmd.Out)
+			m.opt.AuthPass = string(pass)
+			fmt.Fprintln(m.Out)
 		}
-		userinfo = url.UserPassword(cmd.opt.AuthUser, cmd.opt.AuthPass)
-		cmd.opt.AuthUser = ""
-		cmd.opt.AuthPass = ""
+		userinfo = url.UserPassword(m.opt.AuthUser, m.opt.AuthPass)
+		m.opt.AuthUser = ""
+		m.opt.AuthPass = ""
 	}
 
-	tlsConfig, err := cmd.getTLSConfig()
+	tlsConfig, err := m.getTLSConfig()
 	if err != nil {
 		return err
 	}
 
-	cmd.opt.HeaderMap[hUserAgentKey] = userAgents[cmd.opt.UserAgent]
-	cmd.patcher = makeReqPatcher(userinfo, cmd.opt.HeaderMap)
+	m.opt.HeaderMap[hUserAgentKey] = userAgents[m.opt.UserAgent]
+	m.patcher = makeReqPatcher(userinfo, m.opt.HeaderMap)
 	rtBuilder := newRoundTripperBuilder(tlsConfig)
 
-	if cmd.opt.BestMirror.Mirrors != "" {
-		top, err := cmd.bestMirror(rtBuilder.pool(false).build())
+	if m.opt.BestMirror.Mirrors != "" {
+		top, err := m.bestMirror(rtBuilder.pool(false).build())
 		if err != nil {
 			return err
 		}
 		if len(top) == 1 {
-			cmd.opt.Positional.Location = top[0]
+			m.opt.Positional.Location = top[0]
 		} else {
 			return nil
 		}
 	}
 
-	if cmd.opt.Positional.Location == "" && cmd.opt.SessionName == "" {
+	if m.opt.Positional.Location == "" && m.opt.SessionName == "" {
 		return new(flags.Error)
 	}
 
@@ -258,40 +258,40 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 		return withStack(err)
 	}
 	client := &http.Client{
-		Transport: rtBuilder.pool(cmd.opt.Parts > 1).build(),
+		Transport: rtBuilder.pool(m.opt.Parts > 1).build(),
 		Jar:       jar,
 	}
-	session, err := cmd.getState(client)
+	session, err := m.getState(client)
 	if err != nil {
 		if err == ErrZeroParts && session != nil {
-			session.summary(cmd.loggers)
+			session.summary(m.loggers)
 		}
 		return err
 	}
-	session.summary(cmd.loggers)
+	session.summary(m.loggers)
 
-	cmd.loggers[INFO].Printf("Saving to: %q", session.OutputName)
+	m.loggers[INFO].Printf("Saving to: %q", session.OutputName)
 
 	if session.restored {
-		if cmd.opt.UserAgent != "" {
-			session.HeaderMap[hUserAgentKey] = userAgents[cmd.opt.UserAgent]
+		if m.opt.UserAgent != "" {
+			session.HeaderMap[hUserAgentKey] = userAgents[m.opt.UserAgent]
 		}
-		cmd.patcher = makeReqPatcher(userinfo, session.HeaderMap)
+		m.patcher = makeReqPatcher(userinfo, session.HeaderMap)
 	}
 
 	var doneCount uint32
 	var eg errgroup.Group
 	var recoverHandler sync.Once
 	var recovered bool
-	timeout := cmd.getTimeout()
-	sleep := time.Duration(cmd.opt.SpeedLimit*60) * time.Millisecond
+	timeout := m.getTimeout()
+	sleep := time.Duration(m.opt.SpeedLimit*60) * time.Millisecond
 
 	status := new(httpStatusContext)
 	status.ctx, status.cancel = context.WithCancelCause(context.Background())
 	status.ok, status.quit = make(chan int), make(chan struct{})
 
-	debugOut := cmd.getErr()
-	progress := session.newProgress(cmd.Ctx, cmd.getOut(), debugOut)
+	debugOut := m.getErr()
+	progress := session.newProgress(m.Ctx, m.getOut(), debugOut)
 	stateQuery := makeStateQuery(session, progress.current)
 	start := make(chan time.Time, 1)
 	defer func() {
@@ -313,16 +313,16 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			err := session.dumpState(name)
 			progress.Wait()
 			if err != nil {
-				cmd.loggers[ERRO].Println("Session state save failure:", err.Error())
+				m.loggers[ERRO].Println("Session state save failure:", err.Error())
 			} else {
-				cmd.loggers[INFO].Printf("Session state saved to %q", name)
+				m.loggers[INFO].Printf("Session state saved to %q", name)
 			}
 		case sessionCompletedWithError:
 			progress.Wait()
-			cmd.loggers[ERRO].Println("Session completed with error:", err.Error())
+			m.loggers[ERRO].Println("Session completed with error:", err.Error())
 		case sessionCompleted:
 			progress.Wait()
-			cmd.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
+			m.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 		}
 	}()
 
@@ -336,11 +336,11 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			atomic.AddUint32(&doneCount, 1)
 			continue
 		}
-		p.ctx, p.cancel = context.WithCancel(cmd.Ctx)
+		p.ctx, p.cancel = context.WithCancel(m.Ctx)
 		p.client = client
 		p.status = status
 		p.progress = progress
-		p.patcher = cmd.patcher
+		p.patcher = m.patcher
 		p := p // https://golang.org/doc/faq#closures_and_goroutines
 		eg.Go(func() (err error) {
 			defer func() {
@@ -361,7 +361,7 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
-			return p.download(session.location, cmd.opt.BufferSize, cmd.opt.MaxRetry, sleep, timeout)
+			return p.download(session.location, m.opt.BufferSize, m.opt.MaxRetry, sleep, timeout)
 		})
 	}
 
@@ -409,13 +409,13 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		for _, p := range session.Parts {
 			if p.file != nil {
-				cmd.loggers[DEBUG].Printf("%q closed with: %v", p.file.Name(), firstErr(p.file.Sync(), p.file.Close()))
+				m.loggers[DEBUG].Printf("%q closed with: %v", p.file.Name(), firstErr(p.file.Sync(), p.file.Close()))
 			}
 		}
-		return firstErr(context.Cause(cmd.Ctx), err)
+		return firstErr(context.Cause(m.Ctx), err)
 	}
 	if !session.Single {
-		err = cmd.concatenate(session.Parts, progress)
+		err = m.concatenate(session.Parts, progress)
 		if err != nil {
 			return err
 		}
@@ -433,31 +433,31 @@ func (cmd *Cmd) Run(args []string, version, commit string) (err error) {
 			if size := stat.Size(); size != session.ContentLength {
 				return withStack(fmt.Errorf("ContentLength mismatch: expected %d got %d", session.ContentLength, size))
 			}
-			if cmd.opt.SessionName != "" {
-				err := os.Remove(cmd.opt.SessionName)
+			if m.opt.SessionName != "" {
+				err := os.Remove(m.opt.SessionName)
 				if err != nil {
 					return withStack(err)
 				}
-				cmd.loggers[DEBUG].Printf("%q remove ok", cmd.opt.SessionName)
+				m.loggers[DEBUG].Printf("%q remove ok", m.opt.SessionName)
 			}
 		}
 		err = p.file.Close()
 		if err != nil {
 			return withStack(err)
 		}
-		cmd.loggers[DEBUG].Printf("%q close ok", p.file.Name())
+		m.loggers[DEBUG].Printf("%q close ok", p.file.Name())
 		err = os.Rename(p.file.Name(), session.OutputName)
 		if err != nil {
 			return withStack(err)
 		}
-		cmd.loggers[DEBUG].Printf("%q rename to %q ok", p.file.Name(), session.OutputName)
+		m.loggers[DEBUG].Printf("%q rename to %q ok", p.file.Name(), session.OutputName)
 	}
 	return nil
 }
 
-func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
-	if cmd.opt.Https.CertsFileName != "" {
-		buf, err := os.ReadFile(cmd.opt.Https.CertsFileName)
+func (m Cmd) getTLSConfig() (*tls.Config, error) {
+	if m.opt.Https.CertsFileName != "" {
+		buf, err := os.ReadFile(m.opt.Https.CertsFileName)
 		if err != nil {
 			return nil, withStack(err)
 		}
@@ -466,22 +466,22 @@ func (cmd Cmd) getTLSConfig() (*tls.Config, error) {
 			return nil, withStack(err)
 		}
 		if ok := pool.AppendCertsFromPEM(buf); !ok {
-			return nil, withStack(fmt.Errorf("bad cert file %q", cmd.opt.Https.CertsFileName))
+			return nil, withStack(fmt.Errorf("bad cert file %q", m.opt.Https.CertsFileName))
 		}
 		return &tls.Config{
-			InsecureSkipVerify: cmd.opt.Https.InsecureSkipVerify,
+			InsecureSkipVerify: m.opt.Https.InsecureSkipVerify,
 			RootCAs:            pool,
 		}, nil
 	}
-	if cmd.opt.Https.InsecureSkipVerify {
+	if m.opt.Https.InsecureSkipVerify {
 		return &tls.Config{InsecureSkipVerify: true}, nil
 	}
 	return nil, nil
 }
 
-func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
+func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 	client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
-		max := int(cmd.opt.MaxRedirect)
+		max := int(m.opt.MaxRedirect)
 		if max != 0 && len(via) > max {
 			return ErrMaxRedirect
 		}
@@ -492,15 +492,15 @@ func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
 	}()
 	for {
 		switch {
-		case cmd.opt.SessionName != "":
+		case m.opt.SessionName != "":
 			restored := new(Session)
-			err = restored.loadState(cmd.opt.SessionName)
+			err = restored.loadState(m.opt.SessionName)
 			if err != nil {
 				return nil, err
 			}
 			switch {
 			case session == nil && restored.Redirected:
-				session, err = cmd.follow(client, restored.URL)
+				session, err = m.follow(client, restored.URL)
 				if err != nil {
 					return nil, err
 				}
@@ -514,17 +514,17 @@ func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
 				restored.location = restored.URL
 			}
 			restored.restored = true
-			cmd.loggers[DEBUG].Printf("Session restored from: %q", cmd.opt.SessionName)
+			m.loggers[DEBUG].Printf("Session restored from: %q", m.opt.SessionName)
 			return restored, nil
-		case cmd.opt.Positional.Location != "":
-			session, err = cmd.follow(client, cmd.opt.Positional.Location)
+		case m.opt.Positional.Location != "":
+			session, err = m.follow(client, m.opt.Positional.Location)
 			if err != nil {
 				return nil, err
 			}
-			session.HeaderMap = cmd.opt.HeaderMap
+			session.HeaderMap = m.opt.HeaderMap
 			state := session.OutputName + ".json"
 			if _, err := os.Stat(state); errors.Is(err, os.ErrNotExist) {
-				err := session.calcParts(cmd.opt.Parts)
+				err := session.calcParts(m.opt.Parts)
 				if err != nil {
 					return session, err
 				}
@@ -533,17 +533,17 @@ func (cmd Cmd) getState(client *http.Client) (session *Session, err error) {
 					return nil, err
 				}
 				if exist {
-					return session, cmd.overwriteIfConfirmed(session.OutputName)
+					return session, m.overwriteIfConfirmed(session.OutputName)
 				}
 				return session, nil
 			}
-			cmd.loggers[DEBUG].Printf("Reusing existing state: %q", state)
-			cmd.opt.SessionName = state
+			m.loggers[DEBUG].Printf("Reusing existing state: %q", state)
+			m.opt.SessionName = state
 		}
 	}
 }
 
-func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err error) {
+func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err error) {
 	var redirected bool
 	defer func() {
 		if redirected {
@@ -557,12 +557,12 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 	}
 
 	location := rawURL
-	timeout := cmd.getTimeout()
+	timeout := m.getTimeout()
 	template := "GET:R%02d %%q"
 
-	err = backoff.RetryWithContext(cmd.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
+	err = backoff.RetryWithContext(m.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (bool, error) {
-			ctx, cancel := context.WithTimeout(cmd.Ctx, timeout)
+			ctx, cancel := context.WithTimeout(m.Ctx, timeout)
 			defer func() {
 				cancel()
 				if timeout < maxTimeout*time.Second {
@@ -571,27 +571,27 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 			}()
 			getR := fmt.Sprintf(template, attempt)
 			for {
-				cmd.loggers[INFO].Printf(getR, location)
-				cmd.loggers[DEBUG].Printf(getR, location)
+				m.loggers[INFO].Printf(getR, location)
+				m.loggers[DEBUG].Printf(getR, location)
 
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
 					return false, withStack(err)
 				}
 
-				if cmd.patcher != nil {
-					cmd.patcher(req)
+				if m.patcher != nil {
+					m.patcher(req)
 				}
 
 				for k, v := range req.Header {
-					cmd.loggers[DEBUG].Printf("Request Header: %s: %v", k, v)
+					m.loggers[DEBUG].Printf("Request Header: %s: %v", k, v)
 				}
 
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
-					cmd.loggers[WARN].Println(unwrapOrErr(err).Error())
-					cmd.loggers[DEBUG].Println(err.Error())
-					if attempt != 0 && attempt == cmd.opt.MaxRetry {
+					m.loggers[WARN].Println(unwrapOrErr(err).Error())
+					m.loggers[DEBUG].Println(err.Error())
+					if attempt != 0 && attempt == m.opt.MaxRetry {
 						return false, ErrMaxRetry
 					}
 					if err == ErrMaxRedirect {
@@ -602,18 +602,18 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				if jar := client.Jar; jar != nil {
 					for _, cookie := range jar.Cookies(req.URL) {
-						cmd.loggers[DEBUG].Println("Cookie:", cookie) // cookie implements fmt.Stringer
+						m.loggers[DEBUG].Println("Cookie:", cookie) // cookie implements fmt.Stringer
 					}
 				}
 
-				cmd.loggers[DEBUG].Println("HTTP response:", resp.Status)
+				m.loggers[DEBUG].Println("HTTP response:", resp.Status)
 
 				for k, v := range resp.Header {
-					cmd.loggers[DEBUG].Printf("Response Header: %s: %v", k, v)
+					m.loggers[DEBUG].Printf("Response Header: %s: %v", k, v)
 				}
 
 				if isRedirect(resp.StatusCode) {
-					cmd.loggers[INFO].Println("HTTP response:", resp.Status)
+					m.loggers[INFO].Println("HTTP response:", resp.Status)
 					redirected = true
 					loc, err := resp.Location()
 					if err != nil {
@@ -631,21 +631,21 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 
 				if resp.StatusCode != http.StatusOK {
 					err := withStack(UnexpectedHttpStatus(resp.StatusCode))
-					cmd.loggers[WARN].Println(err.Error())
+					m.loggers[WARN].Println(err.Error())
 					if isServerError(resp.StatusCode) { // server error may be temporary
-						return attempt != cmd.opt.MaxRetry, err
+						return attempt != m.opt.MaxRetry, err
 					}
 					return false, err // err is already with stack
 				}
 
-				cmd.loggers[INFO].Println("HTTP response:", resp.Status)
+				m.loggers[INFO].Println("HTTP response:", resp.Status)
 
-				for i := 2; cmd.opt.Output.Name == "" && i >= 0; i-- {
+				for i := 2; m.opt.Output.Name == "" && i >= 0; i-- {
 					if i == 0 {
-						cmd.opt.Output.Name = "unknown"
+						m.opt.Output.Name = "unknown"
 						continue
 					}
-					if cmd.opt.Output.PathFirst {
+					if m.opt.Output.PathFirst {
 						path := location
 						nURL, err := url.Parse(location)
 						switch {
@@ -660,18 +660,18 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 								path = unescaped
 							}
 						}
-						cmd.opt.Output.Name = filepath.Base(path)
-						cmd.opt.Output.PathFirst = false
+						m.opt.Output.Name = filepath.Base(path)
+						m.opt.Output.PathFirst = false
 					} else {
-						cmd.opt.Output.Name = parseContentDisposition(resp.Header.Get(hContentDisposition))
-						cmd.opt.Output.PathFirst = true
+						m.opt.Output.Name = parseContentDisposition(resp.Header.Get(hContentDisposition))
+						m.opt.Output.PathFirst = true
 					}
 				}
 
 				session = &Session{
 					location:      location,
 					URL:           rawURL,
-					OutputName:    cmd.opt.Output.Name,
+					OutputName:    m.opt.Output.Name,
 					ContentMD5:    resp.Header.Get(hContentMD5),
 					AcceptRanges:  resp.Header.Get(hAcceptRanges),
 					ContentType:   resp.Header.Get(hContentType),
@@ -686,19 +686,19 @@ func (cmd Cmd) follow(client *http.Client, rawURL string) (session *Session, err
 	return session, err
 }
 
-func (cmd Cmd) overwriteIfConfirmed(name string) (err error) {
-	if cmd.opt.Output.Overwrite {
-		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
+func (m Cmd) overwriteIfConfirmed(name string) (err error) {
+	if m.opt.Output.Overwrite {
+		m.loggers[DEBUG].Printf("Removing existing: %q", name)
 		return withStack(os.Remove(name))
 	}
-	fmt.Fprintf(cmd.Err, "%q already exists, overwrite? [Y/n] ", name)
+	fmt.Fprintf(m.Err, "%q already exists, overwrite? [Y/n] ", name)
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		return withStack(err)
 	}
 	defer func() {
 		err = firstErr(err, withStack(term.Restore(int(os.Stdin.Fd()), state)))
-		fmt.Fprintln(cmd.Err)
+		fmt.Fprintln(m.Err)
 	}()
 	b := make([]byte, 1)
 	_, err = os.Stdin.Read(b)
@@ -707,39 +707,39 @@ func (cmd Cmd) overwriteIfConfirmed(name string) (err error) {
 	}
 	switch b[0] {
 	case 'y', 'Y', '\r':
-		cmd.loggers[DEBUG].Printf("Removing existing: %q", name)
+		m.loggers[DEBUG].Printf("Removing existing: %q", name)
 		return withStack(os.Remove(name))
 	default:
 		return ErrCanceledByUser
 	}
 }
 
-func (cmd Cmd) getTimeout() time.Duration {
-	if cmd.opt.Timeout == 0 {
+func (m Cmd) getTimeout() time.Duration {
+	if m.opt.Timeout == 0 {
 		return 15 * time.Second
 	}
-	if cmd.opt.Timeout > maxTimeout {
+	if m.opt.Timeout > maxTimeout {
 		return maxTimeout * time.Second
 	}
-	return time.Duration(cmd.opt.Timeout) * time.Second
+	return time.Duration(m.opt.Timeout) * time.Second
 }
 
-func (cmd Cmd) getOut() io.Writer {
-	if cmd.opt == nil || cmd.opt.Quiet {
+func (m Cmd) getOut() io.Writer {
+	if m.opt == nil || m.opt.Quiet {
 		return io.Discard
 	}
-	return cmd.Out
+	return m.Out
 }
 
-func (cmd Cmd) getErr() io.Writer {
-	if cmd.opt != nil && cmd.opt.Debug {
-		return cmd.Err
+func (m Cmd) getErr() io.Writer {
+	if m.opt != nil && m.opt.Debug {
+		return m.Err
 	}
 	return io.Discard
 }
 
-func (cmd Cmd) invariantCheck() error {
-	if cmd.Ctx == nil || cmd.Out == nil || cmd.Err == nil {
+func (m Cmd) invariantCheck() error {
+	if m.Ctx == nil || m.Out == nil || m.Err == nil {
 		return ErrBadInvariant
 	}
 	return nil
