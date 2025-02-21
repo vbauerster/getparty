@@ -29,13 +29,13 @@ func (p *progress) Wait() {
 	fmt.Fprintln(p.out)
 }
 
-func (p *progress) runTotalBar(contentLength int64, done *uint32, total int, start time.Time) {
+func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount int, start time.Time) {
 	bar := p.MustAdd(contentLength, distinctBarRefiller(baseBarStyle()).Build(),
 		mpb.BarFillerTrim(),
-		mpb.BarPriority(total+1),
+		mpb.BarPriority(partCount+1),
 		mpb.PrependDecorators(
 			decor.Any(func(_ decor.Statistics) string {
-				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(done), total)
+				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(doneCount), partCount)
 			}, decor.WCSyncWidthR),
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 		),
