@@ -62,6 +62,23 @@ func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount
 	}
 }
 
+func (p *progress) addConcatBar(partCount int) (*mpb.Bar, error) {
+	return p.Add(int64(partCount-1), baseBarStyle().Build(),
+		mpb.BarFillerTrim(),
+		mpb.BarPriority(partCount+2),
+		mpb.PrependDecorators(
+			decor.Name("Concatenating", decor.WCSyncWidthR),
+			decor.NewPercentage("%d", decor.WCSyncSpace),
+		),
+		mpb.AppendDecorators(
+			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+			decor.Name("", decor.WCSyncSpace),
+		),
+	)
+}
+
 func newProgress(ctx context.Context, session *Session, out, err io.Writer) *progress {
 	var total chan int
 	qlen := 1

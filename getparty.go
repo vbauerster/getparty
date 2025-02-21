@@ -24,7 +24,6 @@ import (
 	"github.com/vbauerster/backoff"
 	"github.com/vbauerster/backoff/exponential"
 	"github.com/vbauerster/mpb/v8"
-	"github.com/vbauerster/mpb/v8/decor"
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
@@ -745,20 +744,7 @@ func (m Cmd) invariantCheck() error {
 }
 
 func (m Cmd) concatenate(parts []*Part, progress *progress) error {
-	bar, err := progress.Add(int64(len(parts)-1), baseBarStyle().Build(),
-		mpb.BarFillerTrim(),
-		mpb.BarPriority(len(parts)+2),
-		mpb.PrependDecorators(
-			decor.Name("Concatenating", decor.WCSyncWidthR),
-			decor.NewPercentage("%d", decor.WCSyncSpace),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), ":"),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-		),
-	)
+	bar, err := progress.addConcatBar(len(parts))
 	if err != nil {
 		return withStack(err)
 	}
