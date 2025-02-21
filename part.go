@@ -94,13 +94,12 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 	return bar, nil
 }
 
-func (p *Part) init(id int, session *Session, debug io.Writer) error {
+func (p *Part) init(id int, session *Session) error {
 	p.id = id
 	p.single = session.Single
 	p.name = fmt.Sprintf("P%02d", id)
 	p.output = fmt.Sprintf("%s.%02d", session.OutputName, id)
 	p.prefixFormat = fmt.Sprintf("[%s:R%%02d] ", p.name)
-	p.logger = log.New(debug, fmt.Sprintf(p.prefixFormat, 0), log.LstdFlags)
 	if session.restored && p.Written != 0 {
 		stat, err := os.Stat(p.output)
 		if err != nil {
@@ -125,6 +124,8 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 		}
 		err = withMessage(err, p.name)
 	}()
+
+	p.logger = log.New(p.progress.err, fmt.Sprintf(p.prefixFormat, 0), log.LstdFlags)
 
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	if err != nil {
