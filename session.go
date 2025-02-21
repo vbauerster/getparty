@@ -1,37 +1,16 @@
 package getparty
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"strings"
-	"sync/atomic"
 	"time"
 
-	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
 )
-
-type progress struct {
-	*mpb.Progress
-	topBar  *mpb.Bar
-	total   chan int
-	current int64
-	out     io.Writer
-}
-
-func (p *progress) Wait() {
-	if p.total != nil {
-		close(p.total)
-	}
-	p.topBar.EnableTriggerComplete()
-	p.Progress.Wait()
-	fmt.Fprintln(p.out)
-}
 
 // Session represents download session state
 type Session struct {
@@ -144,66 +123,4 @@ func (s Session) isOutputFileExist() (bool, error) {
 		return true, fmt.Errorf("%q is a directory", s.OutputName)
 	}
 	return true, err
-}
-
-func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
-	var total chan int
-	qlen := 1
-	for _, p := range s.Parts {
-		if !p.isDone() {
-			qlen++
-		}
-	}
-	if !s.Single {
-		total = make(chan int, qlen)
-		qlen += 2 // account for total and concat bars
-	}
-	p := mpb.NewWithContext(ctx,
-		mpb.WithOutput(out),
-		mpb.WithDebugOutput(err),
-		mpb.WithRefreshRate(refreshRate*time.Millisecond),
-		mpb.WithWidth(64),
-		mpb.WithQueueLen(qlen),
-	)
-	return &progress{
-		Progress: p,
-		topBar:   p.MustAdd(0, nil),
-		total:    total,
-		current:  s.totalWritten(),
-		out:      out,
-	}
-}
-
-func (s Session) runTotalBar(progress *progress, doneCount *uint32, start time.Time) {
-	start = start.Add(-s.Elapsed)
-	bar := progress.MustAdd(s.ContentLength, distinctBarRefiller(baseBarStyle()).Build(),
-		mpb.BarFillerTrim(),
-		mpb.BarPriority(len(s.Parts)+1),
-		mpb.PrependDecorators(
-			decor.Any(func(_ decor.Statistics) string {
-				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(doneCount), len(s.Parts))
-			}, decor.WCSyncWidthR),
-			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
-		),
-		mpb.AppendDecorators(
-			decor.OnCompleteOrOnAbort(decor.NewAverageETA(
-				decor.ET_STYLE_MMSS,
-				start,
-				nil,
-				decor.WCSyncWidth), ":"),
-			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-		),
-	)
-	go func() {
-		for n := range progress.total {
-			bar.IncrBy(n)
-		}
-		bar.Abort(false)
-	}()
-	if progress.current != 0 {
-		bar.SetCurrent(progress.current)
-		bar.SetRefill(progress.current)
-	}
 }

@@ -291,7 +291,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	status.ok, status.quit = make(chan int), make(chan struct{})
 
 	debugOut := m.getErr()
-	progress := session.newProgress(m.Ctx, m.getOut(), debugOut)
+	progress := newProgress(m.Ctx, session, m.getOut(), debugOut)
 	stateQuery := makeStateQuery(session, progress.current)
 	start := make(chan time.Time, 1)
 	defer func() {
@@ -392,7 +392,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			now := time.Now()
 			start <- now
 			if !session.Single {
-				session.runTotalBar(progress, &doneCount, now)
+				progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
 			}
 		case <-status.quit:
 		}
