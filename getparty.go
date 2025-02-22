@@ -353,9 +353,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 						err = fmt.Errorf("%s panic: %#v", p.name, v)
 						recovered = true
 					})
-					return
-				}
-				if !p.single && p.isDone() {
+				} else if !p.single && p.isDone() {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
