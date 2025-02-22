@@ -769,19 +769,18 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 	return nil
 }
 
+// https://go.dev/play/p/ibK4VcNYa72
 func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 	if len(files) == 1 {
 		return nil
 	}
 
 	var eg errgroup.Group
-	for i := len(files); i > 1; i -= 2 {
-		i := i
+	for i := 2; i <= len(files); i += 2 {
+		pair := files[i-2 : i]
 		eg.Go(func() error {
-			err := concat(files[i-2:i], m.loggers[DEBUG])
-			bar.Increment()
-			files[i-1] = nil
-			return err
+			defer bar.Increment()
+			return concat(pair, m.loggers[DEBUG])
 		})
 	}
 
@@ -835,6 +834,7 @@ func concat(pair []*os.File, logger *log.Logger) error {
 	}
 	logger.Printf("%q remove ok", src.Name())
 
+	pair[1] = nil
 	return nil
 }
 
