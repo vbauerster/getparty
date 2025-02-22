@@ -132,7 +132,7 @@ func (m Cmd) Exit(err error) (status int) {
 		}
 		if m.opt != nil && m.opt.Debug {
 			m.loggers[DEBUG].Printf("ERROR: %s", err.Error())
-			if e := (*stack)(nil); errors.As(err, &e) {
+			if e := (*debugError)(nil); errors.As(err, &e) {
 				_, err := m.Err.Write(e.stack)
 				if err != nil {
 					panic(err)

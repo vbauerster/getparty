@@ -13,7 +13,7 @@ type (
 		expected int64
 		got      int64
 	}
-	stack struct {
+	debugError struct {
 		error
 		stack []byte
 	}
@@ -36,7 +36,7 @@ func (e singleModeFallback) Error() string {
 	return fmt.Sprintf("P%02d: fallback to single mode", int(e))
 }
 
-func (s *stack) Unwrap() error { return s.error }
+func (s *debugError) Unwrap() error { return s.error }
 
 func firstErr(errors ...error) error {
 	for _, err := range errors {
@@ -65,7 +65,7 @@ func withStack(err error) error {
 	if err == nil {
 		return nil
 	}
-	return &stack{
+	return &debugError{
 		err,
 		debug.Stack(),
 	}
