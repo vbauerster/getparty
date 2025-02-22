@@ -421,11 +421,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if !session.Single {
 		err = m.concatenate(session.Parts, progress)
 		if err != nil {
-			for _, p := range session.Parts {
-				if f := p.file; f != nil {
-					m.loggers[DEBUG].Printf("%q closed with: %v", f.Name(), firstErr(f.Sync(), f.Close()))
-				}
-			}
 			return err
 		}
 	}
@@ -800,6 +795,11 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 
 	err := eg.Wait()
 	if err != nil {
+		for _, f := range files {
+			if f != nil {
+				m.loggers[DEBUG].Printf("%q closed with: %v", f.Name(), f.Close())
+			}
+		}
 		return err
 	}
 
