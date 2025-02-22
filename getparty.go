@@ -158,15 +158,6 @@ func (m Cmd) Exit(err error) (status int) {
 		}
 	}()
 
-	if e := ExpectedError(""); errors.As(err, &e) {
-		if e == ErrBadInvariant {
-			log.Default().Println(e.Error())
-			return 4
-		}
-		m.loggers[ERRO].Println(e.Error())
-		return 1
-	}
-
 	if e := (*flags.Error)(nil); errors.As(err, &e) {
 		if e.Type == flags.ErrHelp {
 			// cmd invoked with --help switch
@@ -174,6 +165,15 @@ func (m Cmd) Exit(err error) (status int) {
 		}
 		m.parser.WriteHelp(m.Err)
 		return 2
+	}
+
+	if e := ExpectedError(""); errors.As(err, &e) {
+		if e == ErrBadInvariant {
+			log.Default().Println(e.Error())
+			return 4
+		}
+		m.loggers[ERRO].Println(e.Error())
+		return 1
 	}
 
 	m.loggers[ERRO].Println(err.Error())
