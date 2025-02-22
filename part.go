@@ -119,9 +119,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)
 		p.logger.Println("Total Idle:", totalIdle)
-		if p.cancel != nil {
-			p.cancel()
-		}
+		p.cancel()
 		err = withMessage(err, p.name)
 	}()
 
