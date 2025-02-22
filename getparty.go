@@ -804,9 +804,9 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 	}
 
 	var x []*os.File
-	for _, file := range files {
-		if file != nil {
-			x = append(x, file)
+	for _, f := range files {
+		if f != nil {
+			x = append(x, f)
 		}
 	}
 
