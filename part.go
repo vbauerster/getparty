@@ -236,7 +236,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
 				if p.file == nil {
-					p.status.cancel(errUnexpectedOK)
+					p.status.cancel(ErrUnexpectedOK)
 					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
 						return false, withStack(err)
@@ -271,7 +271,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 					if !p.single {
 						p.single = true
 						err := context.Cause(p.status.ctx)
-						if err == errUnexpectedOK {
+						if err == ErrUnexpectedOK {
 							panic(err)
 						}
 						// if either bar gets status ok, other bars shall quit silently
