@@ -32,8 +32,12 @@ import (
 type (
 	ExpectedError        string
 	UnexpectedHttpStatus int
-	singleModeFallback   int
-	sessionState         int
+	ContentMismatch      struct {
+		expected int64
+		got      int64
+	}
+	singleModeFallback int
+	sessionState       int
 )
 
 const (
@@ -49,6 +53,10 @@ func (e ExpectedError) Error() string {
 
 func (e UnexpectedHttpStatus) Error() string {
 	return fmt.Sprintf("Unexpected http status: %d", int(e))
+}
+
+func (e ContentMismatch) Error() string {
+	return fmt.Sprintf("ContentLength mismatch: expected %d got %d", e.expected, e.got)
 }
 
 func (e singleModeFallback) Error() string {
@@ -427,7 +435,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				return withStack(err)
 			}
 			if size := stat.Size(); size != session.ContentLength {
-				return withStack(fmt.Errorf("ContentLength mismatch: expected %d got %d", session.ContentLength, size))
+				return withStack(ContentMismatch{session.ContentLength, size})
 			}
 			if m.opt.SessionName != "" {
 				err := os.Remove(m.opt.SessionName)
@@ -503,7 +511,7 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 				fallthrough
 			case session != nil:
 				if restored.ContentLength != session.ContentLength {
-					return nil, fmt.Errorf("ContentLength mismatch: expected %d got %d", restored.ContentLength, session.ContentLength)
+					return nil, withStack(ContentMismatch{restored.ContentLength, session.ContentLength})
 				}
 				restored.location = session.location
 			default:
