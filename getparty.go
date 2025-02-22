@@ -29,16 +29,7 @@ import (
 	"golang.org/x/term"
 )
 
-type (
-	ExpectedError        string
-	UnexpectedHttpStatus int
-	ContentMismatch      struct {
-		expected int64
-		got      int64
-	}
-	singleModeFallback int
-	sessionState       int
-)
+type sessionState int
 
 const (
 	sessionUncompleted sessionState = iota
@@ -46,22 +37,6 @@ const (
 	sessionCompletedWithError
 	sessionCompleted
 )
-
-func (e ExpectedError) Error() string {
-	return string(e)
-}
-
-func (e UnexpectedHttpStatus) Error() string {
-	return fmt.Sprintf("Unexpected http status: %d", int(e))
-}
-
-func (e ContentMismatch) Error() string {
-	return fmt.Sprintf("ContentLength mismatch: expected %d got %d", e.expected, e.got)
-}
-
-func (e singleModeFallback) Error() string {
-	return fmt.Sprintf("P%02d: fallback to single mode", int(e))
-}
 
 const (
 	ErrBadInvariant   = ExpectedError("Bad invariant")
