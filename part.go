@@ -157,7 +157,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 				select {
 				case msgCh <- fmt.Sprintf("%s %s", p.name, msg):
 					p.logger.Println(msg, "msg sent")
-				case <-msgCh:
+				default:
 					p.logger.Println(msg, "msg dropped")
 				}
 			})
