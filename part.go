@@ -300,33 +300,34 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 				return false, err
 			}
 
-			var resetOk bool
 			var sleepCtx context.Context
 			sleepCancel := func() {}
 			fuser := makeUnexpectedEOFFuser(p.logger)
-			timer.Reset(timeout) // because client.Do has taken some time
+			expired := !timer.Reset(timeout) // because client.Do has taken some time
 
 			for n := bufLen; n == bufLen || fuser(err); sleepCancel() {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
 				rDur := time.Since(start)
 
-				if timer.Reset(timeout + sleep) {
+				if !expired && timer.Reset(timeout+sleep) {
 					// put off f passed to time.AfterFunc to be called for the next reset duration
 					if sleep != 0 {
 						sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
 						idle += sleep
 					}
-					if timeout != resetTimeout && resetOk {
+					if timeout != resetTimeout {
 						reset()
 						timeout = resetTimeout
 					}
-					resetOk = true
-				} else if timeout < maxTimeout*time.Second {
+				} else {
 					// timer has expired and f passed to time.AfterFunc has been started in its own goroutine
 					// deferred timer.Stop will cancel former timer.Reset which scheduled f to run again
 					// we're going to quit loop because n != bufLen most likely
-					timeout += 5 * time.Second
+					expired = true
+					if timeout < maxTimeout*time.Second {
+						timeout += 5 * time.Second
+					}
 				}
 
 				wn, werr := p.file.Write(buffer[:n])
