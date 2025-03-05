@@ -866,7 +866,7 @@ func parseContentDisposition(input string) (output string) {
 		return group[2]
 	}
 	b, a, found := strings.Cut(group[1], "''")
-	if found && strings.ToLower(b) == "utf-8" {
+	if found && strings.EqualFold(b, "utf-8") {
 		return a
 	}
 	if b != `""` {
