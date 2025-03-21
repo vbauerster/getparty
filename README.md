@@ -74,13 +74,13 @@ Arguments:
 
 #### Best mirror example:
 
-read [mirrors.txt](mirrors.txt) from a file and proceed to dowload from the best mirror:
+read [mirrors.txt](mirrors.txt) from a file and proceed to download from the best mirror:
 
 ```
 getparty -m mirrors.txt
 ```
 
-read [mirrors.txt](mirrors.txt) from a stdin and proceed to dowload from the best mirror:
+read [mirrors.txt](mirrors.txt) from a stdin and proceed to download from the best mirror:
 
 ```
 cat mirrors.txt | getparty -m -
