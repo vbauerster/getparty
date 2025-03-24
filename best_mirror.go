@@ -91,20 +91,17 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (mirrorP
 	if max == 0 {
 		max = runtime.NumCPU()
 	}
-	m.loggers[DEBUG].Println("Best-mirror max:", max)
-	mirrors := readLines(m.Ctx, input)
-	result := make(chan *mirror)
-	defer close(result)
 
+	m.loggers[DEBUG].Println("Best-mirror max:", max)
+
+	src, dst := readLines(m.Ctx, input), make(chan *mirror)
 	eg, ctx := errgroup.WithContext(m.Ctx)
 	timeout := m.getTimeout()
-	client := &http.Client{
-		Transport: transport,
-	}
+	client := &http.Client{Transport: transport}
 
 	for i := 0; i < max; i++ {
 		eg.Go(func() error {
-			for mirror := range mirrors {
+			for mirror := range src {
 				err := m.queryMirror(mirror, client, timeout)
 				if err != nil {
 					if ctx.Err() != nil {
@@ -113,21 +110,25 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (mirrorP
 						m.loggers[WARN].Println(err.Error())
 					}
 				} else {
-					result <- mirror
+					dst <- mirror
 				}
 			}
 			return nil
 		})
 	}
 
-	var pq mirrorPQ
+	res := make(chan mirrorPQ)
 	go func() {
-		for m := range result {
-			heap.Push(&pq, m)
+		var pq mirrorPQ
+		for mirror := range dst {
+			heap.Push(&pq, mirror)
 		}
+		res <- pq
 	}()
 
-	return pq, eg.Wait()
+	err := eg.Wait()
+	close(dst)
+	return <-res, err
 }
 
 func (m Cmd) queryMirror(mirror *mirror, client *http.Client, timeout time.Duration) error {
