@@ -55,65 +55,65 @@ func (pq *mirrorPQ) Pop() interface{} {
 	return link
 }
 
-func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
+func (m Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 	var top []string
 	var input io.Reader
 	var fdClose func() error
-	if cmd.opt.BestMirror.Mirrors == "-" {
+	if m.opt.BestMirror.Mirrors == "-" {
 		input = os.Stdin
 		fdClose = func() error { return nil }
 	} else {
-		fd, err := os.Open(cmd.opt.BestMirror.Mirrors)
+		fd, err := os.Open(m.opt.BestMirror.Mirrors)
 		if err != nil {
 			return nil, withStack(err)
 		}
 		input = fd
 		fdClose = fd.Close
 	}
-	pq, err := cmd.batchMirrors(input, transport)
+	pq, err := m.batchMirrors(input, transport)
 	if err != nil {
 		return nil, withStack(err)
 	}
-	topn := int(cmd.opt.BestMirror.TopN)
+	topn := int(m.opt.BestMirror.TopN)
 	if topn == 0 {
 		topn = pq.Len()
 	}
 	for i := 0; i < topn && pq.Len() != 0; i++ {
-		m := heap.Pop(&pq).(*mirror)
-		top = append(top, m.url)
-		cmd.loggers[INFO].Printf("%s: %q", m.queryDur.Truncate(time.Microsecond), m.url)
+		mirror := heap.Pop(&pq).(*mirror)
+		top = append(top, mirror.url)
+		m.loggers[INFO].Printf("%s: %q", mirror.queryDur.Truncate(time.Microsecond), mirror.url)
 	}
 	return top, withStack(fdClose())
 }
 
-func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (mirrorPQ, error) {
-	max := int(cmd.opt.BestMirror.MaxGo)
+func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (mirrorPQ, error) {
+	max := int(m.opt.BestMirror.MaxGo)
 	if max == 0 {
 		max = runtime.NumCPU()
 	}
-	cmd.loggers[DEBUG].Println("Best-mirror max:", max)
-	mirrors := readLines(cmd.Ctx, input)
+	m.loggers[DEBUG].Println("Best-mirror max:", max)
+	mirrors := readLines(m.Ctx, input)
 	result := make(chan *mirror)
 	defer close(result)
 
-	eg, ctx := errgroup.WithContext(cmd.Ctx)
-	timeout := cmd.getTimeout()
+	eg, ctx := errgroup.WithContext(m.Ctx)
+	timeout := m.getTimeout()
 	client := &http.Client{
 		Transport: transport,
 	}
 
 	for i := 0; i < max; i++ {
 		eg.Go(func() error {
-			for m := range mirrors {
-				err := cmd.queryMirror(m, client, timeout)
+			for mirror := range mirrors {
+				err := m.queryMirror(mirror, client, timeout)
 				if err != nil {
 					if ctx.Err() != nil {
 						return context.Cause(ctx) // stop all workers
 					} else {
-						cmd.loggers[WARN].Println(err.Error())
+						m.loggers[WARN].Println(err.Error())
 					}
 				} else {
-					result <- m
+					result <- mirror
 				}
 			}
 			return nil

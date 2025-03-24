@@ -13,10 +13,10 @@ const (
 	lEVELS
 )
 
-func (cmd *Cmd) initLoggers() {
-	out := cmd.getOut()
-	cmd.loggers[DEBUG] = log.New(cmd.getErr(), fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
-	cmd.loggers[INFO] = log.New(out, "[INFO] ", log.LstdFlags)
-	cmd.loggers[WARN] = log.New(out, "[WARN] ", log.LstdFlags)
-	cmd.loggers[ERRO] = log.New(out, "[ERRO] ", log.LstdFlags)
+func (m *Cmd) initLoggers() {
+	out := m.getOut()
+	m.loggers[DEBUG] = log.New(m.getErr(), fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
+	m.loggers[INFO] = log.New(out, "[INFO] ", log.LstdFlags)
+	m.loggers[WARN] = log.New(out, "[WARN] ", log.LstdFlags)
+	m.loggers[ERRO] = log.New(out, "[ERRO] ", log.LstdFlags)
 }
