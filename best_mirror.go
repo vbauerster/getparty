@@ -10,9 +10,10 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 	"unicode"
+
+	"golang.org/x/sync/errgroup"
 )
 
 var _ heap.Interface = (*mirrorPQ)(nil)
@@ -69,7 +70,10 @@ func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 		input = fd
 		fdClose = fd.Close
 	}
-	pq := cmd.batchMirrors(input, transport)
+	pq, err := cmd.batchMirrors(input, transport)
+	if err != nil {
+		return nil, withStack(err)
+	}
 	topn := int(cmd.opt.BestMirror.TopN)
 	if topn == 0 {
 		topn = pq.Len()
@@ -82,47 +86,48 @@ func (cmd Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 	return top, withStack(fdClose())
 }
 
-func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) mirrorPQ {
+func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (mirrorPQ, error) {
 	max := int(cmd.opt.BestMirror.MaxGo)
 	if max == 0 {
 		max = runtime.NumCPU()
 	}
 	cmd.loggers[DEBUG].Println("Best-mirror max:", max)
-	mirrors := readLines(input)
+	mirrors := readLines(cmd.Ctx, input)
 	result := make(chan *mirror)
+	defer close(result)
 
-	var wg sync.WaitGroup
-	wg.Add(max)
-	go func() {
-		wg.Wait()
-		close(result)
-	}()
-
+	eg, ctx := errgroup.WithContext(cmd.Ctx)
 	timeout := cmd.getTimeout()
+	client := &http.Client{
+		Transport: transport,
+	}
 
 	for i := 0; i < max; i++ {
-		client := &http.Client{
-			Transport: transport,
-		}
-		go func() {
-			defer wg.Done()
+		eg.Go(func() error {
 			for m := range mirrors {
-				err := queryMirror(cmd.Ctx, m, client, timeout, cmd.patcher)
+				err := queryMirror(ctx, m, client, timeout, cmd.patcher)
 				if err != nil {
-					cmd.loggers[WARN].Println(err.Error())
+					if ctx.Err() != nil {
+						return context.Cause(ctx) // stop all workers
+					} else {
+						cmd.loggers[WARN].Println(err.Error())
+					}
 				} else {
 					result <- m
 				}
 			}
-		}()
+			return nil
+		})
 	}
 
 	var pq mirrorPQ
-	for m := range result {
-		heap.Push(&pq, m)
-	}
+	go func() {
+		for m := range result {
+			heap.Push(&pq, m)
+		}
+	}()
 
-	return pq
+	return pq, eg.Wait()
 }
 
 func queryMirror(
@@ -156,7 +161,7 @@ func queryMirror(
 	return errors.Join(err, UnexpectedHttpStatus(resp.StatusCode))
 }
 
-func readLines(r io.Reader) <-chan *mirror {
+func readLines(ctx context.Context, r io.Reader) <-chan *mirror {
 	ch := make(chan *mirror)
 	go func() {
 		defer close(ch)
@@ -173,11 +178,16 @@ func readLines(r io.Reader) <-chan *mirror {
 			})
 			if !seen[line] {
 				seen[line] = true
-				ch <- &mirror{
+				m := &mirror{
 					index: index,
 					url:   line,
 				}
-				index++
+				select {
+				case ch <- m:
+					index++
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 		if err := scanner.Err(); err != nil {
