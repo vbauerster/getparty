@@ -105,7 +105,7 @@ func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (mirro
 	for i := 0; i < max; i++ {
 		eg.Go(func() error {
 			for m := range mirrors {
-				err := queryMirror(ctx, m, client, timeout, cmd.patcher)
+				err := cmd.queryMirror(m, client, timeout)
 				if err != nil {
 					if ctx.Err() != nil {
 						return context.Cause(ctx) // stop all workers
@@ -130,21 +130,15 @@ func (cmd Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (mirro
 	return pq, eg.Wait()
 }
 
-func queryMirror(
-	ctx context.Context,
-	mirror *mirror,
-	client *http.Client,
-	timeout time.Duration,
-	patcher func(*http.Request),
-) error {
+func (m Cmd) queryMirror(mirror *mirror, client *http.Client, timeout time.Duration) error {
 	req, err := http.NewRequest(http.MethodHead, mirror.url, nil)
 	if err != nil {
 		return err
 	}
-	if patcher != nil {
-		patcher(req)
+	if m.patcher != nil {
+		m.patcher(req)
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(m.Ctx, timeout)
 	defer cancel()
 	start := time.Now()
 	resp, err := client.Do(req.WithContext(ctx))
