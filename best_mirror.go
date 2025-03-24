@@ -165,17 +165,18 @@ func readLines(ctx context.Context, r io.Reader) <-chan *mirror {
 	ch := make(chan *mirror)
 	go func() {
 		defer close(ch)
+		index := 0
 		seen := make(map[string]bool)
 		scanner := bufio.NewScanner(r)
-		index := 0
+		trim := func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+		}
 		for scanner.Scan() {
 			line := scanner.Text()
 			if len(line) == 0 || strings.HasPrefix(line, "#") {
 				continue
 			}
-			line = strings.TrimFunc(line, func(r rune) bool {
-				return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-			})
+			line = strings.TrimFunc(line, trim)
 			if !seen[line] {
 				seen[line] = true
 				m := &mirror{
