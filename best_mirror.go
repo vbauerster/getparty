@@ -118,7 +118,7 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (<-chan 
 		})
 	}
 
-	res := make(chan mirrorPQ)
+	res := make(chan mirrorPQ, 1)
 	go func() {
 		var pq mirrorPQ
 		for mirror := range dst {
