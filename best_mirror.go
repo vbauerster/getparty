@@ -40,19 +40,19 @@ func (pq mirrorPQ) Swap(i, j int) {
 
 func (pq *mirrorPQ) Push(x interface{}) {
 	n := len(*pq)
-	link := x.(*mirror)
-	link.index = n
-	*pq = append(*pq, link)
+	mirror := x.(*mirror)
+	mirror.index = n
+	*pq = append(*pq, mirror)
 }
 
 func (pq *mirrorPQ) Pop() interface{} {
 	old := *pq
 	n := len(old)
-	link := old[n-1]
-	old[n-1] = nil  // avoid memory leak
-	link.index = -1 // for safety
+	mirror := old[n-1]
+	old[n-1] = nil    // avoid memory leak
+	mirror.index = -1 // for safety
 	*pq = old[:n-1]
-	return link
+	return mirror
 }
 
 func (m Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
