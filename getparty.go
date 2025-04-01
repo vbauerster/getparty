@@ -924,21 +924,17 @@ func makeParts(n, length int64) ([]*Part, error) {
 	}
 
 	p := make([]*Part, n)
-	p[0] = new(Part)
 
-	var stop int64
-	start := length
-	for i := n - 1; i > 0; i-- {
-		stop = start - 1
-		start = stop - fragment
+	var start int64
+	stop := length - 1
+	for i := n - 1; i >= 0; i-- {
+		start = max(0, stop-fragment)
 		p[i] = &Part{
 			Start: start,
 			Stop:  stop,
 		}
+		stop = start - 1
 	}
-
-	// if session isn't resumable stop is always negative
-	p[0].Stop = start - 1
 
 	return p, nil
 }
