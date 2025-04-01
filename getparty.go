@@ -923,18 +923,15 @@ func makeParts(n, length int64) ([]*Part, error) {
 		return nil, ErrTooFragmented
 	}
 
-	p := make([]*Part, n)
+	parts := make([]*Part, n)
 
-	var start int64
-	stop := length - 1
-	for i := n - 1; i >= 0; i-- {
-		start = max(0, stop-fragment)
-		p[i] = &Part{
-			Start: start,
+	for i, stop := n-1, length-1; i >= 0; i-- {
+		p := &Part{
+			Start: max(0, stop-fragment),
 			Stop:  stop,
 		}
-		stop = start - 1
+		parts[i], stop = p, p.Start-1
 	}
 
-	return p, nil
+	return parts, nil
 }
