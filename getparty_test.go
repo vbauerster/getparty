@@ -90,6 +90,12 @@ func TestMakeParts(t *testing.T) {
 		if err != test.err {
 			t.Errorf("%q: expected error %q got %q", test.name, test.err, err)
 		}
+		if err != nil {
+			continue
+		}
+		if int64(len(parts)) != test.n {
+			t.Errorf("%q: expected n %d got %d", test.name, test.n, len(parts))
+		}
 		for i, p := range parts {
 			x := test.parts[i]
 			if start := x[0]; p.Start != start {
