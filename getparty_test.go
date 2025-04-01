@@ -21,6 +21,26 @@ func TestMakeParts(t *testing.T) {
 			err:    ErrTooFragmented,
 		},
 		{
+			n:      2,
+			length: 0,
+			err:    ErrTooFragmented,
+		},
+		{
+			n:      2,
+			length: -1,
+			err:    ErrTooFragmented,
+		},
+		{
+			n:      1,
+			length: 0,
+			parts:  [][2]int64{{0, -1}},
+		},
+		{
+			n:      1,
+			length: -1,
+			parts:  [][2]int64{{0, -2}},
+		},
+		{
 			n:      1,
 			length: 33,
 			parts:  [][2]int64{{0, 32}},
