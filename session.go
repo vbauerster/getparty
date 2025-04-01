@@ -30,40 +30,6 @@ type Session struct {
 	Parts         []*Part
 }
 
-func (s *Session) calcParts(parts uint) error {
-	if parts == 0 {
-		return ErrZeroParts
-	}
-	if !s.isResumable() {
-		parts = 1
-	}
-
-	fragment := s.ContentLength / int64(parts)
-	if parts != 1 && fragment < 64 {
-		return ErrTooFragmented
-	}
-
-	s.Parts = make([]*Part, parts)
-	s.Parts[0] = new(Part)
-
-	var stop int64
-	start := s.ContentLength
-	for i := parts - 1; i > 0; i-- {
-		stop = start - 1
-		start = stop - fragment
-		s.Parts[i] = &Part{
-			Start: start,
-			Stop:  stop,
-		}
-	}
-
-	// if session isn't resumable stop is always negative
-	s.Parts[0].Stop = start - 1
-
-	s.Single = parts == 1
-	return nil
-}
-
 func (s *Session) loadState(name string) error {
 	f, err := os.Open(name)
 	if err != nil {

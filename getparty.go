@@ -503,10 +503,18 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 			session.HeaderMap = m.opt.HeaderMap
 			state := session.OutputName + ".json"
 			if _, err := os.Stat(state); errors.Is(err, os.ErrNotExist) {
-				err := session.calcParts(m.opt.Parts)
+				n := int64(m.opt.Parts)
+				if !session.isResumable() {
+					n = 1
+					session.Single = true
+				} else {
+					session.Single = n == 1
+				}
+				parts, err := makeParts(n, session.ContentLength)
 				if err != nil {
 					return session, err
 				}
+				session.Parts = parts
 				exist, err := session.isOutputFileExist()
 				if err != nil {
 					return nil, err
@@ -904,4 +912,33 @@ func makeStateQuery(session *Session, initialWritten int64) func(int64, error) s
 		}
 		return sessionCompleted
 	}
+}
+
+func makeParts(n, length int64) ([]*Part, error) {
+	if n == 0 {
+		return nil, ErrZeroParts
+	}
+	fragment := length / n
+	if n != 1 && fragment < 64 {
+		return nil, ErrTooFragmented
+	}
+
+	p := make([]*Part, n)
+	p[0] = new(Part)
+
+	var stop int64
+	start := length
+	for i := n - 1; i > 0; i-- {
+		stop = start - 1
+		start = stop - fragment
+		p[i] = &Part{
+			Start: start,
+			Stop:  stop,
+		}
+	}
+
+	// if session isn't resumable stop is always negative
+	p[0].Stop = start - 1
+
+	return p, nil
 }
