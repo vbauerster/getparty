@@ -13,20 +13,17 @@ func TestMakeParts(t *testing.T) {
 		{
 			n:      0,
 			length: 33,
-			parts:  [][2]int64{},
 			err:    ErrZeroParts,
 		},
 		{
 			n:      8,
 			length: 33,
-			parts:  [][2]int64{},
 			err:    ErrTooFragmented,
 		},
 		{
 			n:      1,
 			length: 33,
 			parts:  [][2]int64{{0, 32}},
-			err:    nil,
 		},
 		{
 			n:      8,
@@ -41,7 +38,6 @@ func TestMakeParts(t *testing.T) {
 				{766, 894},
 				{895, 1023},
 			},
-			err: nil,
 		},
 		{
 			n:      8,
@@ -56,7 +52,6 @@ func TestMakeParts(t *testing.T) {
 				{767, 895},
 				{896, 1024},
 			},
-			err: nil,
 		},
 	}
 
