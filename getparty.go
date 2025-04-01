@@ -537,7 +537,7 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 
 	location := rawURL
 	timeout := m.getTimeout()
-	template := "GET:R%02d %%q"
+	template := "GET:R%02d %%s"
 
 	err = backoff.RetryWithContext(m.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (bool, error) {
