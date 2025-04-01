@@ -6,46 +6,55 @@ import (
 
 func TestMakeParts(t *testing.T) {
 	tests := []struct {
+		name      string
 		n, length int64
 		parts     [][2]int64
 		err       error
 	}{
 		{
+			name:   "0_33",
 			n:      0,
 			length: 33,
 			err:    ErrZeroParts,
 		},
 		{
+			name:   "8_33",
 			n:      8,
 			length: 33,
 			err:    ErrTooFragmented,
 		},
 		{
+			name:   "2_0",
 			n:      2,
 			length: 0,
 			err:    ErrTooFragmented,
 		},
 		{
+			name:   "2_-1",
 			n:      2,
 			length: -1,
 			err:    ErrTooFragmented,
 		},
 		{
+			name:   "1_0",
 			n:      1,
 			length: 0,
 			parts:  [][2]int64{{0, -1}},
 		},
 		{
+			name:   "1_-1",
 			n:      1,
 			length: -1,
 			parts:  [][2]int64{{0, -2}},
 		},
 		{
+			name:   "1_33",
 			n:      1,
 			length: 33,
 			parts:  [][2]int64{{0, 32}},
 		},
 		{
+			name:   "8_1024",
 			n:      8,
 			length: 1024,
 			parts: [][2]int64{
@@ -60,6 +69,7 @@ func TestMakeParts(t *testing.T) {
 			},
 		},
 		{
+			name:   "8_1025",
 			n:      8,
 			length: 1025,
 			parts: [][2]int64{
@@ -78,15 +88,15 @@ func TestMakeParts(t *testing.T) {
 	for _, test := range tests {
 		parts, err := makeParts(test.n, test.length)
 		if err != test.err {
-			t.Errorf("expected error %q got %q", test.err, err)
+			t.Errorf("%q: expected error %q got %q", test.name, test.err, err)
 		}
 		for i, p := range parts {
 			x := test.parts[i]
 			if start := x[0]; p.Start != start {
-				t.Errorf("expected start %d got %d", start, p.Start)
+				t.Errorf("%q: expected start %d got %d", test.name, start, p.Start)
 			}
 			if stop := x[1]; p.Stop != stop {
-				t.Errorf("expected stop %d got %d", stop, p.Stop)
+				t.Errorf("%q: expected stop %d got %d", test.name, stop, p.Stop)
 			}
 		}
 	}
