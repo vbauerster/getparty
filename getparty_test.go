@@ -86,25 +86,27 @@ func TestMakeParts(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		parts, err := makeParts(test.n, test.length)
-		if err != test.err {
-			t.Errorf("%q: expected error %q got %q", test.name, test.err, err)
-		}
-		if err != nil {
-			continue
-		}
-		if int64(len(parts)) != test.n {
-			t.Errorf("%q: expected n %d got %d", test.name, test.n, len(parts))
-		}
-		for i, p := range parts {
-			x := test.parts[i]
-			if start := x[0]; p.Start != start {
-				t.Errorf("%q: expected start %d got %d", test.name, start, p.Start)
+		t.Run(test.name, func(t *testing.T) {
+			parts, err := makeParts(test.n, test.length)
+			if err != test.err {
+				t.Errorf("expected error %q got %q", test.err, err)
 			}
-			if stop := x[1]; p.Stop != stop {
-				t.Errorf("%q: expected stop %d got %d", test.name, stop, p.Stop)
+			if err != nil {
+				return
 			}
-		}
+			if int64(len(parts)) != test.n {
+				t.Errorf("expected n %d got %d", test.n, len(parts))
+			}
+			for i, p := range parts {
+				x := test.parts[i]
+				if start := x[0]; p.Start != start {
+					t.Errorf("expected start %d got %d", start, p.Start)
+				}
+				if stop := x[1]; p.Stop != stop {
+					t.Errorf("expected stop %d got %d", stop, p.Stop)
+				}
+			}
+		})
 	}
 }
 
