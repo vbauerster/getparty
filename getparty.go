@@ -505,7 +505,7 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 			if _, err := os.Stat(state); errors.Is(err, os.ErrNotExist) {
 				n := int64(m.opt.Parts)
 				if !session.isResumable() {
-					n = 1
+					n = min(n, 1)
 					session.Single = true
 				} else {
 					session.Single = n == 1
