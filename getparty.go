@@ -322,7 +322,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		p.status = status
 		p.progress = progress
 		p.patcher = m.patcher
-		p := p // https://golang.org/doc/faq#closures_and_goroutines
+		// p := p // NOTE: uncomment for Go < 1.22, see /doc/faq#closures_and_goroutines
 		eg.Go(func() (err error) {
 			defer func() {
 				if v := recover(); v != nil {
