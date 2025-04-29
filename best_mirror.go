@@ -38,14 +38,14 @@ func (pq mirrorPQ) Swap(i, j int) {
 	pq[j].index = j
 }
 
-func (pq *mirrorPQ) Push(x interface{}) {
+func (pq *mirrorPQ) Push(x any) {
 	n := len(*pq)
 	mirror := x.(*mirror)
 	mirror.index = n
 	*pq = append(*pq, mirror)
 }
 
-func (pq *mirrorPQ) Pop() interface{} {
+func (pq *mirrorPQ) Pop() any {
 	old := *pq
 	n := len(old)
 	mirror := old[n-1]
