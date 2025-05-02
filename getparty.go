@@ -349,13 +349,14 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		for {
 			select {
 			case id := <-status.ok: // on http.StatusOK
-				if session.restored && !session.Single {
+				if session.restored {
 					for _, p := range session.Parts {
 						if p.cancel != nil {
 							p.cancel()
 						}
 					}
-					panic(fmt.Errorf("P%02d: got status %d while restored session was status %d", id, http.StatusOK, http.StatusPartialContent))
+					err := fmt.Errorf("restored session is expected to get status %d, but got status %d instead", http.StatusPartialContent, http.StatusOK)
+					panic(err)
 				}
 				for _, p := range session.Parts {
 					if p.id != id && p.cancel != nil {
