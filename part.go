@@ -267,11 +267,11 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 						return false, withStack(err)
 					}
 				case <-p.status.ctx.Done():
+					err := context.Cause(p.status.ctx)
+					if err == context.Canceled {
+						panic(ErrUnexpectedOK)
+					}
 					if !p.single {
-						err := context.Cause(p.status.ctx)
-						if err == context.Canceled {
-							panic(ErrUnexpectedOK)
-						}
 						p.single = true
 						// if either bar gets status ok, other bars shall quit silently
 						p.logger.Printf("Quit: %s", err.Error())
