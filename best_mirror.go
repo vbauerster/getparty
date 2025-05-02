@@ -100,7 +100,7 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (<-chan 
 	timeout := m.getTimeout()
 	client := &http.Client{Transport: transport}
 
-	for i := 0; i < max; i++ {
+	for range max {
 		eg.Go(func() error {
 			for mirror := range src {
 				err := m.queryMirror(mirror, client, timeout)
