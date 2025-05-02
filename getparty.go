@@ -345,10 +345,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	go func() {
-		var statusOk bool
+		statusOK := status.ok
 		for {
 			select {
-			case id := <-status.ok: // on http.StatusOK
+			case id := <-statusOK: // on http.StatusOK
 				if session.restored {
 					for _, p := range session.Parts {
 						if p.cancel != nil {
@@ -363,11 +363,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 						p.cancel()
 					}
 				}
-				statusOk = true
+				statusOK = nil
 			case <-status.ctx.Done():
 				now := time.Now()
 				start <- now
-				if !statusOk && !session.Single {
+				if statusOK != nil && !session.Single {
 					progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
 				}
 				return
