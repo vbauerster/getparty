@@ -234,7 +234,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
 				if p.file == nil {
-					p.status.cancel(ErrUnexpectedOK)
+					p.status.cancel(nil)
 					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
 						return false, withStack(err)
@@ -250,6 +250,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 			case http.StatusOK: // no partial content, fallback to single part mode
 				select {
 				case p.status.ok <- p.id:
+					p.status.cancel(singleModeFallback(p.id))
 					p.single = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
@@ -267,13 +268,13 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 					}
 				case <-p.status.ctx.Done():
 					if !p.single {
-						p.single = true
 						err := context.Cause(p.status.ctx)
-						if err == ErrUnexpectedOK {
-							panic(err)
+						if err == context.Canceled {
+							panic(ErrUnexpectedOK)
 						}
+						p.single = true
 						// if either bar gets status ok, other bars shall quit silently
-						p.logger.Printf("Quit: %v", err)
+						p.logger.Printf("Quit: %s", err.Error())
 						return false, nil
 					}
 				}

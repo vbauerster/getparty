@@ -345,35 +345,34 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	go func() {
-		select {
-		case id := <-status.ok: // on http.StatusOK
-			start <- time.Now()
-			for _, p := range session.Parts {
-				if p.id != id && p.cancel != nil {
-					p.cancel()
+		var statusOk bool
+		for {
+			select {
+			case id := <-status.ok: // on http.StatusOK
+				if session.restored && !session.Single {
+					for _, p := range session.Parts {
+						if p.cancel != nil {
+							p.cancel()
+						}
+					}
+					panic(fmt.Errorf("P%02d: got status %d while restored session was status %d", id, http.StatusOK, http.StatusPartialContent))
 				}
-			}
-			err := singleModeFallback(id)
-			status.cancel(err)
-			if session.restored && !session.Single {
-				if p := session.Parts[id-1]; p.cancel != nil {
-					p.cancel()
+				for _, p := range session.Parts {
+					if p.id != id && p.cancel != nil {
+						p.cancel()
+					}
 				}
-				panic(fmt.Errorf("P%02d: got http status ok while restored session was partial", id))
-			}
-			if context.Cause(status.ctx) != err {
-				if p := session.Parts[id-1]; p.cancel != nil {
-					p.cancel()
+				statusOk = true
+			case <-status.ctx.Done():
+				now := time.Now()
+				start <- now
+				if !statusOk && !session.Single {
+					progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
 				}
-				panic(fmt.Errorf("%s failure: some other part got partial content first", err.Error()))
+				return
+			case <-status.quit:
+				return
 			}
-		case <-status.ctx.Done():
-			now := time.Now()
-			start <- now
-			if !session.Single {
-				progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
-			}
-		case <-status.quit:
 		}
 	}()
 
