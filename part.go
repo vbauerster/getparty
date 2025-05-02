@@ -135,7 +135,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 
 	var bar *mpb.Bar
 	var curTry uint32
-	msgCh := make(chan string, 1)
+	barReady, barMsg := make(chan struct{}), make(chan string, 1)
 	resetTimeout := timeout
 
 	var buffer [bufMax]byte
@@ -155,10 +155,14 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 				cancel()
 				msg := "Timeout..."
 				select {
-				case msgCh <- fmt.Sprintf("%s %s", p.name, msg):
-					p.logger.Println(msg, "msg sent")
+				case <-barReady:
+					select {
+					case barMsg <- fmt.Sprintf("%s %s", p.name, msg):
+						p.logger.Println(msg, "msg sent")
+					default:
+					}
 				default:
-					p.logger.Println(msg, "msg dropped")
+					p.logger.Println(msg, "bar not ready")
 				}
 			})
 			var idle time.Duration
@@ -239,10 +243,11 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 					if err != nil {
 						return false, withStack(err)
 					}
-					bar, err = p.newBar(&curTry, msgCh)
+					bar, err = p.newBar(&curTry, barMsg)
 					if err != nil {
 						return false, withStack(err)
 					}
+					close(barReady)
 				}
 				if p.Written != 0 {
 					go bar.SetRefill(p.Written)
@@ -265,10 +270,11 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 					if bar != nil {
 						panic(fmt.Errorf("expected nil %T, got %#[1]v", bar))
 					}
-					bar, err = p.newBar(&curTry, msgCh)
+					bar, err = p.newBar(&curTry, barMsg)
 					if err != nil {
 						return false, withStack(err)
 					}
+					close(barReady)
 				case <-p.status.ctx.Done():
 					err := context.Cause(p.status.ctx)
 					if err == context.Canceled {
