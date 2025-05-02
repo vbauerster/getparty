@@ -148,21 +148,22 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 		},
 	}
 
+	timeoutMsg := "Timeout..."
+
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
 			ctx, cancel := context.WithCancel(p.ctx)
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
-				msg := "Timeout..."
 				select {
 				case <-barReady:
 					select {
-					case barMsg <- fmt.Sprintf("%s %s", p.name, msg):
-						p.logger.Println(msg, "msg sent")
+					case barMsg <- fmt.Sprintf("%s %s", p.name, timeoutMsg):
+						p.logger.Println(timeoutMsg, "msg sent")
 					default:
 					}
 				default:
-					p.logger.Println(msg, "bar not ready")
+					p.logger.Println(timeoutMsg, "bar not ready")
 				}
 			})
 			var idle time.Duration
