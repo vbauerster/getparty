@@ -7,8 +7,9 @@ import (
 )
 
 type (
-	ExpectedError        string
+	singleModeFallback   int
 	UnexpectedHttpStatus int
+	ExpectedError        string
 	ContentMismatch      struct {
 		expected int64
 		got      int64
@@ -17,7 +18,6 @@ type (
 		error
 		stack []byte
 	}
-	singleModeFallback int
 )
 
 func (e ExpectedError) Error() string {
