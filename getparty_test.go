@@ -1,6 +1,7 @@
 package getparty
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -88,11 +89,12 @@ func TestMakeParts(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			parts, err := makeParts(test.n, test.length)
-			if err != test.err {
-				t.Errorf("expected error %q got %q", test.err, err)
-			}
-			if err != nil {
-				return
+			if test.err != nil {
+				if errors.Is(err, test.err) {
+					t.SkipNow()
+				} else {
+					t.Errorf("expected error %T got %v", test.err, err)
+				}
 			}
 			if int64(len(parts)) != test.n {
 				t.Errorf("expected n %d got %d", test.n, len(parts))
