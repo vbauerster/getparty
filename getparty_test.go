@@ -115,6 +115,7 @@ func TestMakeParts(t *testing.T) {
 }
 
 func TestParseContentDisposition(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input  string
 		output string
@@ -170,9 +171,12 @@ func TestParseContentDisposition(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		output := parseContentDisposition(test.input)
-		if output != test.output {
-			t.Errorf("expected %q got %q", test.output, output)
-		}
+		t.Run(test.input, func(t *testing.T) {
+			t.Parallel()
+			output := parseContentDisposition(test.input)
+			if output != test.output {
+				t.Errorf("expected %q got %q", test.output, output)
+			}
+		})
 	}
 }
