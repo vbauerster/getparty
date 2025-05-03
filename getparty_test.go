@@ -6,6 +6,7 @@ import (
 )
 
 func TestMakeParts(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		n, length int64
@@ -88,6 +89,7 @@ func TestMakeParts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			parts, err := makeParts(test.n, test.length)
 			if test.err != nil {
 				if errors.Is(err, test.err) {
