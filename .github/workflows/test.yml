@@ -1,4 +1,4 @@
-name: build
+name: test
 
 on:
   push:
@@ -12,10 +12,6 @@ permissions:
   contents: read
   pull-requests: read
 
-defaults:
-  run:
-    working-directory: cmd/getparty
-
 jobs:
   build:
     strategy:
@@ -28,4 +24,4 @@ jobs:
     - uses: actions/setup-go@v5
       with:
         go-version: ${{ matrix.go-version }}
-    - run: go build -v
+    - run: go test -v ./...
