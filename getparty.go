@@ -243,6 +243,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		Transport: rtBuilder.pool(m.opt.Parts > 1).build(),
 		Jar:       jar,
 	}
+	if m.opt.MaxRedirect == 0 {
+		m.opt.MaxRedirect--
+	}
 	session, err := m.getState(client)
 	if err != nil {
 		if err == ErrZeroParts && session != nil {
@@ -460,10 +463,6 @@ func (m Cmd) getTLSConfig() (*tls.Config, error) {
 
 func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 	client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
-		max := int(m.opt.MaxRedirect)
-		if max != 0 && len(via) > max {
-			return ErrMaxRedirect
-		}
 		return http.ErrUseLastResponse
 	}
 	defer func() {
@@ -557,7 +556,7 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 				}
 			}()
 			getR := fmt.Sprintf(template, attempt)
-			for {
+			for i := uint(0); i <= m.opt.MaxRedirect; i++ {
 				m.loggers[INFO].Printf(getR, location)
 				m.loggers[DEBUG].Printf(getR, location)
 
@@ -580,9 +579,6 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 					m.loggers[DEBUG].Println(err.Error())
 					if attempt != 0 && attempt == m.opt.MaxRetry {
 						return false, ErrMaxRetry
-					}
-					if err == ErrMaxRedirect {
-						return false, err
 					}
 					return true, err
 				}
@@ -666,10 +662,11 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 					ContentLength: resp.ContentLength,
 					Redirected:    redirected,
 				}
-
 				return false, withStack(resp.Body.Close())
 			}
+			return false, withStack(ErrMaxRedirect)
 		})
+
 	return session, err
 }
 
