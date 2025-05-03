@@ -19,7 +19,7 @@ func setupRedirectServer(source string, hops ...string) *httptest.Server {
 		source = next
 	}
 	mux.HandleFunc(source, func(w http.ResponseWriter, _ *http.Request) {
-		io.WriteString(w, "Hello, client")
+		_, _ = io.WriteString(w, "Hello, client")
 	})
 	return httptest.NewServer(mux)
 }
