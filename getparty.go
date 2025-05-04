@@ -183,9 +183,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	userAgents[""] = fmt.Sprintf("%s/%s", cmdName, version)
 
 	if m.opt.Version {
-		fmt.Fprintf(m.Out, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
-		fmt.Fprintf(m.Out, "Project home: %s\n", projectHome)
-		return nil
+		_, e1 := fmt.Fprintf(m.Out, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
+		_, e2 := fmt.Fprintf(m.Out, "Project home: %s\n", projectHome)
+		return firstErr(e1, e2)
 	}
 
 	m.initLoggers()
@@ -193,7 +193,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var userinfo *url.Userinfo
 	if m.opt.AuthUser != "" {
 		if m.opt.AuthPass == "" {
-			fmt.Fprint(m.Out, "Enter password: ")
+			_, err := fmt.Fprint(m.Out, "Enter password: ")
+			if err != nil {
+				return err
+			}
 			pass, err := term.ReadPassword(int(os.Stdin.Fd()))
 			if err != nil {
 				return withStack(err)
@@ -202,7 +205,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				return err
 			}
 			m.opt.AuthPass = string(pass)
-			fmt.Fprintln(m.Out)
+			_, err = fmt.Fprintln(m.Out)
+			if err != nil {
+				return err
+			}
 		}
 		userinfo = url.UserPassword(m.opt.AuthUser, m.opt.AuthPass)
 		m.opt.AuthUser = ""
@@ -675,14 +681,19 @@ func (m Cmd) overwriteIfConfirmed(name string) (err error) {
 		m.loggers[DEBUG].Printf("Removing existing: %q", name)
 		return withStack(os.Remove(name))
 	}
-	fmt.Fprintf(m.Err, "%q already exists, overwrite? [Y/n] ", name)
+	_, err = fmt.Fprintf(m.Err, "%q already exists, overwrite? [Y/n] ", name)
+	if err != nil {
+		return err
+	}
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		return withStack(err)
 	}
 	defer func() {
 		err = firstErr(err, withStack(term.Restore(int(os.Stdin.Fd()), state)))
-		fmt.Fprintln(m.Err)
+		if err == nil {
+			_, err = fmt.Fprintln(m.Err)
+		}
 	}()
 	b := make([]byte, 1)
 	_, err = os.Stdin.Read(b)
