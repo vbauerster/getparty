@@ -92,22 +92,21 @@ func TestMakeParts(t *testing.T) {
 			t.Parallel()
 			parts, err := makeParts(test.n, test.length)
 			if test.err != nil {
-				if errors.Is(err, test.err) {
-					t.SkipNow()
-				} else {
+				if !errors.Is(err, test.err) {
 					t.Errorf("expected error %T got %v", test.err, err)
 				}
-			}
-			if int64(len(parts)) != test.n {
-				t.Errorf("expected n %d got %d", test.n, len(parts))
-			}
-			for i, p := range parts {
-				x := test.parts[i]
-				if start := x[0]; p.Start != start {
-					t.Errorf("expected start %d got %d", start, p.Start)
+			} else {
+				if int64(len(parts)) != test.n {
+					t.Errorf("expected n %d got %d", test.n, len(parts))
 				}
-				if stop := x[1]; p.Stop != stop {
-					t.Errorf("expected stop %d got %d", stop, p.Stop)
+				for i, p := range parts {
+					x := test.parts[i]
+					if start := x[0]; p.Start != start {
+						t.Errorf("expected start %d got %d", start, p.Start)
+					}
+					if stop := x[1]; p.Stop != stop {
+						t.Errorf("expected stop %d got %d", stop, p.Stop)
+					}
 				}
 			}
 		})
