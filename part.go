@@ -186,7 +186,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 				case maxTry:
 					atomic.AddUint32(&globTry, ^uint32(0))
 					retry, err = false, ErrMaxRetry
-					fmt.Fprintf(p.progress, "%s%s (%.1f / %.1f)\n",
+					_, _ = fmt.Fprintf(p.progress, "%s%s (%.1f / %.1f)\n",
 						p.logger.Prefix(),
 						err.Error(),
 						decor.SizeB1024(p.Written),
@@ -197,7 +197,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 					return
 				}
 				go func(prefix string) {
-					fmt.Fprintf(p.progress, "%s%s\n", prefix, unwrapOrErr(err).Error())
+					_, _ = fmt.Fprintf(p.progress, "%s%s\n", prefix, unwrapOrErr(err).Error())
 				}(p.logger.Prefix())
 				p.logger.SetPrefix(fmt.Sprintf(p.prefixFormat, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
@@ -304,7 +304,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 					atomic.AddUint32(&globTry, ^uint32(0))
 				}
 				err := withStack(UnexpectedHttpStatus(resp.StatusCode))
-				fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
+				_, _ = fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
 				if bar != nil {
 					bar.Abort(true)
 				}

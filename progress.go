@@ -26,7 +26,7 @@ func (p *progress) Wait() {
 	}
 	p.topBar.EnableTriggerComplete()
 	p.Progress.Wait()
-	fmt.Fprintln(p.out)
+	_, _ = fmt.Fprintln(p.out)
 }
 
 func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount int, start time.Time) {
