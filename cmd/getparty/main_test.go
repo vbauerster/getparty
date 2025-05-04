@@ -176,6 +176,9 @@ func TestMaxRedirect(t *testing.T) {
 					t.Errorf("expected error %T got %v", test.err, err)
 				}
 			} else {
+				if err != nil {
+					t.Fatal("unexpected error", err)
+				}
 				b, err := os.ReadFile(output)
 				if err != nil {
 					t.Fatal(err)

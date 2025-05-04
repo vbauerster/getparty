@@ -96,6 +96,9 @@ func TestMakeParts(t *testing.T) {
 					t.Errorf("expected error %T got %v", test.err, err)
 				}
 			} else {
+				if err != nil {
+					t.Fatal("unexpected error", err)
+				}
 				if int64(len(parts)) != test.n {
 					t.Errorf("expected n %d got %d", test.n, len(parts))
 				}
