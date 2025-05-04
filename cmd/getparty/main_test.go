@@ -6,11 +6,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"testing"
 
 	"github.com/vbauerster/getparty"
 )
+
+const expectedBody = "Hello, client"
 
 func setupRedirectServer(source string, hops ...string) *httptest.Server {
 	mux := http.NewServeMux()
@@ -19,7 +22,7 @@ func setupRedirectServer(source string, hops ...string) *httptest.Server {
 		source = next
 	}
 	mux.HandleFunc(source, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(w, "Hello, client")
+		_, _ = io.WriteString(w, expectedBody)
 	})
 	return httptest.NewServer(mux)
 }
@@ -160,17 +163,26 @@ func TestMaxRedirect(t *testing.T) {
 			if test.maxr != "" {
 				opts = append(opts, test.maxr)
 			}
-			opts = append(opts, "--output.overwrite")
-			opts = append(opts, "--output.name="+t.TempDir()+"/test")
-			opts = append(opts, ts.URL)
+			output := t.TempDir() + "/test"
+			opts = append(opts, "--output.overwrite", "--output.name="+output, ts.URL)
 			cmd := &getparty.Cmd{
 				Ctx: ctx,
 				Out: io.Discard,
 				Err: io.Discard,
 			}
 			err := cmd.Run(opts, "test", "")
-			if !errors.Is(err, test.err) {
-				t.Errorf("expected error %T got %v", test.err, err)
+			if test.err != nil {
+				if !errors.Is(err, test.err) {
+					t.Errorf("expected error %T got %v", test.err, err)
+				}
+			} else {
+				b, err := os.ReadFile(output)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if expectedBody != string(b) {
+					t.Errorf("expected body %q got %q", expectedBody, string(b))
+				}
 			}
 		})
 	}
