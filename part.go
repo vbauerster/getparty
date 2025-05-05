@@ -238,7 +238,13 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				if p.file == nil {
+				if p.file != nil {
+					err := context.Cause(p.status.ctx)
+					if !errors.Is(err, context.Canceled) {
+						// StatusPartialContent after StatusOK
+						panic(UnexpectedHttpStatus(http.StatusPartialContent))
+					}
+				} else {
 					p.status.cancel(nil)
 					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
