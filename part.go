@@ -238,13 +238,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				if p.file != nil {
-					err := context.Cause(p.status.ctx)
-					if !errors.Is(err, context.Canceled) {
-						// StatusPartialContent after StatusOK
-						panic(UnexpectedHttpStatus(http.StatusPartialContent))
-					}
-				} else {
+				if p.file == nil {
 					p.status.cancel(nil)
 					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
@@ -255,6 +249,12 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 						return false, withStack(err)
 					}
 					close(barReady)
+				} else if p.single {
+					err := context.Cause(p.status.ctx)
+					if !errors.Is(err, context.Canceled) {
+						// StatusPartialContent after StatusOK
+						panic(UnexpectedHttpStatus(http.StatusPartialContent))
+					}
 				}
 				if p.Written != 0 {
 					go bar.SetRefill(p.Written)
