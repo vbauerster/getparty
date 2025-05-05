@@ -278,8 +278,9 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 					close(barReady)
 				case <-p.status.ctx.Done():
 					err := context.Cause(p.status.ctx)
-					if err == context.Canceled {
-						panic(ErrUnexpectedOK)
+					if errors.Is(err, context.Canceled) {
+						// StatusOK after StatusPartialContent
+						panic(UnexpectedHttpStatus(http.StatusOK))
 					}
 					if !p.single {
 						p.single = true
