@@ -163,7 +163,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 					default:
 					}
 				default:
-					p.logger.Println(timeoutMsg, "bar not ready")
+					p.logger.Println(timeoutMsg, "bar is not ready")
 				}
 			})
 			var idle time.Duration
