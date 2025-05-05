@@ -177,7 +177,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 				p.logger.Println("Written:", p.Written-written)
 				p.logger.Println("Elapsed:", elapsed)
 				p.logger.Println("Idle:", idle)
-				if !retry || err == nil || context.Cause(p.ctx) == ErrCanceledByUser {
+				if !retry || err == nil || errors.Is(context.Cause(p.ctx), ErrCanceledByUser) {
 					return
 				}
 				switch attempt {
