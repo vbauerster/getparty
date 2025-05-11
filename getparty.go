@@ -467,7 +467,7 @@ func (m Cmd) getTLSConfig() (*tls.Config, error) {
 }
 
 func (m Cmd) getState(client *http.Client) (session *Session, err error) {
-	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	defer func() {
