@@ -148,7 +148,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 		},
 	}
 
-	timeoutMsg := "Timeout..."
+	const timeoutMsg = "Timeout..."
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, reset func()) (retry bool, err error) {
