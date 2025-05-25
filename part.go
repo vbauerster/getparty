@@ -19,6 +19,7 @@ import (
 )
 
 const bufMax = 1 << 14
+const consecutiveResetOk = 4
 
 var globTry uint32
 
@@ -134,9 +135,10 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 	}
 
 	var bar *mpb.Bar
+	var dta int // decrease timeout after
 	var curTry uint32
 	barReady, barMsg := make(chan struct{}), make(chan string, 1)
-	resetTimeout := timeout
+	initialTimeout := timeout
 
 	var buffer [bufMax]byte
 	bufLen := int(bufSize * 1024)
@@ -151,7 +153,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 	const timeoutMsg = "Timeout..."
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
-		func(attempt uint, reset func()) (retry bool, err error) {
+		func(attempt uint, backoffReset func()) (retry bool, err error) {
 			ctx, cancel := context.WithCancel(p.ctx)
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
@@ -218,6 +220,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 				if !timer.Stop() && timeout < maxTimeout*time.Second {
 					// timer has expired and f passed to time.AfterFunc has been started in its own goroutine
 					timeout += 5 * time.Second
+					dta += consecutiveResetOk
 				}
 				return true, err
 			}
@@ -321,39 +324,44 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 				return false, err
 			}
 
-			var sleepCtx context.Context
-			sleepCancel := func() {}
+			expired := !timer.Reset(timeout + sleep)
+			reset := func() {
+				if expired {
+					return
+				}
+				if timeout > initialTimeout {
+					switch dta {
+					case 0:
+						timeout -= 5 * time.Second
+						dta = consecutiveResetOk
+						if timeout == initialTimeout {
+							backoffReset()
+						}
+					default:
+						dta--
+					}
+				}
+				if sleep != 0 {
+					timer := time.NewTimer(sleep)
+					defer timer.Stop()
+					select {
+					case <-timer.C:
+						idle += sleep
+					case <-ctx.Done():
+						return
+					}
+				}
+				expired = !timer.Reset(timeout + sleep)
+			}
 			fuser := makeUnexpectedEOFFuser(p.logger)
-			expired := !timer.Reset(timeout) // because client.Do has taken some time
 
-			for n := bufLen; n == bufLen || fuser(err); sleepCancel() {
+			for n := bufLen; n == bufLen || fuser(err); reset() {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
 				rDur := time.Since(start)
 
-				if !expired && timer.Reset(timeout+sleep) {
-					// put off f passed to time.AfterFunc to be called for the next reset duration
-					if sleep != 0 {
-						sleepCtx, sleepCancel = context.WithTimeout(p.ctx, sleep)
-						idle += sleep
-					}
-					if timeout != resetTimeout {
-						reset()
-						timeout = resetTimeout
-					}
-				} else {
-					// timer has expired and f passed to time.AfterFunc has been started in its own goroutine
-					// deferred timer.Stop will cancel former timer.Reset which scheduled f to run again
-					// we're going to quit loop because n != bufLen most likely
-					expired = true
-					if timeout < maxTimeout*time.Second {
-						timeout += 5 * time.Second
-					}
-				}
-
 				wn, werr := p.file.Write(buffer[:n])
 				if werr != nil {
-					sleepCancel()
 					err := p.file.Truncate(p.Written)
 					if err != nil {
 						p.logger.Println("Truncate:", err.Error())
@@ -361,7 +369,10 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 					}
 					return false, withStack(werr)
 				}
+
 				p.Written += int64(wn)
+				bar.EwmaIncrBy(wn, rDur+sleep)
+
 				if p.total() <= 0 {
 					if err == io.EOF {
 						// make sure next p.total() result is never negative
@@ -373,10 +384,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 				} else if !p.single && wn != 0 {
 					p.progress.total <- wn
 				}
-				bar.EwmaIncrBy(wn, rDur+sleep)
-				if sleepCtx != nil {
-					<-sleepCtx.Done()
-				}
 			}
 
 			if p.isDone() {
@@ -387,6 +394,10 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 				return false, withStack(fmt.Errorf("expected EOF, got: %w", err))
 			}
 
+			if timeout < maxTimeout*time.Second {
+				timeout += 5 * time.Second
+				dta += consecutiveResetOk
+			}
 			// err is never nil here
 			return true, err
 		})
