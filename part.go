@@ -197,6 +197,9 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 					return
 				}
 				go func(prefix string) {
+					if errors.Is(ctx.Err(), context.Canceled) {
+						prefix += timeoutMsg + " "
+					}
 					_, _ = fmt.Fprintf(p.progress, "%s%s\n", prefix, unwrapOrErr(err).Error())
 				}(p.logger.Prefix())
 				p.logger.SetPrefix(fmt.Sprintf(p.prefixFormat, attempt+1))
