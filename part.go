@@ -115,7 +115,7 @@ func (p *Part) init(id int, session *Session) error {
 	return nil
 }
 
-func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout time.Duration) (err error) {
+func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTimeout time.Duration) (err error) {
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
 		p.logger.Println("Total Written:", p.Written)
@@ -139,7 +139,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 	var dta int // decrease timeout after
 	var curTry uint32
 	barReady, barMsg := make(chan struct{}), make(chan string, 1)
-	initialTimeout := timeout
+	timeout := initialTimeout
 
 	var buffer [bufMax]byte
 	bufLen := int(bufSize * 1024)
