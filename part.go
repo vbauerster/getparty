@@ -327,6 +327,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 			expired := !timer.Reset(timeout + sleep)
 			reset := func() {
 				if expired {
+					p.logger.Println("timer.Reset had expired")
 					return
 				}
 				if timeout > initialTimeout {
