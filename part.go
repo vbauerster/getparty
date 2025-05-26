@@ -192,7 +192,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 						decor.SizeB1024(p.Written),
 						decor.SizeB1024(p.total()))
 					if bar != nil {
-						bar.Abort(true)
+						bar.Abort(!p.single)
 					}
 					return
 				}
