@@ -364,7 +364,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				if werr != nil {
 					err := p.file.Truncate(p.Written)
 					if err != nil {
-						p.logger.Println("Truncate:", err.Error())
 						return false, withStack(errors.Join(err, werr))
 					}
 					return false, withStack(werr)
