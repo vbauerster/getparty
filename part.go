@@ -20,6 +20,7 @@ import (
 
 const bufMax = 1 << 14
 const consecutiveResetOk = 4
+const timeoutMsg = "Timeout..."
 
 var globTry uint32
 
@@ -149,8 +150,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, timeout ti
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
 		},
 	}
-
-	const timeoutMsg = "Timeout..."
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, backoffReset func()) (retry bool, err error) {
