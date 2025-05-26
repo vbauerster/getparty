@@ -394,9 +394,13 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		session.Single = true
 	}
 	if err != nil {
+		resumable := session.isResumable()
 		for _, p := range session.Parts {
 			if f := p.file; f != nil {
-				m.loggers[DEBUG].Printf("%q closed with: %v", f.Name(), firstErr(f.Sync(), f.Close()))
+				m.loggers[DEBUG].Printf("%q closed with: %v", f.Name(), f.Close())
+				if !resumable {
+					m.loggers[DEBUG].Printf("%q removed with: %v", f.Name(), os.Remove(f.Name()))
+				}
 			}
 		}
 		return firstErr(context.Cause(m.Ctx), err)
