@@ -371,19 +371,19 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				}
 
 				p.Written += int64(wn)
-				bar.EwmaIncrBy(wn, rDur+sleep)
 
-				if p.total() <= 0 {
+				switch {
+				case p.total() <= 0:
+					bar.SetTotal(p.Written, false)
 					if err == io.EOF {
 						// make sure next p.total() result is never negative
 						p.Stop = p.Written - 1
-						bar.SetTotal(p.Written, true)
-					} else {
-						bar.SetTotal(p.Written, false)
+						bar.EnableTriggerComplete()
 					}
-				} else if !p.single && wn != 0 {
+				case !p.single && wn != 0:
 					p.progress.total <- wn
 				}
+				bar.EwmaIncrBy(wn, rDur+sleep)
 			}
 
 			if p.isDone() {
