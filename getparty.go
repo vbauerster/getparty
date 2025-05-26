@@ -399,7 +399,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			if f := p.file; f != nil {
 				m.loggers[DEBUG].Printf("%q closed with: %v", f.Name(), f.Close())
 				if !resumable {
-					m.loggers[DEBUG].Printf("%q removed with: %v", f.Name(), os.Remove(f.Name()))
+					err := os.Rename(f.Name(), session.OutputName)
+					m.loggers[DEBUG].Printf("%q renamed to %q with: %v", f.Name(), session.OutputName, err)
 				}
 			}
 		}
