@@ -46,12 +46,12 @@ func (pq *mirrorPQ) Push(x any) {
 }
 
 func (pq *mirrorPQ) Pop() any {
+	var m *mirror
 	s := *pq
-	l := len(s)
-	m := s[l-1]
-	m.index = -1 // for safety
-	s[l-1] = nil // avoid memory leak
-	*pq = s[:l-1]
+	i := len(s) - 1
+	m, s[i] = s[i], nil // nil to avoid memory leak
+	m.index = -1        // for safety
+	*pq = s[:i]
 	return m
 }
 
