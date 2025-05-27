@@ -274,7 +274,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var recoverHandler sync.Once
 	var recovered bool
 	timeout := m.getTimeout()
-	sleep := time.Duration(m.opt.SpeedLimit*60) * time.Millisecond
+	sleep := time.Duration(m.opt.SpeedLimit*50) * time.Millisecond
 
 	status := new(httpStatusContext)
 	status.ctx, status.cancel = context.WithCancelCause(context.Background())
