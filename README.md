@@ -39,7 +39,7 @@ Application Options:
   -p, --parts=n                                    number of parts (default: 1)
   -r, --max-retry=n                                max retries per each part, 0 for infinite (default: 10)
       --max-redirect=n                             max redirections allowed, 0 for infinite (default: 10)
-  -t, --timeout=sec                                initial timeout to fill a buffer (default: 15)
+  -t, --timeout=sec                                initial timeout to fill a buffer (default: 10)
   -b, --buf-size=KiB[2|4|8|16]                     buffer size, prefer smaller for slow connection (default: 8)
   -l, --speed-limit=[1|2|3|4|5]                    speed limit gauge
   -s, --session=FILE                               session state of incomplete download, file with json extension
