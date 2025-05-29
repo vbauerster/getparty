@@ -199,9 +199,11 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				}
 				go func(prefix string) {
 					if errors.Is(ctx.Err(), context.Canceled) {
-						prefix += timeoutMsg + " "
+						prefix += timeoutMsg
+					} else if prefix != "" {
+						prefix = prefix[:len(prefix)-1]
 					}
-					_, _ = fmt.Fprintf(p.progress, "%s%s\n", prefix, unwrapOrErr(err).Error())
+					_, _ = fmt.Fprintln(p.progress, prefix, unwrapOrErr(err).Error())
 				}(p.logger.Prefix())
 				p.logger.SetPrefix(fmt.Sprintf(p.prefixFormat, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
