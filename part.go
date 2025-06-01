@@ -397,8 +397,8 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 
 			if timeout < maxTimeout*time.Second {
 				timeout += 5 * time.Second
-				dta += consecutiveResetOk
 			}
+			dta += consecutiveResetOk
 			// err is never nil here
 			return true, err
 		})
