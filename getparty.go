@@ -560,10 +560,10 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 		func(attempt uint, _ func()) (bool, error) {
 			ctx, cancel := context.WithTimeout(m.Ctx, timeout)
 			defer func() {
-				cancel()
-				if timeout < maxTimeout*time.Second {
+				if errors.Is(ctx.Err(), context.DeadlineExceeded) && timeout < maxTimeout*time.Second {
 					timeout += 5 * time.Second
 				}
+				cancel()
 			}()
 			getR := fmt.Sprintf(template, attempt)
 			for i := uint(0); i <= m.opt.MaxRedirect; i++ {
