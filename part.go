@@ -170,7 +170,12 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 			var idle time.Duration
 			start := time.Now()
 			defer func(written int64) {
-				timer.Stop()
+				if !timer.Stop() {
+					if timeout < maxTimeout*time.Second {
+						timeout += 5 * time.Second
+					}
+					dta += consecutiveResetOk
+				}
 				cancel()
 				elapsed := time.Since(start)
 				totalElapsed += elapsed
@@ -218,11 +223,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 
 			resp, err := p.client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 			if err != nil {
-				if !timer.Stop() && timeout < maxTimeout*time.Second {
-					// timer has expired and f passed to time.AfterFunc has been started in its own goroutine
-					timeout += 5 * time.Second
-					dta += consecutiveResetOk
-				}
 				return true, err
 			}
 			defer func() {
@@ -395,10 +395,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				return false, withStack(fmt.Errorf("expected EOF, got: %w", err))
 			}
 
-			if timeout < maxTimeout*time.Second {
-				timeout += 5 * time.Second
-			}
-			dta += consecutiveResetOk
 			// err is never nil here
 			return true, err
 		})
