@@ -214,7 +214,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
 			}(p.Written)
 
-			p.logger.Printf("GET(%s): %s", timeout, req.URL)
+			p.logger.Printf("GET(%s,%d): %s", timeout, dta, req.URL)
 
 			req.Header.Set(hRange, p.getRange())
 			for k, v := range req.Header {
