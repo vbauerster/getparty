@@ -137,19 +137,19 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 	var bar *mpb.Bar
 	var dta int // decrease timeout after
 	var curTry uint32
-	barReady, barMsg := make(chan struct{}), make(chan string, 1)
-	timeout := initialTimeout
-
 	var buffer [bufMax]byte
+
 	bufLen := int(min(bufMax, bufSize*1024))
 	consecutiveResetOk := 32 / int(bufSize)
-	p.logger.Println("ReadFull buf len:", bufLen)
-
+	timeout := initialTimeout
+	barReady, barMsg := make(chan struct{}), make(chan string, 1)
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
 		},
 	}
+
+	p.logger.Println("ReadFull buf len:", bufLen)
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, backoffReset func()) (retry bool, err error) {
