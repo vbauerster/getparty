@@ -19,7 +19,6 @@ import (
 )
 
 const bufMax = 1 << 14
-const consecutiveResetOk = 4
 const timeoutMsg = "Timeout..."
 
 var globTry uint32
@@ -143,6 +142,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 
 	var buffer [bufMax]byte
 	bufLen := int(bufSize * 1024)
+	consecutiveResetOk := 32 / int(bufSize)
 	p.logger.Println("ReadFull buf len:", bufLen)
 
 	trace := &httptrace.ClientTrace{
