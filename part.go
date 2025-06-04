@@ -141,7 +141,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 	timeout := initialTimeout
 
 	var buffer [bufMax]byte
-	bufLen := int(bufSize) * 1024
+	bufLen := int(min(bufMax, bufSize*1024))
 	consecutiveResetOk := 32 / int(bufSize)
 	p.logger.Println("ReadFull buf len:", bufLen)
 
