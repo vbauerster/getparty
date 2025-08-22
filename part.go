@@ -45,10 +45,10 @@ type Part struct {
 	logger       *log.Logger
 	status       *httpStatusContext
 	patcher      func(*http.Request)
-	single       bool
 	name         string
 	output       string
 	prefixFormat string
+	single       bool
 }
 
 func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
