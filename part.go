@@ -76,7 +76,7 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 					decor.FixedIntervalTimeNormalizer(60),
 					decor.WCSyncWidth,
 				), ""),
-				decor.Name(""),
+				nil,
 			),
 			decor.Conditional(total > 0,
 				decor.OnCompleteOrOnAbort(decor.Name("", decor.WCSyncWidth), ":"),
