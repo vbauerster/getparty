@@ -30,7 +30,7 @@ func (p *progress) Wait() {
 }
 
 func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount int, start time.Time) {
-	bar := p.MustAdd(contentLength, distinctBarRefiller(baseBarStyle()).Build(),
+	bar := p.MustAdd(contentLength, distinctBarRefiller(baseBarStyle()),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+1),
 		mpb.PrependDecorators(

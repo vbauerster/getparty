@@ -58,7 +58,7 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 		p.logger.Println("Session must be not resumable")
 		total = 0
 	} else {
-		filler = distinctBarRefiller(baseBarStyle()).Build()
+		filler = distinctBarRefiller(baseBarStyle())
 	}
 	p.logger.Println("Setting bar total:", total)
 	bar, err := p.progress.Add(total, filler,
