@@ -56,7 +56,6 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 	total := p.total()
 	if total < 0 {
 		p.logger.Println("Session must be not resumable")
-		total = 0
 	} else {
 		filler = distinctBarRefiller(baseBarStyle())
 	}
@@ -66,19 +65,20 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 		mpb.BarPriority(p.id),
 		mpb.PrependDecorators(
 			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msgCh, 15),
-			decor.Conditional(total == 0,
+			decor.Conditional(total > 0,
+				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WC{C: decor.DextraSpace}), "100% "),
-				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%")),
+			),
 		),
 		mpb.AppendDecorators(
-			decor.Conditional(total == 0,
-				decor.Name(""),
+			decor.Conditional(total > 0,
 				decor.OnCompleteOrOnAbort(decor.EwmaNormalizedETA(
 					decor.ET_STYLE_MMSS,
 					60,
 					decor.FixedIntervalTimeNormalizer(60),
 					decor.WCSyncWidth,
 				), ":"),
+				decor.Name(""),
 			),
 			decor.EwmaSpeed(decor.SizeB1024(0), "%.1f", 30, decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
