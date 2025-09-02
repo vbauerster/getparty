@@ -54,9 +54,7 @@ type Part struct {
 func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 	var filler mpb.BarFiller
 	total := p.total()
-	if total < 0 {
-		p.logger.Println("Session must be not resumable")
-	} else {
+	if total > 0 {
 		filler = distinctBarRefiller(baseBarStyle())
 	}
 	p.logger.Println("Setting bar total:", total)
