@@ -52,10 +52,10 @@ func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount
 		),
 	)
 	go func() {
+		defer bar.Abort(false)
 		for n := range p.total {
 			bar.IncrBy(n)
 		}
-		bar.Abort(false)
 	}()
 	if p.current != 0 {
 		bar.SetCurrent(p.current)
