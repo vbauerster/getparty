@@ -749,6 +749,7 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 	if err != nil {
 		return withStack(err)
 	}
+	defer bar.Abort(false)
 
 	files := make([]*os.File, 0, len(parts))
 	for _, p := range parts {
@@ -756,7 +757,6 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 		if p.file == nil {
 			p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_APPEND, umask)
 			if err != nil {
-				bar.Abort(false)
 				return withStack(err)
 			}
 			m.loggers[DEBUG].Printf("%q reopen nil file ok", p.file.Name())
@@ -766,7 +766,6 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 
 	err = m.concat(files, bar)
 	if err != nil {
-		bar.Abort(false)
 		return withStack(err)
 	}
 
