@@ -1,6 +1,6 @@
 module github.com/vbauerster/getparty
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.24.1
 
@@ -11,13 +11,13 @@ require (
 	github.com/vbauerster/backoff v0.2.0
 	github.com/vbauerster/mpb/v8 v8.10.2
 	golang.org/x/net v0.43.0
-	golang.org/x/sync v0.16.0
-	golang.org/x/term v0.34.0
+	golang.org/x/sync v0.17.0
+	golang.org/x/term v0.35.0
 )
 
 require (
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
 )
