@@ -1,6 +1,7 @@
 package getparty
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -247,9 +249,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	client := &http.Client{
 		Transport: rtBuilder.pool(m.opt.Parts > 1).build(),
 		Jar:       jar,
-	}
-	if m.opt.MaxRedirect == 0 {
-		m.opt.MaxRedirect--
 	}
 	session, err := m.getState(client)
 	if err != nil {
@@ -555,6 +554,7 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 	location := rawURL
 	timeout := m.getTimeout()
 	template := "GET:R%02d %%s"
+	maxRedirect := cmp.Or(m.opt.MaxRedirect, math.MaxUint)
 
 	err = backoff.RetryWithContext(m.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (bool, error) {
@@ -566,7 +566,7 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 				cancel()
 			}()
 			getR := fmt.Sprintf(template, attempt)
-			for i := uint(0); i <= m.opt.MaxRedirect; i++ {
+			for i := uint(0); i <= maxRedirect; i++ {
 				m.loggers[INFO].Printf(getR, location)
 				m.loggers[DEBUG].Printf(getR, location)
 
