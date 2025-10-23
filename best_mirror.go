@@ -2,6 +2,7 @@ package getparty
 
 import (
 	"bufio"
+	"cmp"
 	"container/heap"
 	"context"
 	"errors"
@@ -87,10 +88,7 @@ func (m Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 }
 
 func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (<-chan mirrorPQ, error) {
-	max := int(m.opt.BestMirror.MaxGo)
-	if max == 0 {
-		max = runtime.NumCPU()
-	}
+	max := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.NumCPU()))
 
 	m.loggers[DEBUG].Println("Best-mirror max:", max)
 
