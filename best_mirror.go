@@ -88,7 +88,7 @@ func (m Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 }
 
 func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (<-chan mirrorPQ, error) {
-	max := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.NumCPU()))
+	max := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
 
 	m.loggers[DEBUG].Println("Best-mirror max:", max)
 
