@@ -231,8 +231,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			return err
 		}
 		if len(top) == 1 {
-			m.opt.Positional.Location = top[0]
+			m.opt.Positional.Location = top[0].url
 		} else {
+			for _, mirror := range top {
+				m.loggers[INFO].Println(mirror.queryDur.Truncate(time.Microsecond), mirror.url)
+			}
 			return nil
 		}
 	}

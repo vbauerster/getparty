@@ -56,8 +56,7 @@ func (pq *mirrorPQ) Pop() any {
 	return m
 }
 
-func (m Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
-	var top []string
+func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) {
 	var input io.Reader
 	var fdClose func() error
 	if m.opt.BestMirror.Mirrors == "-" {
@@ -81,9 +80,7 @@ func (m Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 		return nil, errors.New("none of the mirror has responded with valid result")
 	}
 	for range cmp.Or(m.opt.BestMirror.TopN, uint(pq.Len())) {
-		mirror := heap.Pop(&pq).(*mirror)
-		top = append(top, mirror.url)
-		m.loggers[INFO].Println(mirror.queryDur.Truncate(time.Microsecond), mirror.url)
+		top = append(top, heap.Pop(&pq).(*mirror))
 	}
 	return top, withStack(fdClose())
 }
