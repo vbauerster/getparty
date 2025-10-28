@@ -102,8 +102,8 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers 
 			for mirror := range src {
 				err := m.queryMirror(mirror, client, timeout)
 				if err != nil {
-					if ctx.Err() != nil {
-						return context.Cause(ctx) // stop all workers
+					if err := context.Cause(ctx); err != nil {
+						return err // stop all workers
 					}
 					m.loggers[WARN].Println(mirror.url, unwrapOrErr(err).Error())
 				} else {
