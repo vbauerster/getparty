@@ -105,6 +105,9 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers 
 					}
 					m.loggers[WARN].Println(mirror.url, unwrapOrErr(err).Error())
 				} else {
+					// it's tempting to use select with <-ctx.Done() here but
+					// send to dst is non blocking because it is closed after eg.Wait()
+					// and its reading goroutine is not interrupted in any way
 					dst <- mirror
 				}
 			}
