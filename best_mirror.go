@@ -58,9 +58,13 @@ func (pq *mirrorPQ) Pop() any {
 
 func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) {
 	var input io.Reader
-	fdClose := func() error { return nil }
+	var fdClose func() error
 	defer func() {
-		err = withStack(errors.Join(err, fdClose()))
+		if fdClose != nil {
+			err = withStack(errors.Join(err, fdClose()))
+		} else {
+			err = withStack(err)
+		}
 	}()
 	if m.opt.BestMirror.Mirrors == "-" {
 		input = os.Stdin
