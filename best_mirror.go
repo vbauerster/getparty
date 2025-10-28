@@ -146,8 +146,8 @@ func (m Cmd) queryMirror(mirror *mirror, client *http.Client, timeout time.Durat
 	if err != nil {
 		return err
 	}
+	mirror.queryDur = time.Since(start)
 	if resp.StatusCode == http.StatusOK {
-		mirror.queryDur = time.Since(start)
 		return resp.Body.Close()
 	}
 	if resp.Body != nil {
