@@ -150,10 +150,11 @@ func (m Cmd) queryMirror(mirror *mirror, client *http.Client, timeout time.Durat
 	if resp.StatusCode == http.StatusOK {
 		return resp.Body.Close()
 	}
-	if resp.Body != nil {
-		err = resp.Body.Close()
+	err = UnexpectedHttpStatus(resp.StatusCode)
+	if resp.Body == nil {
+		return err
 	}
-	return errors.Join(err, UnexpectedHttpStatus(resp.StatusCode))
+	return errors.Join(err, resp.Body.Close())
 }
 
 func readLines(ctx context.Context, r io.Reader) <-chan *mirror {
