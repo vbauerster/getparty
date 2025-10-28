@@ -69,8 +69,7 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 		if err != nil {
 			return nil, err
 		}
-		input = fd
-		fdClose = fd.Close
+		input, fdClose = fd, fd.Close
 	}
 	max := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
 	res, err := m.batchMirrors(input, transport, max)
