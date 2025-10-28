@@ -71,7 +71,8 @@ func (m Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 		input = fd
 		fdClose = fd.Close
 	}
-	res, err := m.batchMirrors(input, transport)
+	max := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
+	res, err := m.batchMirrors(input, transport, max)
 	if err != nil {
 		return nil, withStack(err)
 	}
@@ -87,10 +88,8 @@ func (m Cmd) bestMirror(transport http.RoundTripper) ([]string, error) {
 	return top, withStack(fdClose())
 }
 
-func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (<-chan mirrorPQ, error) {
-	max := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
-
-	m.loggers[DEBUG].Println("Best-mirror max:", max)
+func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers uint) (<-chan mirrorPQ, error) {
+	m.loggers[DEBUG].Println("Best-mirror max workers:", workers)
 
 	src, dst := readLines(m.Ctx, input), make(chan *mirror)
 	defer close(dst)
@@ -98,7 +97,7 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper) (<-chan 
 	timeout := m.getTimeout()
 	client := &http.Client{Transport: transport}
 
-	for range max {
+	for range workers {
 		eg.Go(func() error {
 			for mirror := range src {
 				err := m.queryMirror(mirror, client, timeout)
