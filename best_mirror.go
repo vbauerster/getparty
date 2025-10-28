@@ -58,14 +58,16 @@ func (pq *mirrorPQ) Pop() any {
 
 func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) {
 	var input io.Reader
-	var fdClose func() error
+	fdClose := func() error { return nil }
+	defer func() {
+		err = withStack(errors.Join(err, fdClose()))
+	}()
 	if m.opt.BestMirror.Mirrors == "-" {
 		input = os.Stdin
-		fdClose = func() error { return nil }
 	} else {
 		fd, err := os.Open(m.opt.BestMirror.Mirrors)
 		if err != nil {
-			return nil, withStack(err)
+			return nil, err
 		}
 		input = fd
 		fdClose = fd.Close
@@ -73,7 +75,7 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 	max := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
 	res, err := m.batchMirrors(input, transport, max)
 	if err != nil {
-		return nil, withStack(err)
+		return nil, err
 	}
 	pq := <-res
 	if pq.Len() == 0 {
@@ -82,7 +84,7 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 	for range cmp.Or(m.opt.BestMirror.TopN, uint(pq.Len())) {
 		top = append(top, heap.Pop(&pq).(*mirror))
 	}
-	return top, withStack(fdClose())
+	return top, nil
 }
 
 func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers uint) (<-chan mirrorPQ, error) {
