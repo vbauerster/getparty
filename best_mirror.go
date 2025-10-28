@@ -89,7 +89,7 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers uint) (<-chan mirrorPQ, error) {
 	m.loggers[DEBUG].Println("Best-mirror max workers:", workers)
 
-	src, dst := readLines(m.Ctx, input), make(chan *mirror)
+	src, dst := readLines(m.Ctx, input), make(chan *mirror, workers)
 	defer close(dst)
 	eg, ctx := errgroup.WithContext(m.Ctx)
 	timeout := m.getTimeout()
