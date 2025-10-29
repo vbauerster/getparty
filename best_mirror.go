@@ -106,7 +106,7 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers 
 	for range workers {
 		eg.Go(func() error {
 			for mirror := range src {
-				err := m.queryMirror(mirror, client, timeout)
+				err := mirror.query(m.Ctx, client, timeout, m.patcher)
 				if err != nil {
 					if err := context.Cause(ctx); err != nil {
 						return err // stop all workers
@@ -135,22 +135,22 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers 
 	return res, eg.Wait()
 }
 
-func (m Cmd) queryMirror(mirror *mirror, client *http.Client, timeout time.Duration) error {
-	req, err := http.NewRequest(http.MethodHead, mirror.url, nil)
+func (m *mirror) query(ctx context.Context, client *http.Client, timeout time.Duration, patcher func(*http.Request)) error {
+	req, err := http.NewRequest(http.MethodHead, m.url, nil)
 	if err != nil {
 		return err
 	}
-	if m.patcher != nil {
-		m.patcher(req)
+	if patcher != nil {
+		patcher(req)
 	}
-	ctx, cancel := context.WithTimeout(m.Ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	start := time.Now()
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return err
 	}
-	mirror.queryDur = time.Since(start)
+	m.queryDur = time.Since(start)
 	if resp.StatusCode == http.StatusOK {
 		return resp.Body.Close()
 	}
