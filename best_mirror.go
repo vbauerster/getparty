@@ -99,7 +99,8 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers 
 
 	src, dst := readLines(m.Ctx, input), make(chan *mirror, workers)
 	defer close(dst)
-	eg, ctx := errgroup.WithContext(m.Ctx)
+
+	var eg errgroup.Group
 	timeout := m.getTimeout()
 	client := &http.Client{Transport: transport}
 
@@ -107,16 +108,15 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers 
 		eg.Go(func() error {
 			for mirror := range src {
 				err := mirror.query(m.Ctx, client, timeout, m.patcher)
-				if err != nil {
-					if err := context.Cause(ctx); err != nil {
-						return err // stop all workers
+				select {
+				case <-m.Ctx.Done():
+					return context.Cause(m.Ctx) // ^C by user most likely
+				default:
+					if err == nil {
+						dst <- mirror // send to dst is non blocking here
+					} else {
+						m.loggers[WARN].Println(mirror.url, unwrapOrErr(err).Error())
 					}
-					m.loggers[WARN].Println(mirror.url, unwrapOrErr(err).Error())
-				} else {
-					// it's tempting to use select with <-ctx.Done() here but
-					// send to dst is non blocking because it is closed after eg.Wait()
-					// and its reading goroutine is not interrupted in any way
-					dst <- mirror
 				}
 			}
 			return nil
