@@ -84,11 +84,11 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 	if pq.Len() == 0 {
 		return nil, errors.New("none of the mirror has responded with valid result")
 	}
-	topn, pqLen := m.opt.BestMirror.TopN, uint(pq.Len())
-	if topn > pqLen {
-		topn = pqLen
+	topN, pqLen := m.opt.BestMirror.TopN, uint(pq.Len())
+	if topN > pqLen {
+		topN = pqLen
 	}
-	for range cmp.Or(topn, pqLen) {
+	for range cmp.Or(topN, pqLen) {
 		top = append(top, heap.Pop(&pq).(*mirror))
 	}
 	return top, nil
