@@ -1,6 +1,7 @@
 package getparty
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"sync/atomic"
@@ -115,13 +116,10 @@ func (d *peak) EwmaUpdate(n int64, dur time.Duration) {
 	}
 	d.zDur = 0
 	d.mean.Add(durPerByte)
-	switch d.updCount {
-	case ewma.WARMUP_SAMPLES:
-		durPerByte = d.mean.Value()
-		if d.min == 0 || durPerByte < d.min {
-			d.min = durPerByte
-		}
-	default:
+	if d.updCount == ewma.WARMUP_SAMPLES {
+		mean := d.mean.Value()
+		d.min = min(cmp.Or(d.min, mean), mean)
+	} else {
 		d.updCount++
 	}
 }
