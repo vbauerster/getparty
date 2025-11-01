@@ -18,9 +18,10 @@ import (
 )
 
 type mirror struct {
-	index    int
-	queryDur time.Duration
-	url      string
+	index  int
+	sumDur time.Duration
+	avgDur time.Duration
+	url    string
 }
 
 // bestMirror invariant: len(top) != 0 on err == nil
@@ -53,34 +54,43 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 		return nil, errors.New("none of the mirror has responded with valid result")
 	}
 	slices.SortFunc(ss, func(a, b *mirror) int {
-		return cmp.Compare(a.queryDur, b.queryDur)
+		return cmp.Compare(a.avgDur, b.avgDur)
 	})
 	return ss, nil
 }
 
 func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers uint) (<-chan []*mirror, error) {
-	m.loggers[DEBUG].Println("Best-mirror max workers:", workers)
-
 	src, dst := readLines(m.Ctx, input), make(chan *mirror, workers)
 	defer close(dst)
 
 	var eg errgroup.Group
 	timeout := m.getTimeout()
 	client := &http.Client{Transport: transport}
+	pass := cmp.Or(m.opt.BestMirror.Pass, 1)
+
+	m.loggers[DEBUG].Println("Best-mirror workers:", workers)
+	m.loggers[DEBUG].Println("Best-mirror pass:", pass)
 
 	for range workers {
 		eg.Go(func() error {
 			for mirror := range src {
-				err := mirror.query(m.Ctx, client, timeout, m.patcher)
-				select {
-				case <-m.Ctx.Done():
-					return context.Cause(m.Ctx) // ^C by user most likely
-				default:
-					if err == nil {
-						dst <- mirror // send to dst is non blocking here
-					} else {
-						m.loggers[WARN].Println(mirror.url, unwrapOrErr(err).Error())
+				var bad bool
+				for i := uint(0); i < pass && !bad; i++ {
+					err := mirror.query(m.Ctx, client, timeout, m.patcher)
+					select {
+					case <-m.Ctx.Done():
+						return context.Cause(m.Ctx) // ^C by user most likely
+					default:
+						if err != nil {
+							bad = true
+							m.loggers[WARN].Println(mirror.url, unwrapOrErr(err).Error())
+						}
 					}
+				}
+				if !bad {
+					avg := int64(mirror.sumDur) / int64(pass)
+					mirror.avgDur = time.Duration(avg)
+					dst <- mirror // send to dst is non blocking here
 				}
 			}
 			return nil
@@ -114,7 +124,7 @@ func (m *mirror) query(ctx context.Context, client *http.Client, timeout time.Du
 	if err != nil {
 		return err
 	}
-	m.queryDur = time.Since(start)
+	m.sumDur += time.Since(start)
 	if resp.StatusCode == http.StatusOK {
 		return resp.Body.Close()
 	}

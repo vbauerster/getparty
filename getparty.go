@@ -105,6 +105,7 @@ type options struct {
 		Mirrors string `short:"m" long:"list" value-name:"FILE|-" description:"mirror list input"`
 		MaxGo   uint   `short:"g" long:"max" value-name:"n" description:"max concurrent http request (default: number of logical CPUs)"`
 		TopN    uint   `long:"top" value-name:"n" default:"1" description:"list top n mirrors, download condition n=1"`
+		Pass    uint   `long:"pass" value-name:"n" default:"1" description:"query each mirror n times to get average result"`
 	} `group:"Best-mirror Options" namespace:"mirror"`
 	Positional struct {
 		Location string `positional-arg-name:"<url>" description:"http location"`
@@ -235,7 +236,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				topN = topLen
 			}
 			for _, mirror := range top[:cmp.Or(topN, topLen)] {
-				m.loggers[INFO].Println(mirror.queryDur.Truncate(time.Microsecond), mirror.url)
+				m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
 			}
 			return nil
 		}
