@@ -64,6 +64,7 @@ Best-mirror Options:
   -m, --mirror.list=FILE|-                         mirror list input
   -g, --mirror.max=n                               max concurrent http request (default: number of logical CPUs)
       --mirror.top=n                               list top n mirrors, download condition n=1 (default: 1)
+      --mirror.pass=n                              query each mirror n times to get average result (default: 1)
 
 Help Options:
   -h, --help                                       Show this help message
