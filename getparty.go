@@ -226,25 +226,26 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	m.patcher = makeReqPatcher(userinfo, m.opt.HeaderMap)
 	rtBuilder := newRoundTripperBuilder(tlsConfig)
 
-	if m.opt.BestMirror.Mirrors != "" {
-		top, err := m.bestMirror(rtBuilder.pool(false).build())
-		if err != nil {
-			return err
-		}
-		if topN, topLen := m.opt.BestMirror.TopN, uint(len(top)); topN != 1 {
-			if topN > topLen {
-				topN = topLen
+	if m.opt.SessionName == "" {
+		if m.opt.BestMirror.Mirrors != "" {
+			top, err := m.bestMirror(rtBuilder.pool(false).build())
+			if err != nil {
+				return err
 			}
-			for _, mirror := range top[:cmp.Or(topN, topLen)] {
-				m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
+			if topN, topLen := m.opt.BestMirror.TopN, uint(len(top)); topN != 1 {
+				if topN > topLen {
+					topN = topLen
+				}
+				for _, mirror := range top[:cmp.Or(topN, topLen)] {
+					m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
+				}
+				return nil
 			}
-			return nil
+			m.opt.Positional.Location = top[0].url
 		}
-		m.opt.Positional.Location = top[0].url
-	}
-
-	if m.opt.Positional.Location == "" && m.opt.SessionName == "" {
-		return new(flags.Error)
+		if m.opt.Positional.Location == "" {
+			return new(flags.Error)
+		}
 	}
 
 	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
