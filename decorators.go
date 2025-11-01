@@ -115,13 +115,12 @@ func (d *peak) EwmaUpdate(n int64, dur time.Duration) {
 	}
 	d.zDur = 0
 	d.mean.Add(durPerByte)
-	switch d.updCount {
-	case ewma.WARMUP_SAMPLES:
+	if d.updCount == ewma.WARMUP_SAMPLES {
 		mean := d.mean.Value()
 		if d.min == 0 || mean < d.min {
 			d.min = mean
 		}
-	default:
+	} else {
 		d.updCount++
 	}
 }
