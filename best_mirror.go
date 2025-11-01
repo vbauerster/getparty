@@ -3,13 +3,13 @@ package getparty
 import (
 	"bufio"
 	"cmp"
-	"container/heap"
 	"context"
 	"errors"
 	"io"
 	"net/http"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -17,45 +17,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var _ heap.Interface = (*mirrorPQ)(nil)
-
 type mirror struct {
 	index    int
 	queryDur time.Duration
 	url      string
 }
 
-type mirrorPQ []*mirror
-
-func (pq mirrorPQ) Len() int { return len(pq) }
-
-func (pq mirrorPQ) Less(i, j int) bool {
-	return pq[i].queryDur < pq[j].queryDur
-}
-
-func (pq mirrorPQ) Swap(i, j int) {
-	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].index = i
-	pq[j].index = j
-}
-
-func (pq *mirrorPQ) Push(x any) {
-	s := *pq
-	m := x.(*mirror)
-	m.index = len(s)
-	*pq = append(s, m)
-}
-
-func (pq *mirrorPQ) Pop() any {
-	var m *mirror
-	s := *pq
-	i := len(s) - 1
-	m, s[i] = s[i], nil // nil to avoid memory leak
-	m.index = -1        // for safety
-	*pq = s[:i]
-	return m
-}
-
+// bestMirror invariant: len(top) != 0 on err == nil
 func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) {
 	var input io.Reader
 	var fdClose func() error
@@ -80,21 +48,17 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 	if err != nil {
 		return nil, err
 	}
-	pq := <-res
-	if pq.Len() == 0 {
+	ss := <-res
+	if len(ss) == 0 {
 		return nil, errors.New("none of the mirror has responded with valid result")
 	}
-	topN, pqLen := m.opt.BestMirror.TopN, uint(pq.Len())
-	if topN > pqLen {
-		topN = pqLen
-	}
-	for range cmp.Or(topN, pqLen) {
-		top = append(top, heap.Pop(&pq).(*mirror))
-	}
-	return top, nil
+	slices.SortFunc(ss, func(a, b *mirror) int {
+		return cmp.Compare(a.queryDur, b.queryDur)
+	})
+	return ss, nil
 }
 
-func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers uint) (<-chan mirrorPQ, error) {
+func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers uint) (<-chan []*mirror, error) {
 	m.loggers[DEBUG].Println("Best-mirror max workers:", workers)
 
 	src, dst := readLines(m.Ctx, input), make(chan *mirror, workers)
@@ -123,13 +87,13 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers 
 		})
 	}
 
-	res := make(chan mirrorPQ, 1)
+	res := make(chan []*mirror, 1)
 	go func() {
-		var pq mirrorPQ
+		var ss []*mirror
 		for mirror := range dst {
-			heap.Push(&pq, mirror)
+			ss = append(ss, mirror)
 		}
-		res <- pq
+		res <- ss
 	}()
 
 	return res, eg.Wait()

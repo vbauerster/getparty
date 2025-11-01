@@ -230,14 +230,16 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		if err != nil {
 			return err
 		}
-		if len(top) == 1 {
-			m.opt.Positional.Location = top[0].url
-		} else {
-			for _, mirror := range top {
+		if topN, topLen := m.opt.BestMirror.TopN, uint(len(top)); topN != 1 {
+			if topN > topLen {
+				topN = topLen
+			}
+			for _, mirror := range top[:cmp.Or(topN, topLen)] {
 				m.loggers[INFO].Println(mirror.queryDur.Truncate(time.Microsecond), mirror.url)
 			}
 			return nil
 		}
+		m.opt.Positional.Location = top[0].url
 	}
 
 	if m.opt.Positional.Location == "" && m.opt.SessionName == "" {
