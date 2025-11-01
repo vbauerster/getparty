@@ -49,14 +49,14 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 	if err != nil {
 		return nil, err
 	}
-	ss := <-res
-	if len(ss) == 0 {
+	top = <-res
+	if len(top) == 0 {
 		return nil, errors.New("none of the mirror has responded with valid result")
 	}
-	slices.SortFunc(ss, func(a, b *mirror) int {
+	slices.SortFunc(top, func(a, b *mirror) int {
 		return cmp.Compare(a.avgDur, b.avgDur)
 	})
-	return ss, nil
+	return top, nil
 }
 
 func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers uint) (<-chan []*mirror, error) {
