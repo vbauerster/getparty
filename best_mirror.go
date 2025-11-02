@@ -73,9 +73,19 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers,
 	for range workers {
 		eg.Go(func() error {
 			for mirror := range src {
+				req, err := http.NewRequest(http.MethodHead, mirror.url, nil)
+				if err != nil {
+					m.loggers[WARN].Println(mirror.url, err.Error())
+					continue
+				}
+				if m.patcher != nil {
+					m.patcher(req)
+				}
 				var bad bool
 				for i := uint(0); i < pass && !bad; i++ {
-					err := mirror.query(m.Ctx, client, timeout, m.patcher)
+					// it's safe to reuse *http.Request here
+					// https://github.com/golang/go/issues/19653#issuecomment-341540384
+					err := mirror.query(m.Ctx, client, req, timeout)
 					select {
 					case <-m.Ctx.Done():
 						return context.Cause(m.Ctx) // ^C by user most likely
@@ -108,14 +118,7 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers,
 	return res, eg.Wait()
 }
 
-func (m *mirror) query(ctx context.Context, client *http.Client, timeout time.Duration, patcher func(*http.Request)) error {
-	req, err := http.NewRequest(http.MethodHead, m.url, nil)
-	if err != nil {
-		return err
-	}
-	if patcher != nil {
-		patcher(req)
-	}
+func (m *mirror) query(ctx context.Context, client *http.Client, req *http.Request, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	start := time.Now()
