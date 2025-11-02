@@ -89,6 +89,7 @@ type options struct {
 	AuthUser    string            `long:"username" description:"basic http auth username"`
 	AuthPass    string            `long:"password" description:"basic http auth password"`
 	HeaderMap   map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
+	Proxy       string            `short:"x" long:"proxy" value-name:"<[scheme://]host[:port]>" description:"use the specified proxy, if scheme is empty http is assumed"`
 	Quiet       bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	Debug       bool              `short:"d" long:"debug" description:"enable debug to stderr"`
 	Version     bool              `short:"v" long:"version" description:"show version"`
@@ -217,19 +218,18 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		m.opt.AuthPass = ""
 	}
 
+	m.opt.HeaderMap[hUserAgentKey] = userAgents[m.opt.UserAgent]
+	m.patcher = makeReqPatcher(userinfo, m.opt.HeaderMap)
 	tlsConfig, err := m.getTLSConfig()
 	if err != nil {
 		return err
 	}
 
-	m.opt.HeaderMap[hUserAgentKey] = userAgents[m.opt.UserAgent]
-	m.patcher = makeReqPatcher(userinfo, m.opt.HeaderMap)
-	rtBuilder := newRoundTripperBuilder(tlsConfig)
-
 	if m.opt.SessionName == "" {
 		if m.opt.BestMirror.Mirrors != "" {
-			client := &http.Client{
-				Transport: rtBuilder.pool(false).build(),
+			client, err := m.getHttpClient("BestMirror", tlsConfig, false, false)
+			if err != nil {
+				return err
 			}
 			top, err := m.bestMirror(client)
 			if err != nil {
@@ -251,14 +251,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}
 
-	// All users of cookiejar should import "golang.org/x/net/publicsuffix"
-	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	client, err := m.getHttpClient("Main", tlsConfig, m.opt.Parts > 1, true)
 	if err != nil {
-		return withStack(err)
-	}
-	client := &http.Client{
-		Transport: rtBuilder.pool(m.opt.Parts > 1).build(),
-		Jar:       jar,
+		return err
 	}
 	session, err := m.getState(client)
 	if err != nil {
@@ -268,7 +263,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	session.summary(m.loggers)
-
 	m.loggers[INFO].Printf("Saving to: %q", session.OutputName)
 
 	if session.restored {
@@ -454,6 +448,27 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		m.loggers[DEBUG].Printf("%q rename to %q ok", p.file.Name(), session.OutputName)
 	}
 	return nil
+}
+
+func (m Cmd) getHttpClient(prefix string, tls *tls.Config, pooled, withJar bool) (*http.Client, error) {
+	rtBuilder, err := newRoundTripperBuilder(m.opt.Proxy)
+	if err != nil {
+		return nil, err
+	}
+	rtBuilder = rtBuilder.tls(tls).pool(pooled)
+	rtBuilder.debug(m.loggers[DEBUG], prefix)
+	client := &http.Client{
+		Transport: rtBuilder.build(),
+	}
+	if withJar { // All users of cookiejar should import "golang.org/x/net/publicsuffix"
+		opt := &cookiejar.Options{PublicSuffixList: publicsuffix.List}
+		jar, err := cookiejar.New(opt)
+		if err != nil {
+			return nil, err
+		}
+		client.Jar = jar
+	}
+	return client, nil
 }
 
 func (m Cmd) getTLSConfig() (*tls.Config, error) {

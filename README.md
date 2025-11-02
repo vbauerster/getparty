@@ -47,6 +47,7 @@ Application Options:
       --username=                                  basic http auth username
       --password=                                  basic http auth password
   -H, --header=key:value                           http header, can be specified more than once
+  -x, --proxy=<[scheme://]host[:port]>             use the specified proxy, if scheme is empty http is assumed
   -q, --quiet                                      quiet mode, no progress bars
   -d, --debug                                      enable debug to stderr
   -v, --version                                    show version

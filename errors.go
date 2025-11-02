@@ -7,14 +7,20 @@ import (
 )
 
 type (
-	singleModeFallback   int
 	UnexpectedHttpStatus int
 	ExpectedError        string
 	ContentMismatch      struct {
 		expected int64
 		got      int64
 	}
-	debugError struct {
+	BadProxyURL struct {
+		err error
+	}
+)
+
+type (
+	singleModeFallback int
+	debugError         struct {
 		error
 		stack []byte
 	}
@@ -30,6 +36,14 @@ func (e UnexpectedHttpStatus) Error() string {
 
 func (e ContentMismatch) Error() string {
 	return fmt.Sprintf("ContentLength mismatch: expected %d got %d", e.expected, e.got)
+}
+
+func (e BadProxyURL) Error() string {
+	return fmt.Sprintf("Bad proxy url: %s", e.err.Error())
+}
+
+func (e BadProxyURL) Unwrap() error {
+	return e.err
 }
 
 func (e singleModeFallback) Error() string {
