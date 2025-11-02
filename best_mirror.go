@@ -18,10 +18,9 @@ import (
 )
 
 type mirror struct {
-	index  int
+	url    string
 	sumDur time.Duration
 	avgDur time.Duration
-	url    string
 }
 
 // bestMirror invariant: len(top) != 0 on err == nil
@@ -139,7 +138,6 @@ func readLines(ctx context.Context, r io.Reader) <-chan *mirror {
 	ch := make(chan *mirror)
 	go func() {
 		defer close(ch)
-		index := 0
 		seen := make(map[string]bool)
 		scanner := bufio.NewScanner(r)
 		trim := func(r rune) bool {
@@ -154,14 +152,12 @@ func readLines(ctx context.Context, r io.Reader) <-chan *mirror {
 			if !seen[line] {
 				seen[line] = true
 				m := &mirror{
-					index: index,
-					url:   line,
+					url: line,
 				}
 				select {
-				case ch <- m:
-					index++
 				case <-ctx.Done():
 					return
+				case ch <- m:
 				}
 			}
 		}
