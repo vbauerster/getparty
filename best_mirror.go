@@ -147,11 +147,10 @@ func readLines(ctx context.Context, r io.Reader) <-chan *mirror {
 			return !unicode.IsLetter(r) && !unicode.IsNumber(r)
 		}
 		for scanner.Scan() {
-			line := scanner.Text()
-			if len(line) == 0 || strings.HasPrefix(line, "#") {
+			line := strings.TrimFunc(scanner.Text(), trim)
+			if !strings.HasPrefix(line, "http") {
 				continue
 			}
-			line = strings.TrimFunc(line, trim)
 			if !seen[line] {
 				seen[line] = true
 				m := &mirror{
