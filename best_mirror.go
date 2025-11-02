@@ -24,7 +24,7 @@ type mirror struct {
 }
 
 // bestMirror invariant: len(top) != 0 on err == nil
-func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) {
+func (m Cmd) bestMirror(client *http.Client) (top []*mirror, err error) {
 	var input io.Reader
 	var fdClose func() error
 	defer func() {
@@ -43,7 +43,6 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 		}
 		input, fdClose = fd, fd.Close
 	}
-	client := &http.Client{Transport: transport}
 	workers := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
 	pass := cmp.Or(m.opt.BestMirror.Pass, 1)
 	res, err := m.batchMirrors(input, client, workers, pass)

@@ -228,7 +228,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if m.opt.SessionName == "" {
 		if m.opt.BestMirror.Mirrors != "" {
-			top, err := m.bestMirror(rtBuilder.pool(false).build())
+			client := &http.Client{
+				Transport: rtBuilder.pool(false).build(),
+			}
+			top, err := m.bestMirror(client)
 			if err != nil {
 				return err
 			}
