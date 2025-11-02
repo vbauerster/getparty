@@ -43,9 +43,10 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 		}
 		input, fdClose = fd, fd.Close
 	}
+	client := &http.Client{Transport: transport}
 	workers := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
 	pass := cmp.Or(m.opt.BestMirror.Pass, 1)
-	res, err := m.batchMirrors(input, transport, workers, pass)
+	res, err := m.batchMirrors(input, client, workers, pass)
 	if err != nil {
 		return nil, err
 	}
@@ -59,9 +60,9 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 	return top, nil
 }
 
-func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers, pass uint) (<-chan []*mirror, error) {
+func (m Cmd) batchMirrors(input io.Reader, client *http.Client, workers, pass uint) (<-chan []*mirror, error) {
 	var eg errgroup.Group
-	query := makeQueryFunc(m.Ctx, &http.Client{Transport: transport}, m.getTimeout())
+	query := makeQueryFunc(m.Ctx, client, m.getTimeout())
 	src, dst := readLines(m.Ctx, input), make(chan *mirror, workers)
 	defer close(dst)
 
