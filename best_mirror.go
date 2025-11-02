@@ -60,12 +60,10 @@ func (m Cmd) bestMirror(transport http.RoundTripper) (top []*mirror, err error) 
 }
 
 func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers, pass uint) (<-chan []*mirror, error) {
+	var eg errgroup.Group
+	query := makeQueryFunc(m.Ctx, &http.Client{Transport: transport}, m.getTimeout())
 	src, dst := readLines(m.Ctx, input), make(chan *mirror, workers)
 	defer close(dst)
-
-	var eg errgroup.Group
-	timeout := m.getTimeout()
-	client := &http.Client{Transport: transport}
 
 	m.loggers[DEBUG].Println("Best-mirror workers:", workers)
 	m.loggers[DEBUG].Println("Best-mirror pass:", pass)
@@ -85,7 +83,7 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers,
 				for i := uint(0); i < pass && !bad; i++ {
 					// it's safe to reuse *http.Request here
 					// https://github.com/golang/go/issues/19653#issuecomment-341540384
-					err := mirror.query(m.Ctx, client, req, timeout)
+					dur, err := query(req)
 					select {
 					case <-m.Ctx.Done():
 						return context.Cause(m.Ctx) // ^C by user most likely
@@ -93,6 +91,8 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers,
 						if err != nil {
 							bad = true
 							m.loggers[WARN].Println(mirror.url, unwrapOrErr(err).Error())
+						} else {
+							mirror.sumDur += dur
 						}
 					}
 				}
@@ -118,23 +118,26 @@ func (m Cmd) batchMirrors(input io.Reader, transport http.RoundTripper, workers,
 	return res, eg.Wait()
 }
 
-func (m *mirror) query(ctx context.Context, client *http.Client, req *http.Request, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	start := time.Now()
-	resp, err := client.Do(req.WithContext(ctx))
-	m.sumDur += time.Since(start)
-	if err != nil {
-		return err
+func makeQueryFunc(ctx context.Context, client *http.Client, timeout time.Duration) func(*http.Request) (time.Duration, error) {
+	return func(req *http.Request) (dur time.Duration, err error) {
+		var resp *http.Response
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer func() {
+			cancel()
+			if err != nil {
+				return
+			}
+			if resp.StatusCode != http.StatusOK {
+				err = UnexpectedHttpStatus(resp.StatusCode)
+			}
+			if resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+		}()
+		start := time.Now()
+		resp, err = client.Do(req.WithContext(ctx))
+		return time.Since(start), err
 	}
-	if resp.StatusCode == http.StatusOK {
-		return resp.Body.Close()
-	}
-	err = UnexpectedHttpStatus(resp.StatusCode)
-	if resp.Body == nil {
-		return err
-	}
-	return errors.Join(err, resp.Body.Close())
 }
 
 func readLines(ctx context.Context, r io.Reader) <-chan *mirror {
