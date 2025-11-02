@@ -123,10 +123,10 @@ func (m *mirror) query(ctx context.Context, client *http.Client, req *http.Reque
 	defer cancel()
 	start := time.Now()
 	resp, err := client.Do(req.WithContext(ctx))
+	m.sumDur += time.Since(start)
 	if err != nil {
 		return err
 	}
-	m.sumDur += time.Since(start)
 	if resp.StatusCode == http.StatusOK {
 		return resp.Body.Close()
 	}
