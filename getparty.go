@@ -858,7 +858,7 @@ func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*htt
 		if req == nil {
 			return
 		}
-		if req.URL != nil {
+		if userinfo != nil && req.URL != nil {
 			req.URL.User = userinfo
 		}
 		for k, v := range headers {
