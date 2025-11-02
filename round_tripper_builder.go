@@ -70,7 +70,5 @@ func (b roundTripperBuilder) build() http.RoundTripper {
 	if b.cfg.tls != nil {
 		transport.TLSClientConfig = b.cfg.tls
 	}
-	b.cfg = nil
-	b.history = nil
 	return transport
 }
