@@ -235,13 +235,12 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			if err != nil {
 				return err
 			}
-			if topN, topLen := m.opt.BestMirror.TopN, uint(len(top)); topN != 1 {
-				if topN > topLen {
-					topN = topLen
-				}
-				for _, mirror := range top[:cmp.Or(topN, topLen)] {
-					m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
-				}
+			topN, topLen := m.opt.BestMirror.TopN, uint(len(top))
+			topN = min(topN, topLen)
+			for _, mirror := range top[:cmp.Or(topN, topLen)] {
+				m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
+			}
+			if topN != 1 {
 				return nil
 			}
 			m.opt.Positional.Location = top[0].url
