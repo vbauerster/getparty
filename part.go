@@ -72,8 +72,8 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 			decor.Conditional(total > 0,
 				decor.OnCompleteOrOnAbort(decor.EwmaNormalizedETA(
 					decor.ET_STYLE_MMSS,
-					60,
-					decor.FixedIntervalTimeNormalizer(60),
+					30,
+					decor.FixedIntervalTimeNormalizer(50),
 					decor.WCSyncWidth,
 				), ""),
 				nil,
