@@ -1,6 +1,7 @@
 package getparty
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -229,7 +230,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 			}
 			defer func() {
 				if resp.Body != nil {
-					err = firstErr(err, resp.Body.Close())
+					err = cmp.Or(err, resp.Body.Close())
 				}
 			}()
 

@@ -188,7 +188,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if m.opt.Version {
 		_, e1 := fmt.Fprintf(m.Out, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
 		_, e2 := fmt.Fprintf(m.Out, "Project home: %s\n", projectHome)
-		return firstErr(e1, e2)
+		return cmp.Or(e1, e2)
 	}
 
 	m.initLoggers()
@@ -406,7 +406,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 			}
 		}
-		return firstErr(context.Cause(m.Ctx), err)
+		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 	if !session.Single {
 		err = m.concatenate(session.Parts, progress)
@@ -718,7 +718,7 @@ func (m Cmd) overwriteIfConfirmed(name string) (err error) {
 		return withStack(err)
 	}
 	defer func() {
-		err = firstErr(err, withStack(term.Restore(int(os.Stdin.Fd()), state)))
+		err = cmp.Or(err, withStack(term.Restore(int(os.Stdin.Fd()), state)))
 		if err == nil {
 			_, err = fmt.Fprintln(m.Err)
 		}

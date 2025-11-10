@@ -52,15 +52,6 @@ func (e singleModeFallback) Error() string {
 
 func (s *debugError) Unwrap() error { return s.error }
 
-func firstErr(errors ...error) error {
-	for _, err := range errors {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func unwrapOrErr(err error) error {
 	if e := errors.Unwrap(err); e != nil {
 		return e

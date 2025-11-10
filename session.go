@@ -1,6 +1,7 @@
 package getparty
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,7 +36,7 @@ func (s *Session) loadState(name string) error {
 	if err != nil {
 		return withStack(err)
 	}
-	err = firstErr(json.NewDecoder(f).Decode(s), f.Close())
+	err = cmp.Or(json.NewDecoder(f).Decode(s), f.Close())
 	return withStack(err)
 }
 
@@ -44,7 +45,7 @@ func (s *Session) dumpState(name string) error {
 	if err != nil {
 		return withStack(err)
 	}
-	err = firstErr(json.NewEncoder(f).Encode(s), f.Close())
+	err = cmp.Or(json.NewEncoder(f).Encode(s), f.Close())
 	return withStack(err)
 }
 
