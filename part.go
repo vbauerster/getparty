@@ -138,7 +138,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 	}
 
 	var bar *mpb.Bar
-	var dta int // decrease timeout after
+	var dtt int // decrement timeout threshold
 	var curTry uint32
 	var buffer [bufMax]byte
 
@@ -168,7 +168,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					if timeout < maxTimeout*time.Second {
 						timeout += 5 * time.Second
 					}
-					dta += consecutiveResetOk
+					dtt += consecutiveResetOk
 				}
 				cancel()
 				elapsed := time.Since(start)
@@ -211,7 +211,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
 			}(p.Written)
 
-			p.logger.Printf("GET(%s,%d): %s", timeout, dta, req.URL)
+			p.logger.Printf("GET(%s,%d): %s", timeout, dtt, req.URL)
 
 			req.Header.Set(hRange, p.getRange())
 			for k, v := range req.Header {
@@ -365,15 +365,15 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				bar.EwmaIncrBy(wn, rDur+sleep)
 
 				if timeout > initialTimeout {
-					switch dta {
+					switch dtt {
 					case 0:
 						timeout -= 5 * time.Second
-						dta = consecutiveResetOk
+						dtt = consecutiveResetOk
 						if timeout == initialTimeout {
 							backoffReset()
 						}
 					default:
-						dta--
+						dtt--
 					}
 				}
 			}
