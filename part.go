@@ -145,7 +145,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 	bufLen := int(min(bufMax, bufSize*1024))
 	consecutiveResetOk := 32 / int(bufSize)
 	timeout := initialTimeout
-	barReady, barMsg := make(chan struct{}), make(chan string, 1)
+	barMsg := make(chan string, 1)
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
@@ -159,16 +159,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 			ctx, cancel := context.WithCancel(p.ctx)
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
-				select {
-				case <-barReady:
-					select {
-					case barMsg <- fmt.Sprintf("%s %s", p.name, timeoutMsg):
-						p.logger.Println(timeoutMsg, "msg sent")
-					default:
-					}
-				default:
-					p.logger.Println(timeoutMsg, "bar is not ready")
-				}
+				p.logger.Println("timer has expired")
 			})
 			var idle time.Duration
 			start := time.Now()
@@ -205,14 +196,17 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					}
 					return
 				}
-				go func(prefix string) {
+				go func(prefix string, bar *mpb.Bar) {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						prefix += timeoutMsg
+						if bar != nil {
+							barMsg <- fmt.Sprintf("%s %s", p.name, timeoutMsg)
+						}
 					} else if prefix != "" {
 						prefix = prefix[:len(prefix)-1]
 					}
 					_, _ = fmt.Fprintln(p.progress, prefix, unwrapOrErr(err).Error())
-				}(p.logger.Prefix())
+				}(p.logger.Prefix(), bar)
 				p.logger.SetPrefix(fmt.Sprintf(p.prefixFormat, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
 			}(p.Written)
@@ -258,7 +252,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					if err != nil {
 						return false, withStack(err)
 					}
-					close(barReady)
 				} else if p.single {
 					err := context.Cause(p.status.ctx)
 					if !errors.Is(err, context.Canceled) {
@@ -291,7 +284,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					if err != nil {
 						return false, withStack(err)
 					}
-					close(barReady)
 				case <-p.status.ctx.Done():
 					err := context.Cause(p.status.ctx)
 					if errors.Is(err, context.Canceled) {
