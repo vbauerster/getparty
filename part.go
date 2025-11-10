@@ -320,24 +320,8 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				return false, err
 			}
 
-			expired := !timer.Reset(timeout + sleep)
-			reset := func() {
-				if expired {
-					p.logger.Println("timer.Reset had expired")
-					return
-				}
-				if timeout > initialTimeout {
-					switch dta {
-					case 0:
-						timeout -= 5 * time.Second
-						dta = consecutiveResetOk
-						if timeout == initialTimeout {
-							backoffReset()
-						}
-					default:
-						dta--
-					}
-				}
+			// need func scope in order to defer timer.Stop
+			limit := func() {
 				if sleep != 0 {
 					timer := time.NewTimer(sleep)
 					defer timer.Stop()
@@ -345,14 +329,12 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					case <-timer.C:
 						idle += sleep
 					case <-ctx.Done():
-						return
 					}
 				}
-				expired = !timer.Reset(timeout + sleep)
 			}
 			fuser := makeUnexpectedEOFFuser(p.logger)
 
-			for n := bufLen; n == bufLen || fuser(err); reset() {
+			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || fuser(err); limit() {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
 				rDur := time.Since(start)
@@ -379,7 +361,21 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				case !p.single && wn != 0:
 					p.progress.total <- wn
 				}
+
 				bar.EwmaIncrBy(wn, rDur+sleep)
+
+				if timeout > initialTimeout {
+					switch dta {
+					case 0:
+						timeout -= 5 * time.Second
+						dta = consecutiveResetOk
+						if timeout == initialTimeout {
+							backoffReset()
+						}
+					default:
+						dta--
+					}
+				}
 			}
 
 			if p.isDone() {
