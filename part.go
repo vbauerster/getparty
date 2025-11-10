@@ -353,7 +353,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				switch {
 				case p.total() <= 0:
 					bar.SetTotal(p.Written, false)
-					if err == io.EOF {
+					if errors.Is(err, io.EOF) {
 						// make sure next p.total() result is never negative
 						p.Stop = p.Written - 1
 						bar.EnableTriggerComplete()
@@ -379,7 +379,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 			}
 
 			if p.isDone() {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					p.logger.Println("Part is done")
 					return false, nil
 				}
@@ -415,6 +415,6 @@ func makeUnexpectedEOFFuser(logger *log.Logger) func(error) bool {
 			fused = true
 		}()
 		logger.Printf("Fuser(%t): %v", fused, err)
-		return err == io.ErrUnexpectedEOF && !fused
+		return errors.Is(err, io.ErrUnexpectedEOF) && !fused
 	}
 }

@@ -154,7 +154,7 @@ func (m Cmd) Exit(err error) (status int) {
 	}
 
 	if e := ExpectedError(""); errors.As(err, &e) {
-		if e == ErrBadInvariant {
+		if errors.Is(e, ErrBadInvariant) {
 			log.Default().Println(e.Error())
 			return 4
 		}
@@ -256,7 +256,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 	session, err := m.getState(client)
 	if err != nil {
-		if err == ErrZeroParts && session != nil {
+		if session != nil && errors.Is(err, ErrZeroParts) {
 			session.summary(m.loggers)
 		}
 		return err
