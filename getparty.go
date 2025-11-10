@@ -711,27 +711,28 @@ func (m Cmd) overwriteIfConfirmed(name string) (err error) {
 	}
 	_, err = fmt.Fprintf(m.Err, "%q already exists, overwrite? [Y/n] ", name)
 	if err != nil {
-		return err
+		return withStack(err)
 	}
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		return withStack(err)
 	}
 	defer func() {
-		err = cmp.Or(err, withStack(term.Restore(int(os.Stdin.Fd()), state)))
+		err = cmp.Or(err, term.Restore(int(os.Stdin.Fd()), state))
 		if err == nil {
 			_, err = fmt.Fprintln(m.Err)
 		}
+		err = withStack(err)
 	}()
 	b := make([]byte, 1)
 	_, err = os.Stdin.Read(b)
 	if err != nil {
-		return withStack(err)
+		return err
 	}
 	switch b[0] {
 	case 'y', 'Y', '\r':
 		m.loggers[DEBUG].Printf("Removing existing: %q", name)
-		return withStack(os.Remove(name))
+		return os.Remove(name)
 	default:
 		return ErrCanceledByUser
 	}
