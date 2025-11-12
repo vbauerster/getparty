@@ -165,7 +165,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 			ctx, cancel := context.WithCancel(p.ctx)
 			timer := time.AfterFunc(timeout, func() {
 				cancel()
-				p.logger.Println("timer has expired")
+				p.logger.Println("Timer has expired")
 			})
 			var idle time.Duration
 			start := time.Now()
