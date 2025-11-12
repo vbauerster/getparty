@@ -151,7 +151,12 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
 		},
 	}
-	fuser := makeUnexpectedEOFFuser(p.logger)
+	isUnexpectedEOF := func(err error) (unexpectedEOF bool) {
+		defer func() {
+			p.logger.Printf("IsUnexpectedEOF: %t", unexpectedEOF)
+		}()
+		return errors.Is(err, io.ErrUnexpectedEOF)
+	}
 
 	p.logger.Println("ReadFull buf len:", bufLen)
 
@@ -334,7 +339,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				}
 			}
 
-			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || fuser(err); limit() {
+			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); limit() {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
 				rDur := time.Since(start)
@@ -406,16 +411,4 @@ func (p Part) total() int64 {
 
 func (p Part) isDone() bool {
 	return p.Written == p.total()
-}
-
-func makeUnexpectedEOFFuser(logger *log.Logger) func(error) bool {
-	var fused bool
-	return func(err error) bool {
-		unexpectedEOF := errors.Is(err, io.ErrUnexpectedEOF)
-		defer func() {
-			fused = cmp.Or(fused, unexpectedEOF)
-		}()
-		logger.Printf("Fuser(%t): %v", fused, err)
-		return unexpectedEOF && !fused
-	}
 }
