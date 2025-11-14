@@ -368,11 +368,11 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 
 				bar.EwmaIncrBy(wn, rDur+sleep)
 
-				if timeout > initialTimeout {
+				if timeout != initialTimeout {
 					switch dtt {
 					case 0:
 						timeout -= 5 * time.Second
-						dtt = consecutiveResetOk
+						timeout = max(timeout, initialTimeout)
 						if timeout == initialTimeout {
 							backoffReset()
 						}
