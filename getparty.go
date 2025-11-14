@@ -584,8 +584,9 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 		func(attempt uint, _ func()) (bool, error) {
 			ctx, cancel := context.WithTimeout(m.Ctx, timeout)
 			defer func() {
-				if errors.Is(ctx.Err(), context.DeadlineExceeded) && timeout < maxTimeout*time.Second {
+				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 					timeout += 5 * time.Second
+					timeout = min(timeout, maxTimeout*time.Second)
 				}
 				cancel()
 			}()

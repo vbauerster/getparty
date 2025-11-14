@@ -171,9 +171,8 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 			start := time.Now()
 			defer func(written int64) {
 				if !timer.Stop() {
-					if timeout < maxTimeout*time.Second {
-						timeout += 5 * time.Second
-					}
+					timeout += 5 * time.Second
+					timeout = min(timeout, maxTimeout*time.Second)
 					dtt += consecutiveResetOk
 				}
 				cancel()
