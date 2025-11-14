@@ -339,6 +339,8 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				}
 			}
 
+			// io.ReadFull returns io.ErrUnexpectedEOF if an io.EOF happens after reading some but not all the bytes
+			// therefore we enter loop on io.ErrUnexpectedEOF in order to force io.ReadFull to return io.EOF
 			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); limit() {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
