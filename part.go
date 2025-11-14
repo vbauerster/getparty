@@ -325,15 +325,14 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				return false, err
 			}
 
-			// need func scope in order to defer timer.Stop
 			limit := func() {
 				if sleep != 0 {
 					timer := time.NewTimer(sleep)
-					defer timer.Stop()
 					select {
 					case <-timer.C:
 						idle += sleep
 					case <-ctx.Done():
+						timer.Stop()
 					}
 				}
 			}
