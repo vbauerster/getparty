@@ -359,8 +359,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				case p.total() <= 0:
 					bar.SetTotal(p.Written, false)
 					if errors.Is(err, io.EOF) {
-						// make sure next p.total() result is never negative
-						p.Stop = p.Written - 1
+						p.Stop = p.Written - 1 // make sure next p.total() result is never negative
 						bar.EnableTriggerComplete()
 					}
 				case !p.single && wn != 0:
