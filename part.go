@@ -325,48 +325,37 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				return false, err
 			}
 
-			limit := func() {
-				if sleep != 0 {
-					timer := time.NewTimer(sleep)
-					select {
-					case <-timer.C:
-						idle += sleep
-					case <-ctx.Done():
-						timer.Stop()
-					}
-				}
-			}
-
 			// io.ReadFull returns io.ErrUnexpectedEOF if an io.EOF happens after reading some but not all the bytes
 			// therefore we enter loop on io.ErrUnexpectedEOF in order to force io.ReadFull to return io.EOF
-			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); limit() {
+			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
 				rDur := time.Since(start)
-
-				wn, werr := p.file.Write(buffer[:n])
-				if werr != nil {
-					err := p.file.Truncate(p.Written)
-					if err != nil {
-						return false, withStack(errors.Join(err, werr))
-					}
-					return false, withStack(werr)
+				if n == 0 {
+					continue
 				}
 
-				p.Written += int64(wn)
+				var timer *time.Timer
+				if sleep != 0 {
+					timer = time.NewTimer(sleep)
+				}
 
-				switch {
-				case p.total() <= 0:
+				if _, err := p.file.Write(buffer[:n]); err != nil {
+					if timer != nil {
+						timer.Stop()
+					}
+					return false, withStack(cmp.Or(p.file.Truncate(p.Written), err))
+				}
+
+				p.Written += int64(n)
+
+				if !p.single {
+					p.progress.total <- n
+				} else if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
-					if errors.Is(err, io.EOF) {
-						p.Stop = p.Written - 1 // make sure next p.total() result is never negative
-						bar.EnableTriggerComplete()
-					}
-				case !p.single && wn != 0:
-					p.progress.total <- wn
 				}
 
-				bar.EwmaIncrBy(wn, rDur+sleep)
+				bar.EwmaIncrBy(n, rDur+sleep)
 
 				if timeout != initialTimeout {
 					switch dtt {
@@ -380,14 +369,26 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						dtt--
 					}
 				}
+				if timer != nil {
+					select {
+					case <-timer.C:
+						idle += sleep
+					case <-ctx.Done():
+						timer.Stop()
+					}
+				}
 			}
 
-			if p.isDone() {
-				if errors.Is(err, io.EOF) {
-					p.logger.Println("Part is done")
-					return false, nil
+			if errors.Is(err, io.EOF) {
+				if p.total() <= 0 {
+					p.Stop = p.Written - 1 // make sure next p.total() result is never negative
+					bar.EnableTriggerComplete()
 				}
-				return false, withStack(fmt.Errorf("expected EOF, got: %w", err))
+				if !p.isDone() {
+					return false, withStack(errors.New("part is not done after EOF"))
+				}
+				p.logger.Println("Part is done")
+				return false, nil
 			}
 
 			// err is never nil here
