@@ -538,15 +538,13 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 				n := int64(m.opt.Parts)
 				if !session.isResumable() {
 					n = min(n, 1)
-					session.Single = true
-				} else {
-					session.Single = n == 1
 				}
 				parts, err := makeParts(n, session.ContentLength)
 				if err != nil {
 					return session, err
 				}
 				session.Parts = parts
+				session.Single = n == 1
 				exist, err := session.isOutputFileExist()
 				if err != nil {
 					return nil, err
