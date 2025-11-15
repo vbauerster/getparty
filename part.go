@@ -337,6 +337,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 
 				var timer *time.Timer
 				if sleep != 0 {
+					rDur += sleep
 					timer = time.NewTimer(sleep)
 				}
 
@@ -355,7 +356,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					bar.SetTotal(p.Written, false)
 				}
 
-				bar.EwmaIncrBy(n, rDur+sleep)
+				bar.EwmaIncrBy(n, rDur)
 
 				if timeout != initialTimeout {
 					switch dtt {
