@@ -110,9 +110,9 @@ func (p *Part) init(id int, session *Session) error {
 			return withStack(err)
 		}
 		if size := stat.Size(); size != p.Written {
-			err = fmt.Errorf("%q size mismatch: expected %d got %d", stat.Name(), p.Written, size)
+			err := fmt.Errorf("%q size mismatch: expected %d got %d", stat.Name(), p.Written, size)
+			return withStack(err)
 		}
-		return withStack(err)
 	}
 	return nil
 }
