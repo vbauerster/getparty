@@ -332,6 +332,9 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
 				rDur := time.Since(start)
 				if n == 0 {
+					// n is zero either on context timeout or on io.EOF
+					// accumulating zero dur for ewma decorators
+					bar.EwmaIncrBy(n, rDur)
 					continue
 				}
 
