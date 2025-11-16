@@ -141,6 +141,13 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 	var dtt int // decrement timeout threshold
 	var curTry uint32
 	var buffer [bufMax]byte
+	var limit func(limitTimer, context.Context)
+
+	if sleep != 0 {
+		limit = limitTimer.wait
+	} else {
+		limit = limitTimer.nop
+	}
 
 	bufLen := int(min(bufMax, bufSize*1024))
 	consecutiveResetOk := 32 / int(bufSize)
@@ -327,7 +334,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 
 			// io.ReadFull returns io.ErrUnexpectedEOF if an io.EOF happens after reading some but not all the bytes
 			// therefore we enter loop on io.ErrUnexpectedEOF in order to force io.ReadFull to return io.EOF
-			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); {
+			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); idle += sleep {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
 				rDur := time.Since(start)
@@ -338,15 +345,13 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					continue
 				}
 
-				var timer *time.Timer
+				var timer limitTimer
 				if sleep != 0 {
-					timer = time.NewTimer(sleep)
+					timer.timer = time.NewTimer(sleep)
 				}
 
 				if _, err := p.file.Write(buffer[:n]); err != nil {
-					if timer != nil {
-						timer.Stop()
-					}
+					timer.stop()
 					return false, withStack(cmp.Or(p.file.Truncate(p.Written), err))
 				}
 
@@ -372,14 +377,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						dtt--
 					}
 				}
-				if timer != nil {
-					select {
-					case <-timer.C:
-						idle += sleep
-					case <-ctx.Done():
-						timer.Stop()
-					}
-				}
+				limit(timer, ctx)
 			}
 
 			if errors.Is(err, io.EOF) {
@@ -415,3 +413,24 @@ func (p Part) total() int64 {
 func (p Part) isDone() bool {
 	return p.Written == p.total()
 }
+
+type limitTimer struct {
+	timer *time.Timer
+}
+
+func (t limitTimer) stop() {
+	if t.timer != nil {
+		t.timer.Stop()
+	}
+}
+
+// wait invariant: t.timer != nil
+func (t limitTimer) wait(ctx context.Context) {
+	select {
+	case <-t.timer.C:
+	case <-ctx.Done():
+		t.timer.Stop()
+	}
+}
+
+func (limitTimer) nop(context.Context) {}
