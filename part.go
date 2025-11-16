@@ -141,7 +141,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 	var dtt int // decrement timeout threshold
 	var curTry uint32
 	var buffer [bufMax]byte
-	var limit func(limitTimer, context.Context)
+	var limit func(limitTimer, context.Context) bool
 
 	if sleep != 0 {
 		limit = limitTimer.wait
@@ -334,7 +334,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 
 			// io.ReadFull returns io.ErrUnexpectedEOF if an io.EOF happens after reading some but not all the bytes
 			// therefore we enter loop on io.ErrUnexpectedEOF in order to force io.ReadFull to return io.EOF
-			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); idle += sleep {
+			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
 				rDur := time.Since(start)
@@ -363,8 +363,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					bar.SetTotal(p.Written, false)
 				}
 
-				bar.EwmaIncrBy(n, rDur+sleep)
-
 				if timeout != initialTimeout {
 					switch dtt {
 					case 0:
@@ -377,7 +375,13 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						dtt--
 					}
 				}
-				limit(timer, ctx)
+
+				bar.EwmaIncrBy(n, rDur)
+
+				if limit(timer, ctx) {
+					idle += sleep
+					bar.EwmaIncrBy(0, sleep)
+				}
 			}
 
 			if errors.Is(err, io.EOF) {
@@ -425,12 +429,16 @@ func (t limitTimer) stop() {
 }
 
 // wait invariant: t.timer != nil
-func (t limitTimer) wait(ctx context.Context) {
+func (t limitTimer) wait(ctx context.Context) bool {
 	select {
 	case <-t.timer.C:
+		return true
 	case <-ctx.Done():
 		t.timer.Stop()
+		return false
 	}
 }
 
-func (limitTimer) nop(context.Context) {}
+func (limitTimer) nop(context.Context) bool {
+	return false
+}
