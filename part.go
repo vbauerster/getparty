@@ -141,13 +141,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 	var dtt int // decrement timeout threshold
 	var curTry uint32
 	var buffer [bufMax]byte
-	var limit func(limitTimer, context.Context) bool
-
-	if sleep != 0 {
-		limit = limitTimer.wait
-	} else {
-		limit = limitTimer.nop
-	}
 
 	bufLen := int(min(bufMax, bufSize*1024))
 	consecutiveResetOk := 32 / int(bufSize)
@@ -332,6 +325,8 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				return false, err
 			}
 
+			var limit func(limitTimer, context.Context) bool
+
 			// io.ReadFull returns io.ErrUnexpectedEOF if an io.EOF happens after reading some but not all the bytes
 			// therefore we enter loop on io.ErrUnexpectedEOF in order to force io.ReadFull to return io.EOF
 			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); {
@@ -348,6 +343,9 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				var timer limitTimer
 				if sleep != 0 {
 					timer.timer = time.NewTimer(sleep)
+					limit = limitTimer.wait
+				} else {
+					limit = limitTimer.nop
 				}
 
 				if _, err := p.file.Write(buffer[:n]); err != nil {
