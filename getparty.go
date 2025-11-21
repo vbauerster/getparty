@@ -330,17 +330,22 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		eg.Go(func() (err error) {
 			defer func() {
 				if v := recover(); v != nil {
-					err = nil
 					recoverHandler.Do(func() {
 						for _, p := range session.Parts {
 							if p.cancel != nil {
 								p.cancel()
 							}
 						}
-						err = fmt.Errorf("%s panic: %#v", p.name, v)
 						recovered = true
 					})
-				} else if !p.single && p.isDone() {
+					if e, ok := v.(error); ok {
+						err = fmt.Errorf("%s recovered: %w", p.name, e)
+					} else {
+						err = fmt.Errorf("%s recovered: %v", p.name, v)
+					}
+					return
+				}
+				if !p.single && p.isDone() {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
