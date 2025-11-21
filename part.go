@@ -317,12 +317,12 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))
 				}
-				err := withStack(UnexpectedHttpStatus(resp.StatusCode))
+				err := UnexpectedHttpStatus(resp.StatusCode)
 				_, _ = fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
 				if bar != nil {
 					bar.Abort(!p.single)
 				}
-				return false, err
+				return false, withStack(err)
 			}
 
 			var limit func(limitTimer, context.Context) bool
