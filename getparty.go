@@ -285,16 +285,16 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	progress := newProgress(m.Ctx, session, m.getOut(), m.getErr())
 	stateQuery := makeStateQuery(session, progress.current)
 	defer func() {
-		var name string
-		if recovered {
-			name = session.OutputName + ".panic"
-		} else {
-			name = session.OutputName + ".json"
-		}
 		switch tw := session.totalWritten(); stateQuery(tw, err) {
 		case sessionUncompleted:
 			progress.Wait()
 		case sessionUncompletedWithAdvance:
+			name := session.OutputName
+			if recovered {
+				name += ".panic"
+			} else {
+				name += ".json"
+			}
 			err := session.dumpState(name)
 			progress.Wait()
 			if err != nil {
