@@ -284,13 +284,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	progress := newProgress(m.Ctx, session, m.getOut(), m.getErr())
 	stateQuery := makeStateQuery(session, progress.current)
-	start := make(chan time.Time, 1)
 	defer func() {
-		select {
-		case start := <-start:
-			session.Elapsed += time.Since(start)
-		default:
-		}
 		var name string
 		if recovered {
 			name = session.OutputName + ".panic"
@@ -354,6 +348,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
+	start := make(chan time.Time, 1)
 	go func() {
 		var fallback bool
 		statusOK := status.ok
@@ -378,12 +373,14 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				fallback = true
 			case <-status.ctx.Done():
 				now := time.Now()
-				start <- now
 				if !fallback && !session.Single {
 					progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
 				}
+				start <- now
 				return
 			case <-status.quit:
+				status.cancel(nil)
+				start <- time.Now()
 				return
 			}
 		}
@@ -391,7 +388,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	err = eg.Wait()
 	close(status.quit)
-	status.cancel(nil)
+	session.Elapsed += time.Since(<-start)
 
 	if id, ok := context.Cause(status.ctx).(singleModeFallback); ok && !session.Single {
 		session.Parts[0], session.Parts = session.Parts[int(id)-1], session.Parts[:1]
