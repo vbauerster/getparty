@@ -312,7 +312,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					bar.SetCurrent(0)
 				}
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-				return true, UnexpectedHttpStatus(resp.StatusCode)
+				return true, withStack(UnexpectedHttpStatus(resp.StatusCode))
 			default:
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))
