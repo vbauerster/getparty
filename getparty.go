@@ -355,6 +355,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	go func() {
+		var fallback bool
 		statusOK := status.ok
 		for {
 			select {
@@ -374,10 +375,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					}
 				}
 				statusOK = nil
+				fallback = true
 			case <-status.ctx.Done():
 				now := time.Now()
 				start <- now
-				if statusOK != nil && !session.Single {
+				if !fallback && !session.Single {
 					progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
 				}
 				return
