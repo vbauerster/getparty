@@ -369,7 +369,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					_ = eg.Wait()
 					for _, p := range session.Parts {
 						if p.file != nil {
-							p.file.Close()
+							_ = p.file.Close()
 						}
 					}
 					err := fmt.Errorf("restored session is expected to get status %d, but got status %d instead", http.StatusPartialContent, http.StatusOK)
