@@ -259,6 +259,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					}
 				} else if p.single {
 					if _, ok := context.Cause(p.status.ctx).(singleModeFallback); ok {
+						_ = p.file.Close()
 						// StatusPartialContent after StatusOK
 						panic(UnexpectedHttpStatus(http.StatusPartialContent))
 					}
@@ -287,6 +288,9 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				case <-p.status.ctx.Done():
 					err := context.Cause(p.status.ctx)
 					if errors.Is(err, context.Canceled) {
+						if p.file != nil {
+							_ = p.file.Close()
+						}
 						// StatusOK after StatusPartialContent
 						panic(UnexpectedHttpStatus(http.StatusOK))
 					}
