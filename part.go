@@ -40,12 +40,12 @@ type Part struct {
 	id           int
 	ctx          context.Context
 	cancel       context.CancelFunc
-	client       *http.Client
-	file         *os.File
-	progress     *progress
+	client       *http.Client        // shared among parts
+	progress     *progress           // shared among parts
+	status       *httpStatusContext  // shared among parts
+	patcher      func(*http.Request) // shared among parts
 	logger       *log.Logger
-	status       *httpStatusContext
-	patcher      func(*http.Request)
+	file         *os.File
 	name         string
 	output       string
 	prefixFormat string
