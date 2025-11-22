@@ -258,8 +258,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						return false, withStack(err)
 					}
 				} else if p.single {
-					err := context.Cause(p.status.ctx)
-					if !errors.Is(err, context.Canceled) {
+					if _, ok := context.Cause(p.status.ctx).(singleModeFallback); ok {
 						// StatusPartialContent after StatusOK
 						panic(UnexpectedHttpStatus(http.StatusPartialContent))
 					}
