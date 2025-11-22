@@ -401,9 +401,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	close(status.quit)
 	session.Elapsed += time.Since(<-start)
 
-	if id, ok := context.Cause(status.ctx).(singleModeFallback); ok && !session.Single {
-		session.Parts[0], session.Parts = session.Parts[int(id)-1], session.Parts[:1]
+	var fallback singleModeFallback
+	if errors.As(context.Cause(status.ctx), &fallback) && !session.Single {
 		session.Single = true
+		session.Parts[0], session.Parts = session.Parts[int(fallback)-1], session.Parts[:1]
 	}
 	if err != nil {
 		resumable := session.isResumable()
