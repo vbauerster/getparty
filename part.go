@@ -274,19 +274,15 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
-					if p.file != nil {
-						panic(fmt.Errorf("expected nil %T, got %#[1]v", p.file))
-					}
-					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
-					if err != nil {
-						return false, withStack(err)
-					}
-					if bar != nil {
-						panic(fmt.Errorf("expected nil %T, got %#[1]v", bar))
-					}
-					bar, err = p.newBar(&curTry, barMsg)
-					if err != nil {
-						return false, withStack(err)
+					if p.file == nil {
+						p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
+						if err != nil {
+							return false, withStack(err)
+						}
+						bar, err = p.newBar(&curTry, barMsg)
+						if err != nil {
+							return false, withStack(err)
+						}
 					}
 				case <-p.status.ctx.Done():
 					err := context.Cause(p.status.ctx)
