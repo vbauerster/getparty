@@ -251,7 +251,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				case <-p.status.ctx.Done():
 					var fallback singleModeFallback
 					if errors.As(context.Cause(p.status.ctx), &fallback) {
-						// StatusPartialContent after StatusOK
+						// some other part got http.StatusOK
 						panic(UnexpectedHttpStatus(http.StatusPartialContent))
 					}
 				default:
@@ -291,7 +291,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				case <-p.status.ctx.Done():
 					err := context.Cause(p.status.ctx)
 					if errors.Is(err, context.Canceled) {
-						// StatusOK after StatusPartialContent
+						// some other part got http.StatusPartialContent
 						panic(UnexpectedHttpStatus(http.StatusOK))
 					}
 					if !p.single {
