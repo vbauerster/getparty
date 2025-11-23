@@ -291,7 +291,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		case sessionUncompletedWithAdvance:
 			name := session.OutputName
 			if recovered {
-				name += ".panic"
+				name += ".recovered"
 			} else {
 				name += ".json"
 			}
