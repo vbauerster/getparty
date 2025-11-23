@@ -247,8 +247,17 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
-				if p.file == nil {
+				select {
+				case <-p.status.ctx.Done():
+					var fallback singleModeFallback
+					if errors.As(context.Cause(p.status.ctx), &fallback) {
+						// StatusPartialContent after StatusOK
+						panic(UnexpectedHttpStatus(http.StatusPartialContent))
+					}
+				default:
 					p.status.cancel(nil)
+				}
+				if p.file == nil {
 					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
 					if err != nil {
 						return false, withStack(err)
@@ -256,12 +265,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					bar, err = p.newBar(&curTry, barMsg)
 					if err != nil {
 						return false, withStack(err)
-					}
-				} else if p.single {
-					var fallback singleModeFallback
-					if errors.As(context.Cause(p.status.ctx), &fallback) {
-						// StatusPartialContent after StatusOK
-						panic(UnexpectedHttpStatus(http.StatusPartialContent))
 					}
 				}
 				if p.Written != 0 {
