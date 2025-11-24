@@ -302,7 +302,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						return false, withStack(err)
 					}
 				default:
-					if !p.single {
+					if !p.single || partial {
 						err := context.Cause(p.firstResp.ctx)
 						if errors.Is(err, modePartial) {
 							// some other part got http.StatusPartialContent first
