@@ -290,12 +290,12 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						return false, withStack(err)
 					}
 				default:
-					err := context.Cause(p.firstResp.ctx)
-					if errors.Is(err, modePartial) {
-						// some other part got http.StatusPartialContent first
-						panic(UnexpectedHttpStatus(http.StatusOK))
-					}
 					if !p.single {
+						err := context.Cause(p.firstResp.ctx)
+						if errors.Is(err, modePartial) {
+							// some other part got http.StatusPartialContent first
+							panic(UnexpectedHttpStatus(http.StatusOK))
+						}
 						// some other part got http.StatusOK already
 						p.logger.Printf("Quit: %v", err)
 						return false, nil
