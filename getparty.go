@@ -538,9 +538,11 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 			session.HeaderMap = m.opt.HeaderMap
 			state := session.OutputName + ".json"
 			if _, err := os.Stat(state); errors.Is(err, os.ErrNotExist) {
-				n := int64(m.opt.Parts)
-				if !session.isResumable() {
-					n = min(n, 1)
+				var n int64
+				if session.isResumable() {
+					n = int64(m.opt.Parts)
+				} else {
+					n = 1
 				}
 				parts, err := makeParts(n, session.ContentLength)
 				if err != nil {
