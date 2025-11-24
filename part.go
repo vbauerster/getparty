@@ -51,8 +51,26 @@ type Part struct {
 	single       bool
 }
 
-func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
+type flashBar struct {
+	*mpb.Bar
+	msgCh chan string
+}
+
+func (b *flashBar) flash(msg string) {
+	if b != nil {
+		b.msgCh <- msg
+	}
+}
+
+func (b *flashBar) Abort(drop bool) {
+	if b != nil {
+		b.Bar.Abort(drop)
+	}
+}
+
+func (p Part) newBar(curTry *uint32) (*flashBar, error) {
 	var filler mpb.BarFiller
+	msgCh := make(chan string, 1)
 	total := p.total()
 	if total > 0 {
 		filler = distinctBarRefiller(baseBarStyle())
@@ -94,7 +112,7 @@ func (p Part) newBar(curTry *uint32, msgCh <-chan string) (*mpb.Bar, error) {
 		p.logger.Println("Setting bar current:", p.Written)
 		bar.SetCurrent(p.Written)
 	}
-	return bar, nil
+	return &flashBar{bar, msgCh}, nil
 }
 
 func (p *Part) init(id int, session *Session) error {
@@ -136,7 +154,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 		p.patcher(req)
 	}
 
-	var bar *mpb.Bar
+	var bar *flashBar
 	var dtt int // decrement timeout threshold
 	var curTry uint32
 	var partial bool
@@ -145,7 +163,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 	bufLen := int(min(bufMax, bufSize*1024))
 	consecutiveResetOk := 32 / int(bufSize)
 	timeout := initialTimeout
-	barMsg := make(chan string, 1)
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
@@ -196,18 +213,14 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						err.Error(),
 						decor.SizeB1024(p.Written),
 						decor.SizeB1024(p.total()))
-					if bar != nil {
-						bar.Abort(!p.single)
-					}
+					bar.Abort(!p.single)
 					p.firstResp.cancel(nil)
 					return
 				}
-				go func(prefix string, bar *mpb.Bar) {
+				go func(prefix string, bar *flashBar) {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						prefix += timeoutMsg
-						if bar != nil {
-							barMsg <- fmt.Sprintf("%s %s", p.name, timeoutMsg)
-						}
+						bar.flash(fmt.Sprintf("%s %s", p.name, timeoutMsg))
 					} else if prefix != "" {
 						prefix = prefix[:len(prefix)-1]
 					}
@@ -264,7 +277,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					if err != nil {
 						return false, withStack(err)
 					}
-					bar, err = p.newBar(&curTry, barMsg)
+					bar, err = p.newBar(&curTry)
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -284,7 +297,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					if err != nil {
 						return false, withStack(err)
 					}
-					bar, err = p.newBar(&curTry, barMsg)
+					bar, err = p.newBar(&curTry)
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -317,9 +330,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				}
 				err := UnexpectedHttpStatus(resp.StatusCode)
 				_, _ = fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
-				if bar != nil {
-					bar.Abort(!p.single)
-				}
+				bar.Abort(!p.single)
 				return false, withStack(err)
 			}
 
