@@ -253,7 +253,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					p.firstResp.cancel(modePartial)
 				default:
 					if errors.Is(context.Cause(p.firstResp.ctx), modeFallback) {
-						// some other part got http.StatusOK
+						// some other part got http.StatusOK first
 						panic(UnexpectedHttpStatus(http.StatusPartialContent))
 					}
 				}
@@ -289,7 +289,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				default:
 					err := context.Cause(p.firstResp.ctx)
 					if errors.Is(err, modePartial) {
-						// some other part got http.StatusPartialContent
+						// some other part got http.StatusPartialContent first
 						panic(UnexpectedHttpStatus(http.StatusOK))
 					}
 					if !p.single {
