@@ -400,11 +400,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	if err != nil {
-		resumable := session.isResumable()
 		for _, p := range session.Parts {
 			if f := p.file; f != nil {
 				m.loggers[DEBUG].Printf("%q closed with: %v", f.Name(), f.Close())
-				if !resumable {
+				if session.Single && !session.isResumable() {
 					err := os.Rename(f.Name(), session.OutputName)
 					m.loggers[DEBUG].Printf("%q renamed to %q with: %v", f.Name(), session.OutputName, err)
 				}
