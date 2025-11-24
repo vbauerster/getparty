@@ -32,12 +32,22 @@ import (
 )
 
 type sessionState int
+type sessionMode int
+
+func (s sessionMode) Error() string {
+	return fmt.Sprintf("session mode: %d", s)
+}
 
 const (
 	sessionUncompleted sessionState = iota
 	sessionUncompletedWithAdvance
 	sessionCompletedWithError
 	sessionCompleted
+)
+
+const (
+	modePartial sessionMode = iota
+	modeFallback
 )
 
 const (
@@ -278,9 +288,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	timeout := m.getTimeout()
 	sleep := time.Duration(m.opt.SpeedLimit*50) * time.Millisecond
 
-	status := new(httpStatusContext)
-	status.ctx, status.cancel = context.WithCancelCause(context.Background())
-	status.ok, status.quit = make(chan int), make(chan struct{})
+	firstResp := &firstHttpResponseContext{id: make(chan int, 1)}
+	firstResp.ctx, firstResp.cancel = context.WithCancelCause(context.Background())
 
 	progress := newProgress(m.Ctx, session, m.getOut(), m.getErr())
 	stateQuery := makeStateQuery(session, progress.current)
@@ -323,7 +332,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		p.ctx, p.cancel = context.WithCancel(m.Ctx)
 		p.client = client
-		p.status = status
+		p.firstResp = firstResp
 		p.progress = progress
 		p.patcher = m.patcher
 		// p := p // NOTE: uncomment for Go < 1.22, see /doc/faq#closures_and_goroutines
@@ -353,59 +362,22 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
-	start := make(chan time.Time, 1)
-	go func() {
-		var fallback bool
-		statusOK := status.ok
-		for {
-			select {
-			case id := <-statusOK: // on http.StatusOK
-				if session.restored {
-					for _, p := range session.Parts {
-						if p.cancel != nil {
-							p.cancel()
-						}
-					}
-					_ = eg.Wait()
-					for _, p := range session.Parts {
-						if p.file != nil {
-							_ = p.file.Close()
-						}
-					}
-					err := fmt.Errorf("restored session is expected to get status %d, but got status %d instead", http.StatusPartialContent, http.StatusOK)
-					panic(err)
-				}
-				for _, p := range session.Parts {
-					if p.id != id && p.cancel != nil {
-						p.cancel()
-					}
-				}
-				statusOK = nil
-				fallback = true
-			case <-status.ctx.Done():
-				now := time.Now()
-				if !fallback && !session.Single {
-					progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
-				}
-				start <- now
-				return
-			case <-status.quit:
-				status.cancel(nil)
-				start <- time.Now()
-				return
-			}
-		}
-	}()
-
-	err = eg.Wait()
-	close(status.quit)
-	session.Elapsed += time.Since(<-start)
-
-	var fallback singleModeFallback
-	if errors.As(context.Cause(status.ctx), &fallback) && !session.Single {
+	<-firstResp.ctx.Done()
+	now := time.Now()
+	switch e := context.Cause(firstResp.ctx); {
+	case errors.Is(e, modeFallback):
+		err = eg.Wait()
+		id := <-firstResp.id
+		session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
 		session.Single = true
-		session.Parts[0], session.Parts = session.Parts[int(fallback)-1], session.Parts[:1]
+	case errors.Is(e, modePartial) && !session.Single:
+		progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
+		fallthrough
+	default:
+		err = eg.Wait()
+		session.Elapsed += time.Since(now)
 	}
+
 	if err != nil {
 		resumable := session.isResumable()
 		for _, p := range session.Parts {

@@ -18,14 +18,6 @@ type (
 	}
 )
 
-type (
-	singleModeFallback int
-	debugError         struct {
-		error
-		stack []byte
-	}
-)
-
 func (e ExpectedError) Error() string {
 	return string(e)
 }
@@ -46,8 +38,9 @@ func (e BadProxyURL) Unwrap() error {
 	return e.err
 }
 
-func (e singleModeFallback) Error() string {
-	return fmt.Sprintf("P%02d: fallback to single mode", int(e))
+type debugError struct {
+	error
+	stack []byte
 }
 
 func (s *debugError) Unwrap() error { return s.error }

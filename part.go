@@ -24,11 +24,10 @@ const timeoutMsg = "Timeout..."
 
 var globTry uint32
 
-type httpStatusContext struct {
+type firstHttpResponseContext struct {
 	ctx    context.Context
 	cancel context.CancelCauseFunc
-	ok     chan int
-	quit   chan struct{}
+	id     chan int
 }
 
 // Part represents state of each download part
@@ -40,10 +39,10 @@ type Part struct {
 	id           int
 	ctx          context.Context
 	cancel       context.CancelFunc
-	client       *http.Client        // shared among parts
-	progress     *progress           // shared among parts
-	status       *httpStatusContext  // shared among parts
-	patcher      func(*http.Request) // shared among parts
+	client       *http.Client              // shared among parts
+	progress     *progress                 // shared among parts
+	firstResp    *firstHttpResponseContext // shared among parts
+	patcher      func(*http.Request)       // shared among parts
 	logger       *log.Logger
 	file         *os.File
 	name         string
@@ -198,6 +197,8 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						decor.SizeB1024(p.total()))
 					if bar != nil {
 						bar.Abort(!p.single)
+					} else {
+						p.firstResp.cancel(nil)
 					}
 					return
 				}
@@ -248,14 +249,13 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
 				select {
-				case <-p.status.ctx.Done():
-					var fallback singleModeFallback
-					if errors.As(context.Cause(p.status.ctx), &fallback) {
+				case p.firstResp.id <- p.id:
+					p.firstResp.cancel(modePartial)
+				default:
+					if errors.Is(context.Cause(p.firstResp.ctx), modeFallback) {
 						// some other part got http.StatusOK
 						panic(UnexpectedHttpStatus(http.StatusPartialContent))
 					}
-				default:
-					p.status.cancel(nil)
 				}
 				if p.file == nil {
 					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
@@ -272,8 +272,8 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				}
 			case http.StatusOK: // no partial content, fallback to single part mode
 				select {
-				case p.status.ok <- p.id:
-					p.status.cancel(singleModeFallback(p.id))
+				case p.firstResp.id <- p.id:
+					p.firstResp.cancel(modeFallback)
 					p.single = true
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
@@ -286,16 +286,15 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					if err != nil {
 						return false, withStack(err)
 					}
-				case <-p.status.ctx.Done():
-					err := context.Cause(p.status.ctx)
-					if errors.Is(err, context.Canceled) {
+				default:
+					err := context.Cause(p.firstResp.ctx)
+					if errors.Is(err, modePartial) {
 						// some other part got http.StatusPartialContent
 						panic(UnexpectedHttpStatus(http.StatusOK))
 					}
 					if !p.single {
-						p.single = true
-						// if either bar gets status ok, other bars shall quit silently
-						p.logger.Printf("Quit: %s", err.Error())
+						// some other part got http.StatusOK already
+						p.logger.Printf("Quit: %v", err)
 						return false, nil
 					}
 				}
