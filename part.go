@@ -198,9 +198,8 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						decor.SizeB1024(p.total()))
 					if bar != nil {
 						bar.Abort(!p.single)
-					} else {
-						p.firstResp.cancel(nil)
 					}
+					p.firstResp.cancel(nil)
 					return
 				}
 				go func(prefix string, bar *mpb.Bar) {
