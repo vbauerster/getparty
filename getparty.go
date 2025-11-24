@@ -1,3 +1,5 @@
+//go:generate go tool stringer -type=sessionMode -trimprefix=mode
+
 package getparty
 
 import (
@@ -35,7 +37,7 @@ type sessionState int
 type sessionMode int
 
 func (s sessionMode) Error() string {
-	return fmt.Sprintf("session mode: %d", s)
+	return s.String()
 }
 
 const (
