@@ -370,6 +370,21 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	switch {
 	case errors.Is(mode, modeFallback):
+		if session.restored {
+			for _, p := range session.Parts {
+				if p.cancel != nil {
+					p.cancel()
+				}
+			}
+			_ = eg.Wait()
+			for _, p := range session.Parts {
+				if p.file != nil {
+					_ = p.file.Close()
+				}
+			}
+			err := fmt.Errorf("restored session is expected to get status %d but got status %d instead", http.StatusPartialContent, http.StatusOK)
+			panic(err)
+		}
 		err = eg.Wait()
 		id := <-firstResp.id
 		session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
