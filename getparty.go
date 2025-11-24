@@ -625,14 +625,14 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 					}
 				}
 
-				m.loggers[DEBUG].Println("HTTP response:", resp.Status)
+				m.loggers[DEBUG].Println("Response Status:", resp.Status)
 
 				for k, v := range resp.Header {
 					m.loggers[DEBUG].Printf("Response Header: %s: %v", k, v)
 				}
 
 				if isRedirect(resp.StatusCode) {
-					m.loggers[INFO].Println("HTTP response:", resp.Status)
+					m.loggers[INFO].Println("Response Status:", resp.Status)
 					redirected = true
 					loc, err := resp.Location()
 					if err != nil {
@@ -657,7 +657,7 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 					return false, err // err is already with stack
 				}
 
-				m.loggers[INFO].Println("HTTP response:", resp.Status)
+				m.loggers[INFO].Println("Response Status:", resp.Status)
 
 				for i := 2; m.opt.Output.Name == "" && i >= 0; i-- {
 					if i == 0 {
