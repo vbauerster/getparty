@@ -365,7 +365,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	<-firstResp.ctx.Done()
-	now, mode := time.Now(), context.Cause(firstResp.ctx)
+	start, mode := time.Now(), context.Cause(firstResp.ctx)
 	m.loggers[DEBUG].Printf("Session mode: %v", mode)
 
 	switch {
@@ -392,11 +392,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			session.Single = true
 		}
 	case errors.Is(mode, modePartial) && !session.Single:
-		progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
+		progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), start.Add(-session.Elapsed))
 		fallthrough
 	default:
 		err = eg.Wait()
-		session.Elapsed += time.Since(now)
+		session.Elapsed += time.Since(start)
 	}
 
 	if err != nil {
