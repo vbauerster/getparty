@@ -386,9 +386,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			panic(err)
 		}
 		err = eg.Wait()
-		id := <-firstResp.id
-		session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
-		session.Single = true
+		if !session.Single {
+			id := <-firstResp.id
+			session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
+			session.Single = true
+		}
 	case errors.Is(mode, modePartial) && !session.Single:
 		progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
 		fallthrough
