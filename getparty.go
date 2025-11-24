@@ -365,14 +365,16 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	<-firstResp.ctx.Done()
-	now := time.Now()
-	switch e := context.Cause(firstResp.ctx); {
-	case errors.Is(e, modeFallback):
+	now, mode := time.Now(), context.Cause(firstResp.ctx)
+	m.loggers[DEBUG].Printf("Session mode: %v", mode)
+
+	switch {
+	case errors.Is(mode, modeFallback):
 		err = eg.Wait()
 		id := <-firstResp.id
 		session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
 		session.Single = true
-	case errors.Is(e, modePartial) && !session.Single:
+	case errors.Is(mode, modePartial) && !session.Single:
 		progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), now.Add(-session.Elapsed))
 		fallthrough
 	default:
