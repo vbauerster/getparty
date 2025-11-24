@@ -1,6 +1,7 @@
 package getparty
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"sync/atomic"
@@ -25,7 +26,7 @@ func newFlashDecorator(decorator decor.Decorator, msgCh <-chan string, limit uin
 	d := &flashDecorator{
 		Decorator: decorator,
 		msgCh:     msgCh,
-		limit:     limit,
+		limit:     cmp.Or(limit, 15),
 	}
 	return d
 }
