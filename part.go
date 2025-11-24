@@ -139,6 +139,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 	var bar *mpb.Bar
 	var dtt int // decrement timeout threshold
 	var curTry uint32
+	var partial bool
 	var buffer [bufMax]byte
 
 	bufLen := int(min(bufMax, bufSize*1024))
@@ -251,11 +252,13 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				select {
 				case p.firstResp.id <- p.id:
 					p.firstResp.cancel(modePartial)
+					partial = true
 				default:
-					if errors.Is(context.Cause(p.firstResp.ctx), modeFallback) {
+					if !partial && errors.Is(context.Cause(p.firstResp.ctx), modeFallback) {
 						// some other part got http.StatusOK first
 						panic(UnexpectedHttpStatus(http.StatusPartialContent))
 					}
+					partial = true
 				}
 				if p.file == nil {
 					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
