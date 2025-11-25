@@ -364,6 +364,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		})
 	}
 
+	go func() {
+		firstResp.cancel(eg.Wait())
+	}()
+
 	<-firstResp.ctx.Done()
 	start, mode := time.Now(), context.Cause(firstResp.ctx)
 	m.loggers[DEBUG].Printf("Session mode: %v", mode)

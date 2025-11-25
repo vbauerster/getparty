@@ -138,7 +138,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
 		p.cancel()
-		p.firstResp.cancel(nil)
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)
 		p.logger.Println("Total Idle:", totalIdle)
