@@ -331,6 +331,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				err := UnexpectedHttpStatus(resp.StatusCode)
 				_, _ = fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
 				bar.Abort(!p.single)
+				p.firstResp.cancel(nil)
 				return false, withStack(err)
 			}
 
