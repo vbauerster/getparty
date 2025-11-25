@@ -137,10 +137,11 @@ func (p *Part) init(id int, session *Session) error {
 func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTimeout time.Duration) (err error) {
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
+		p.cancel()
+		p.firstResp.cancel(nil)
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)
 		p.logger.Println("Total Idle:", totalIdle)
-		p.cancel()
 		err = withMessage(err, p.name)
 	}()
 
@@ -214,7 +215,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						decor.SizeB1024(p.Written),
 						decor.SizeB1024(p.total()))
 					bar.Abort(!p.single)
-					p.firstResp.cancel(nil)
 					return
 				}
 				go func(prefix string, bar *flashBar) {
@@ -331,7 +331,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				err := UnexpectedHttpStatus(resp.StatusCode)
 				_, _ = fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
 				bar.Abort(!p.single)
-				p.firstResp.cancel(nil)
 				return false, withStack(err)
 			}
 
