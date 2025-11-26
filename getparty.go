@@ -369,11 +369,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}()
 
 	<-firstResp.ctx.Done()
-	start, mode := time.Now(), context.Cause(firstResp.ctx)
-	m.loggers[DEBUG].Printf("Session mode: %v", mode)
+	start, cause := time.Now(), context.Cause(firstResp.ctx)
+	m.loggers[DEBUG].Printf("Session mode: %v", cause)
 
 	switch {
-	case errors.Is(mode, modeFallback):
+	case errors.Is(cause, modeFallback):
 		if session.restored {
 			for _, p := range session.Parts {
 				if p.cancel != nil {
@@ -395,7 +395,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
 			session.Single = true
 		}
-	case errors.Is(mode, modePartial) && !session.Single:
+	case errors.Is(cause, modePartial) && !session.Single:
 		progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), start.Add(-session.Elapsed))
 		fallthrough
 	default:
