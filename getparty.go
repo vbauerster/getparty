@@ -370,7 +370,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	<-firstResp.ctx.Done()
 	start, cause := time.Now(), context.Cause(firstResp.ctx)
-	m.loggers[DEBUG].Printf("Session mode: %v", cause)
+	m.loggers[DEBUG].Printf("First Response: %v", cause)
 
 	switch {
 	case errors.Is(cause, modeFallback):
