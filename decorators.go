@@ -19,24 +19,29 @@ var (
 	_ decor.EwmaDecorator = (*peak)(nil)
 )
 
-func newFlashDecorator(decorator decor.Decorator, msgCh <-chan string, limit uint) decor.Decorator {
+func newFlashDecorator(decorator decor.Decorator, msg string, signal <-chan struct{}) decor.Decorator {
+	return newFlashDecoratorWithLimit(decorator, msg, signal, 0)
+}
+
+func newFlashDecoratorWithLimit(decorator decor.Decorator, msg string, signal <-chan struct{}, limit uint) decor.Decorator {
 	if decorator == nil {
 		return nil
 	}
 	d := &flashDecorator{
 		Decorator: decorator,
-		msgCh:     msgCh,
+		signal:    signal,
 		limit:     cmp.Or(limit, 15),
+		msg:       msg,
 	}
 	return d
 }
 
 type flashDecorator struct {
 	decor.Decorator
-	msgCh <-chan string
-	limit uint
-	count uint
-	msg   string
+	signal <-chan struct{}
+	limit  uint
+	count  uint
+	msg    string
 }
 
 func (d *flashDecorator) Unwrap() decor.Decorator {
@@ -46,9 +51,8 @@ func (d *flashDecorator) Unwrap() decor.Decorator {
 func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 	if d.count == 0 {
 		select {
-		case msg := <-d.msgCh:
+		case <-d.signal:
 			d.count = d.limit
-			d.msg = msg
 		default:
 			return d.Decorator.Decor(stat)
 		}

@@ -53,12 +53,11 @@ type Part struct {
 
 type flashBar struct {
 	*mpb.Bar
-	ch  chan<- string
-	msg string
+	signal chan<- struct{}
 }
 
-func (b *flashBar) flash() {
-	b.ch <- b.msg
+func (b *flashBar) flashTimeout() {
+	b.signal <- struct{}{}
 }
 
 func (b *flashBar) Abort(drop bool) {
@@ -74,12 +73,12 @@ func (p Part) newBar(curTry *uint32) (*flashBar, error) {
 		filler = distinctBarRefiller(baseBarStyle())
 	}
 	p.logger.Println("Setting bar total:", total)
-	ch := make(chan string, 1)
+	msg, ch := fmt.Sprintf("%s %s", p.name, timeoutMsg), make(chan struct{}, 1)
 	bar, err := p.progress.Add(total, filler,
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.id),
 		mpb.PrependDecorators(
-			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), ch, 15),
+			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msg, ch),
 			decor.Conditional(total > 0,
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WC{C: decor.DextraSpace}), "100% "),
@@ -111,8 +110,7 @@ func (p Part) newBar(curTry *uint32) (*flashBar, error) {
 		p.logger.Println("Setting bar current:", p.Written)
 		bar.SetCurrent(p.Written)
 	}
-	msg := fmt.Sprintf("%s %s", p.name, timeoutMsg)
-	return &flashBar{bar, ch, msg}, nil
+	return &flashBar{bar, ch}, nil
 }
 
 func (p *Part) init(id int, session *Session) error {
@@ -220,7 +218,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					if errors.Is(ctx.Err(), context.Canceled) {
 						prefix += timeoutMsg
 						if flash {
-							bar.flash()
+							bar.flashTimeout()
 						}
 					} else if prefix != "" {
 						prefix = prefix[:len(prefix)-1]
