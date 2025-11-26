@@ -53,13 +53,12 @@ type Part struct {
 
 type flashBar struct {
 	*mpb.Bar
-	msgCh chan string
+	ch  chan<- string
+	msg string
 }
 
-func (b *flashBar) flash(msg string) {
-	if b != nil {
-		b.msgCh <- msg
-	}
+func (b *flashBar) flash() {
+	b.ch <- b.msg
 }
 
 func (b *flashBar) Abort(drop bool) {
@@ -70,17 +69,17 @@ func (b *flashBar) Abort(drop bool) {
 
 func (p Part) newBar(curTry *uint32) (*flashBar, error) {
 	var filler mpb.BarFiller
-	msgCh := make(chan string, 1)
 	total := p.total()
 	if total > 0 {
 		filler = distinctBarRefiller(baseBarStyle())
 	}
 	p.logger.Println("Setting bar total:", total)
+	ch := make(chan string, 1)
 	bar, err := p.progress.Add(total, filler,
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.id),
 		mpb.PrependDecorators(
-			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msgCh, 15),
+			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), ch, 15),
 			decor.Conditional(total > 0,
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WC{C: decor.DextraSpace}), "100% "),
@@ -112,7 +111,8 @@ func (p Part) newBar(curTry *uint32) (*flashBar, error) {
 		p.logger.Println("Setting bar current:", p.Written)
 		bar.SetCurrent(p.Written)
 	}
-	return &flashBar{bar, msgCh}, nil
+	msg := fmt.Sprintf("%s %s", p.name, timeoutMsg)
+	return &flashBar{bar, ch, msg}, nil
 }
 
 func (p *Part) init(id int, session *Session) error {
@@ -216,15 +216,17 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					bar.Abort(!p.single)
 					return
 				}
-				go func(prefix string, bar *flashBar) {
+				go func(prefix string, flash bool) {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						prefix += timeoutMsg
-						bar.flash(fmt.Sprintf("%s %s", p.name, timeoutMsg))
+						if flash {
+							bar.flash()
+						}
 					} else if prefix != "" {
 						prefix = prefix[:len(prefix)-1]
 					}
 					_, _ = fmt.Fprintln(p.progress, prefix, unwrapOrErr(err).Error())
-				}(p.logger.Prefix(), bar)
+				}(p.logger.Prefix(), bar != nil)
 				p.logger.SetPrefix(fmt.Sprintf(p.prefixFormat, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
 			}(p.Written)
