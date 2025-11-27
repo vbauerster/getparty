@@ -214,6 +214,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					bar.Abort(!p.single)
 					return
 				}
+				p.logger.Println("Retry reason:", err.Error())
 				go func(prefix string, flash bool) {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						prefix += timeoutMsg
