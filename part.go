@@ -291,6 +291,9 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				case p.firstResp.id <- p.id:
 					p.firstResp.cancel(modeFallback)
 					p.single = true
+					if p.Written != 0 {
+						panic(fmt.Errorf("unexpected written %d on first %s", p.Written, resp.Status))
+					}
 					if resp.ContentLength > 0 {
 						p.Stop = resp.ContentLength - 1
 					}
@@ -313,15 +316,15 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 						p.logger.Printf("Quit: %v", err)
 						return false, nil
 					}
-				}
-				if p.Written != 0 {
-					// on retry and status ok there is no way to resume so retry from scratch
-					err := p.file.Truncate(0)
-					if err != nil {
-						return false, withStack(err)
+					if p.Written != 0 {
+						// there is no way to resume on http.StatusOK so retry from scratch
+						err := p.file.Truncate(0)
+						if err != nil {
+							return false, withStack(err)
+						}
+						p.Written = 0
+						bar.SetCurrent(0)
 					}
-					p.Written = 0
-					bar.SetCurrent(0)
 				}
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 				return true, withStack(UnexpectedHttpStatus(resp.StatusCode))
