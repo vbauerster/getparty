@@ -291,11 +291,9 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				case p.firstResp.id <- p.id:
 					p.firstResp.cancel(modeFallback)
 					p.single = true
+					p.Start, p.Stop = 0, resp.ContentLength-1
 					if p.Written != 0 {
 						panic(fmt.Errorf("unexpected written %d on first %s", p.Written, resp.Status))
-					}
-					if resp.ContentLength > 0 {
-						p.Stop = resp.ContentLength - 1
 					}
 					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
 					if err != nil {
