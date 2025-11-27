@@ -198,6 +198,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				p.logger.Println("Elapsed:", elapsed)
 				p.logger.Println("Idle:", idle)
 				if !retry || err == nil || errors.Is(context.Cause(p.ctx), ErrCanceledByUser) {
+					bar.Abort(!p.single)
 					return
 				}
 				switch attempt {
@@ -333,7 +334,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				}
 				err := UnexpectedHttpStatus(resp.StatusCode)
 				_, _ = fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
-				bar.Abort(!p.single)
 				return false, withStack(err)
 			}
 
