@@ -283,16 +283,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		m.patcher = makeReqPatcher(userinfo, session.HeaderMap)
 	}
 
-	var doneCount uint32
-	var eg errgroup.Group
-	var recoverHandler sync.Once
 	var recovered bool
-	timeout := m.getTimeout()
-	sleep := time.Duration(m.opt.SpeedLimit*50) * time.Millisecond
-
-	firstResp := &firstHttpResponseContext{id: make(chan int, 1)}
-	firstResp.ctx, firstResp.cancel = context.WithCancelCause(context.Background())
-
 	progress := newProgress(m.Ctx, session, m.getOut(), m.getErr())
 	stateQuery := makeStateQuery(session, progress.current)
 	defer func() {
@@ -321,6 +312,14 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			m.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 		}
 	}()
+
+	var doneCount uint32
+	var eg errgroup.Group
+	var recoverHandler sync.Once
+	timeout := m.getTimeout()
+	sleep := time.Duration(m.opt.SpeedLimit*50) * time.Millisecond
+	firstResp := &firstHttpResponseContext{id: make(chan int, 1)}
+	firstResp.ctx, firstResp.cancel = context.WithCancelCause(context.Background())
 
 	for i, p := range session.Parts {
 		err := p.init(i+1, session)
