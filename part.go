@@ -166,12 +166,6 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
 		},
 	}
-	isUnexpectedEOF := func(err error) (unexpectedEOF bool) {
-		defer func() {
-			p.logger.Printf("IsUnexpectedEOF: %t", unexpectedEOF)
-		}()
-		return errors.Is(err, io.ErrUnexpectedEOF)
-	}
 
 	p.logger.Println("ReadFull buf len:", bufLen)
 
@@ -338,9 +332,11 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 			}
 
 			var limit func(limitTimer, context.Context) bool
+			isUnexpectedEOF := makeUnexpectedEOFFuser(p.logger)
 
-			// io.ReadFull returns io.ErrUnexpectedEOF if an io.EOF happens after reading some but not all the bytes
-			// therefore we enter loop on io.ErrUnexpectedEOF in order to force io.ReadFull to return io.EOF
+			// io.ReadFull returns io.ErrUnexpectedEOF if an io.EOF happens after reading
+			// some but not all the bytes therefore to force io.ReadFull to return io.EOF
+			// loop is entered one more time on first io.ErrUnexpectedEOF encounter
 			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
@@ -394,16 +390,17 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 				}
 			}
 
-			if errors.Is(err, io.EOF) {
-				if p.total() <= 0 {
-					p.Stop = p.Written - 1 // make sure next p.total() result is never negative
-					bar.EnableTriggerComplete()
+			if p.total() <= 0 && errors.Is(err, io.EOF) {
+				p.Stop = p.Written - 1 // make sure next p.total() result is never negative
+				bar.EnableTriggerComplete()
+			}
+
+			if p.isDone() {
+				p.logger.Println("Part is done:", err)
+				if errors.Is(err, io.EOF) {
+					return false, nil
 				}
-				if !p.isDone() {
-					return false, withStack(errors.New("part is not done after EOF"))
-				}
-				p.logger.Println("Part is done")
-				return false, nil
+				panic(fmt.Errorf("expected EOF, got: %w", err))
 			}
 
 			// err is never nil here
@@ -451,4 +448,15 @@ func (t limitTimer) wait(ctx context.Context) bool {
 
 func (limitTimer) nop(context.Context) bool {
 	return false
+}
+
+func makeUnexpectedEOFFuser(logger *log.Logger) func(error) bool {
+	var fused bool
+	return func(err error) (unexpectedEOF bool) {
+		defer func() {
+			fused = cmp.Or(fused, unexpectedEOF)
+			logger.Printf("IsUnexpectedEOF: %t", unexpectedEOF)
+		}()
+		return errors.Is(err, io.ErrUnexpectedEOF) && !fused
+	}
 }
