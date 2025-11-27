@@ -276,6 +276,8 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					if err != nil {
 						return false, withStack(err)
 					}
+				}
+				if bar == nil {
 					bar, err = p.newBar(&curTry)
 					if err != nil {
 						return false, withStack(err)
