@@ -148,6 +148,7 @@ func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)
 		p.logger.Println("Total Idle:", totalIdle)
+		p.logger.Println("Return err:", err)
 		err = withMessage(err, p.name)
 	}()
 
@@ -215,7 +216,7 @@ func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
 						decor.SizeB1024(p.total()))
 					return
 				}
-				p.logger.Println("Retry reason:", err.Error())
+				p.logger.Println("Retry err:", err.Error())
 				go func(prefix string, flash bool) {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						prefix += timeoutMsg
