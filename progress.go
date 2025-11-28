@@ -17,7 +17,6 @@ type progress struct {
 	total   chan int
 	current int64
 	out     io.Writer
-	err     io.Writer
 }
 
 func (p *progress) Wait() {
@@ -106,6 +105,5 @@ func newProgress(ctx context.Context, session *Session, out, err io.Writer) *pro
 		total:    total,
 		current:  session.totalWritten(),
 		out:      out,
-		err:      err,
 	}
 }

@@ -21,6 +21,7 @@ import (
 
 const bufMax = 1 << 14
 const timeoutMsg = "Timeout..."
+const prefixFormat = "[%s:R%02d] "
 
 var globTry uint32
 
@@ -36,19 +37,18 @@ type Part struct {
 	Stop    int64
 	Written int64
 
-	id           int
-	ctx          context.Context
-	cancel       context.CancelFunc
-	client       *http.Client              // shared among parts
-	progress     *progress                 // shared among parts
-	firstResp    *firstHttpResponseContext // shared among parts
-	patcher      func(*http.Request)       // shared among parts
-	logger       *log.Logger
-	file         *os.File
-	name         string
-	output       string
-	prefixFormat string
-	single       bool
+	id        int
+	ctx       context.Context
+	cancel    context.CancelFunc
+	client    *http.Client              // shared among parts
+	progress  *progress                 // shared among parts
+	firstResp *firstHttpResponseContext // shared among parts
+	patcher   func(*http.Request)       // shared among parts
+	logger    *log.Logger
+	file      *os.File
+	name      string
+	output    string
+	single    bool
 }
 
 type flashBar struct {
@@ -115,10 +115,9 @@ func (p Part) newBar(curTry *uint32) (*flashBar, error) {
 
 func (p *Part) init(id int, session *Session) error {
 	p.id = id
-	p.single = session.Single
 	p.name = fmt.Sprintf("P%02d", id)
 	p.output = fmt.Sprintf("%s.%02d", session.OutputName, id)
-	p.prefixFormat = fmt.Sprintf("[%s:R%%02d] ", p.name)
+	p.single = session.Single
 	if session.restored && p.Written != 0 {
 		stat, err := os.Stat(p.output)
 		if err != nil {
@@ -132,7 +131,12 @@ func (p *Part) init(id int, session *Session) error {
 	return nil
 }
 
-func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTimeout time.Duration) (err error) {
+func (p *Part) download(
+	debugw io.Writer,
+	location string,
+	bufSize, maxTry uint,
+	sleep, initialTimeout time.Duration,
+) (err error) {
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
 		p.cancel()
@@ -142,7 +146,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 		err = withMessage(err, p.name)
 	}()
 
-	p.logger = log.New(p.progress.err, fmt.Sprintf(p.prefixFormat, 0), log.LstdFlags)
+	p.logger = log.New(debugw, fmt.Sprintf(prefixFormat, p.name, 0), log.LstdFlags)
 
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	if err != nil {
@@ -221,7 +225,7 @@ func (p *Part) download(location string, bufSize, maxTry uint, sleep, initialTim
 					}
 					_, _ = fmt.Fprintln(p.progress, prefix, unwrapOrErr(err).Error())
 				}(p.logger.Prefix(), bar != nil)
-				p.logger.SetPrefix(fmt.Sprintf(p.prefixFormat, attempt+1))
+				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
 			}(p.Written)
 

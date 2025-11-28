@@ -284,7 +284,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	var recovered bool
-	progress := newProgress(m.Ctx, session, m.getOut(), m.getErr())
+	debugw := m.getErr()
+	progress := newProgress(m.Ctx, session, m.getOut(), debugw)
 	stateQuery := makeStateQuery(session, progress.current)
 	defer func() {
 		switch tw := session.totalWritten(); stateQuery(tw, err) {
@@ -324,8 +325,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	firstResp.ctx, firstResp.cancel = context.WithCancelCause(m.Ctx)
 
 	for i, p := range session.Parts {
-		err := p.init(i+1, session)
-		if err != nil {
+		if err := p.init(i+1, session); err != nil {
 			return err
 		}
 		// at ContentLength = 0 p.isDone() is always true therefore we shouldn't skip written = 0 part
@@ -357,7 +357,14 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
-			return p.download(session.location, m.opt.BufferSize, m.opt.MaxRetry, sleep, timeout)
+			return p.download(
+				debugw,
+				session.location,
+				m.opt.BufferSize,
+				m.opt.MaxRetry,
+				sleep,
+				timeout,
+			)
 		})
 	}
 
