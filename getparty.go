@@ -320,10 +320,15 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var doneCount uint32
 	var eg errgroup.Group
 	var recoverHandler sync.Once
-	timeout := m.getTimeout()
-	sleep := time.Duration(m.opt.SpeedLimit*50) * time.Millisecond
 	firstResp := &firstHttpResponseContext{id: make(chan int, 1)}
 	firstResp.ctx, firstResp.cancel = context.WithCancelCause(m.Ctx)
+
+	options := downloadOptions{
+		bufSize: m.opt.BufferSize,
+		maxTry:  m.opt.MaxRetry,
+		timeout: m.getTimeout(),
+		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
+	}
 
 	for i, p := range session.Parts {
 		if err := p.init(i+1, session); err != nil {
@@ -363,13 +368,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
-			return p.download(debugw, &downloadOptions{
-				location: session.location,
-				bufSize:  m.opt.BufferSize,
-				maxTry:   m.opt.MaxRetry,
-				timeout:  timeout,
-				sleep:    sleep,
-			})
+			return p.download(debugw, session.location, options)
 		})
 	}
 

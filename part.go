@@ -53,11 +53,10 @@ type firstHttpResponseContext struct {
 }
 
 type downloadOptions struct {
-	location string
-	bufSize  uint
-	maxTry   uint
-	timeout  time.Duration
-	sleep    time.Duration
+	bufSize uint
+	maxTry  uint
+	timeout time.Duration
+	sleep   time.Duration
 }
 
 type flashBar struct {
@@ -139,7 +138,7 @@ func (p *Part) init(id int, session *Session) error {
 	return nil
 }
 
-func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
+func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) (err error) {
 	var bar *flashBar
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
@@ -154,7 +153,7 @@ func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
 
 	p.logger = log.New(debugw, fmt.Sprintf(prefixFormat, p.name, 0), log.LstdFlags)
 
-	req, err := http.NewRequest(http.MethodGet, opt.location, nil)
+	req, err := http.NewRequest(http.MethodGet, location, nil)
 	if err != nil {
 		return withStack(err)
 	}
