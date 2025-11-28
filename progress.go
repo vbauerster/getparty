@@ -86,15 +86,15 @@ func (p *progress) addConcatBar(partCount int) (*mpb.Bar, error) {
 
 func newProgress(ctx context.Context, session *Session, out, err io.Writer) *progress {
 	var total chan int
-	qlen := 1
-	for _, p := range session.Parts {
-		if !p.isDone() {
-			qlen++
-		}
-	}
+	qlen := len(session.Parts) + 1 // +1 for topBar
 	if !session.Single {
 		total = make(chan int, qlen)
-		qlen += 2 // account for total and concat bars
+		qlen += 2 // +2 for total and concat bars
+	}
+	for _, p := range session.Parts {
+		if p.Written != 0 && p.isDone() {
+			qlen--
+		}
 	}
 	p := mpb.NewWithContext(ctx,
 		mpb.WithOutput(out),
