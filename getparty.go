@@ -437,11 +437,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					return withStack(ContentMismatch{session.ContentLength, stat.Size()})
 				}
 			}
-			if m.opt.SessionName != "" {
-				err := os.Remove(m.opt.SessionName)
-				if err != nil {
-					return withStack(err)
-				}
+			if m.opt.SessionName != "" && os.Remove(m.opt.SessionName) == nil {
 				m.loggers[DEBUG].Printf("%q remove ok", m.opt.SessionName)
 			}
 		}
