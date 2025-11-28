@@ -751,13 +751,8 @@ func (m Cmd) overwriteIfConfirmed(name string) (err error) {
 }
 
 func (m Cmd) getTimeout() time.Duration {
-	if m.opt.Timeout == 0 {
-		return 15 * time.Second
-	}
-	if m.opt.Timeout > maxTimeout {
-		return maxTimeout * time.Second
-	}
-	return time.Duration(m.opt.Timeout) * time.Second
+	timeout := min(cmp.Or(m.opt.Timeout, maxTimeout), maxTimeout)
+	return time.Duration(timeout) * time.Second
 }
 
 func (m Cmd) getOut() io.Writer {
