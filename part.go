@@ -26,12 +26,6 @@ const prefixFormat = "[%s:R%02d] "
 
 var globTry uint32
 
-type firstHttpResponseContext struct {
-	ctx    context.Context
-	cancel context.CancelCauseFunc
-	id     chan int
-}
-
 // Part represents state of each download part
 type Part struct {
 	Start   int64
@@ -50,6 +44,12 @@ type Part struct {
 	name      string
 	output    string
 	single    bool
+}
+
+type firstHttpResponseContext struct {
+	ctx    context.Context
+	cancel context.CancelCauseFunc
+	id     chan int
 }
 
 type downloadOptions struct {
