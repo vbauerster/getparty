@@ -52,6 +52,14 @@ type Part struct {
 	single    bool
 }
 
+type downloadOptions struct {
+	location string
+	bufSize  uint
+	maxTry   uint
+	timeout  time.Duration
+	sleep    time.Duration
+}
+
 type flashBar struct {
 	*mpb.Bar
 	signal chan<- struct{}
@@ -131,12 +139,7 @@ func (p *Part) init(id int, session *Session) error {
 	return nil
 }
 
-func (p *Part) download(
-	debugw io.Writer,
-	location string,
-	bufSize, maxTry uint,
-	sleep, initialTimeout time.Duration,
-) (err error) {
+func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
 		p.cancel()
@@ -148,7 +151,7 @@ func (p *Part) download(
 
 	p.logger = log.New(debugw, fmt.Sprintf(prefixFormat, p.name, 0), log.LstdFlags)
 
-	req, err := http.NewRequest(http.MethodGet, location, nil)
+	req, err := http.NewRequest(http.MethodGet, opt.location, nil)
 	if err != nil {
 		return withStack(err)
 	}
@@ -162,9 +165,9 @@ func (p *Part) download(
 	var partial bool
 	var buffer [bufMax]byte
 
-	bufLen := int(min(bufMax, bufSize*1024))
-	consecutiveResetOk := 32 / int(bufSize)
-	timeout := initialTimeout
+	bufLen := int(min(bufMax, opt.bufSize*1024))
+	consecutiveResetOk := 32 / int(opt.bufSize)
+	timeout := opt.timeout
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
@@ -202,7 +205,7 @@ func (p *Part) download(
 				switch attempt {
 				case 0:
 					atomic.AddUint32(&globTry, 1)
-				case maxTry:
+				case opt.maxTry:
 					atomic.AddUint32(&globTry, ^uint32(0))
 					retry, err = false, ErrMaxRetry
 					_, _ = fmt.Fprintf(p.progress, "%s%s (%.1f / %.1f)\n",
@@ -341,7 +344,7 @@ func (p *Part) download(
 			// io.ReadFull returns io.ErrUnexpectedEOF if an io.EOF happens after reading
 			// some but not all the bytes therefore to force io.ReadFull to return io.EOF
 			// loop is entered one more time on first io.ErrUnexpectedEOF encounter
-			for n := bufLen; timer.Reset(timeout+sleep) && n == bufLen || isUnexpectedEOF(err); {
+			for n := bufLen; timer.Reset(timeout+opt.sleep) && n == bufLen || isUnexpectedEOF(err); {
 				start := time.Now()
 				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
 				rDur := time.Since(start)
@@ -353,8 +356,8 @@ func (p *Part) download(
 				}
 
 				var timer limitTimer
-				if sleep != 0 {
-					timer.timer = time.NewTimer(sleep)
+				if opt.sleep != 0 {
+					timer.timer = time.NewTimer(opt.sleep)
 					limit = limitTimer.wait
 				} else {
 					limit = limitTimer.nop
@@ -373,12 +376,12 @@ func (p *Part) download(
 					bar.SetTotal(p.Written, false)
 				}
 
-				if timeout != initialTimeout {
+				if timeout != opt.timeout {
 					switch dtt {
 					case 0:
 						timeout -= 5 * time.Second
-						timeout = max(timeout, initialTimeout)
-						if timeout == initialTimeout {
+						timeout = max(timeout, opt.timeout)
+						if timeout == opt.timeout {
 							backoffReset()
 						}
 					default:
@@ -389,8 +392,8 @@ func (p *Part) download(
 				bar.EwmaIncrBy(n, rDur)
 
 				if limit(timer, ctx) {
-					idle += sleep
-					bar.EwmaIncrBy(0, sleep)
+					idle += opt.sleep
+					bar.EwmaIncrBy(0, opt.sleep)
 				}
 			}
 

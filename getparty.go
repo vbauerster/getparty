@@ -359,14 +359,13 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
-			return p.download(
-				debugw,
-				session.location,
-				m.opt.BufferSize,
-				m.opt.MaxRetry,
-				sleep,
-				timeout,
-			)
+			return p.download(debugw, &downloadOptions{
+				location: session.location,
+				bufSize:  m.opt.BufferSize,
+				maxTry:   m.opt.MaxRetry,
+				timeout:  timeout,
+				sleep:    sleep,
+			})
 		})
 	}
 
