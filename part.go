@@ -313,8 +313,7 @@ func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
 							// some other part got http.StatusPartialContent first
 							panic(UnexpectedHttpStatus(http.StatusOK))
 						}
-						// some other part got http.StatusOK already
-						p.logger.Printf("Quit: %v", err)
+						p.logger.Println("Some other part got:", resp.Status)
 						return false, nil
 					}
 					if p.Written != 0 {
