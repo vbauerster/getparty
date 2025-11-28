@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -220,8 +221,8 @@ func (p *Part) download(
 						if flash {
 							bar.flashTimeout()
 						}
-					} else if prefix != "" {
-						prefix = prefix[:len(prefix)-1]
+					} else {
+						prefix = strings.TrimSuffix(prefix, " ")
 					}
 					_, _ = fmt.Fprintln(p.progress, prefix, unwrapOrErr(err).Error())
 				}(p.logger.Prefix(), bar != nil)
