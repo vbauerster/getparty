@@ -288,30 +288,31 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	progress := newProgress(m.Ctx, session, m.getOut(), debugw)
 	stateQuery := makeStateQuery(session, progress.current)
 	defer func() {
-		switch tw := session.totalWritten(); stateQuery(tw, err) {
+		var dump, completed bool
+		tw := session.totalWritten()
+		switch stateQuery(tw, err) {
+		case sessionUncompletedWithAdvance, sessionCompletedWithError:
+			dump = true
+		case sessionCompleted:
+			completed = true
+			fallthrough
 		case sessionUncompleted:
 			progress.Wait()
-		case sessionUncompletedWithAdvance:
-			name := session.OutputName
+		}
+		switch {
+		case dump:
+			var dumpName string
 			if recovered {
-				name += ".recovered"
+				dumpName = session.OutputName + ".recovered"
 			} else {
-				name += ".json"
+				dumpName = session.OutputName + ".json"
 			}
-			dumpErr := session.dumpState(name)
+			dumpErr := session.dumpState(dumpName)
 			progress.Wait()
 			if dumpErr == nil {
-				m.loggers[INFO].Printf("Session state saved to %q", name)
+				m.loggers[INFO].Printf("Session state saved to %q", dumpName)
 			}
-		case sessionCompletedWithError:
-			name := session.OutputName + ".error"
-			dumpErr := session.dumpState(name)
-			progress.Wait()
-			if dumpErr == nil {
-				m.loggers[INFO].Printf("Session state saved to %q", name)
-			}
-		case sessionCompleted:
-			progress.Wait()
+		case completed:
 			m.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
 		}
 	}()
