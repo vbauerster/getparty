@@ -50,6 +50,12 @@ func TestMakeParts(t *testing.T) {
 			parts:  [][2]int64{{0, -2}},
 		},
 		{
+			name:   "1_1",
+			n:      1,
+			length: 1,
+			parts:  [][2]int64{{0, 0}},
+		},
+		{
 			name:   "1_33",
 			n:      1,
 			length: 33,
