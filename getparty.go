@@ -339,6 +339,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		p.firstResp = firstResp
 		p.progress = progress
 		p.patcher = m.patcher
+		p.single = session.Single
 		// p := p // NOTE: uncomment for Go < 1.22, see /doc/faq#closures_and_goroutines
 		eg.Go(func() (err error) {
 			defer func() {
