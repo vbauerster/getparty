@@ -345,7 +345,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			defer func() {
 				if v := recover(); v != nil {
 					recoverHandler.Do(func() {
-						progress.Shutdown()
+						for _, p := range session.Parts {
+							if p.cancel != nil {
+								p.cancel()
+							}
+						}
 						recovered = true
 					})
 					if e, ok := v.(error); ok {
