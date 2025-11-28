@@ -308,8 +308,7 @@ func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
 					}
 				default:
 					if !p.single || partial {
-						err := context.Cause(p.firstResp.ctx)
-						if errors.Is(err, modePartial) {
+						if errors.Is(context.Cause(p.firstResp.ctx), modePartial) {
 							// some other part got http.StatusPartialContent first
 							panic(UnexpectedHttpStatus(http.StatusOK))
 						}
