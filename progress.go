@@ -28,6 +28,10 @@ func (p *progress) Wait() {
 	_, _ = fmt.Fprintln(p.out)
 }
 
+func (p *progress) incrTotal(n int) {
+	p.total <- n
+}
+
 func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount int, start time.Time) {
 	bar := p.MustAdd(contentLength, distinctBarRefiller(baseBarStyle()),
 		mpb.BarFillerTrim(),

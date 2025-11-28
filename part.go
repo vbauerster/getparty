@@ -369,7 +369,7 @@ func (p *Part) download(
 				p.Written += int64(n)
 
 				if !p.single {
-					p.progress.total <- n
+					p.progress.incrTotal(n)
 				} else if p.total() <= 0 {
 					bar.SetTotal(p.Written, false)
 				}
