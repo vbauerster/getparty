@@ -432,12 +432,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			return withStack(err)
 		}
 		if session.isResumable() {
-			stat, err := p.file.Stat()
-			if err != nil {
-				return withStack(err)
-			}
-			if size := stat.Size(); size != session.ContentLength {
-				return withStack(ContentMismatch{session.ContentLength, size})
+			if stat, err := p.file.Stat(); err == nil {
+				if session.ContentLength != stat.Size() {
+					return withStack(ContentMismatch{session.ContentLength, stat.Size()})
+				}
 			}
 			if m.opt.SessionName != "" {
 				err := os.Remove(m.opt.SessionName)
