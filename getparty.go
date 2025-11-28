@@ -297,16 +297,18 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			} else {
 				name += ".json"
 			}
-			err := session.dumpState(name)
+			dumpErr := session.dumpState(name)
 			progress.Wait()
-			if err != nil {
-				m.loggers[ERRO].Println("Session state save failure:", err.Error())
-			} else {
+			if dumpErr == nil {
 				m.loggers[INFO].Printf("Session state saved to %q", name)
 			}
 		case sessionCompletedWithError:
+			name := session.OutputName + ".error"
+			dumpErr := session.dumpState(name)
 			progress.Wait()
-			m.loggers[ERRO].Println("Session completed with error:", err.Error())
+			if dumpErr == nil {
+				m.loggers[INFO].Printf("Session state saved to %q", name)
+			}
 		case sessionCompleted:
 			progress.Wait()
 			m.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
