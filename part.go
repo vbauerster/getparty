@@ -140,9 +140,11 @@ func (p *Part) init(id int, session *Session) error {
 }
 
 func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
+	var bar *flashBar
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
 		p.cancel()
+		bar.Abort(!p.single)
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)
 		p.logger.Println("Total Idle:", totalIdle)
@@ -159,7 +161,6 @@ func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
 		p.patcher(req)
 	}
 
-	var bar *flashBar
 	var dtt int // decrement timeout threshold
 	var curTry uint32
 	var partial bool
@@ -199,7 +200,6 @@ func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
 				p.logger.Println("Elapsed:", elapsed)
 				p.logger.Println("Idle:", idle)
 				if !retry || err == nil || errors.Is(context.Cause(p.ctx), ErrCanceledByUser) {
-					bar.Abort(!p.single)
 					return
 				}
 				switch attempt {
@@ -213,7 +213,6 @@ func (p *Part) download(debugw io.Writer, opt *downloadOptions) (err error) {
 						err.Error(),
 						decor.SizeB1024(p.Written),
 						decor.SizeB1024(p.total()))
-					bar.Abort(!p.single)
 					return
 				}
 				p.logger.Println("Retry reason:", err.Error())
