@@ -58,7 +58,7 @@ const (
 	ErrMaxRedirect    = ExpectedError("Max redirections")
 	ErrMaxRetry       = ExpectedError("Max retries")
 	ErrZeroParts      = ExpectedError("No parts no work")
-	ErrTooFragmented  = ExpectedError("Too many parts for such pathetic download")
+	ErrTooFragmented  = ExpectedError("Too fragmented, reduce number of parts maybe?")
 )
 
 const (
