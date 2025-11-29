@@ -8,87 +8,110 @@ import (
 func TestMakeParts(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
-		n, length int64
-		parts     [][2]int64
-		err       error
+		name   string
+		length int64
+		parts  [][2]int64
+		err    error
 	}{
 		{
 			name:   "0_33",
-			n:      0,
 			length: 33,
 			err:    ErrZeroParts,
 		},
 		{
-			name:   "8_33",
-			n:      8,
-			length: 33,
-			err:    ErrTooFragmented,
-		},
-		{
-			name:   "2_0",
-			n:      2,
-			length: 0,
-			err:    ErrTooFragmented,
-		},
-		{
-			name:   "2_-1",
-			n:      2,
-			length: -1,
-			err:    ErrTooFragmented,
-		},
-		{
 			name:   "1_0",
-			n:      1,
 			length: 0,
 			parts:  [][2]int64{{0, -1}},
 		},
 		{
 			name:   "1_-1",
-			n:      1,
 			length: -1,
 			parts:  [][2]int64{{0, -2}},
 		},
 		{
 			name:   "1_1",
-			n:      1,
 			length: 1,
 			parts:  [][2]int64{{0, 0}},
 		},
 		{
-			name:   "1_33",
-			n:      1,
-			length: 33,
-			parts:  [][2]int64{{0, 32}},
+			name:   "1_512",
+			length: 512,
+			parts:  [][2]int64{{0, 511}},
 		},
 		{
-			name:   "8_1024",
-			n:      8,
+			name:   "1_512",
+			length: 512,
+			parts:  make([][2]int64, 2),
+			err:    ErrTooFragmented,
+		},
+		{
+			name:   "1_1024",
+			length: 1024,
+			parts:  [][2]int64{{0, 1023}},
+		},
+		{
+			name:   "2_1024",
 			length: 1024,
 			parts: [][2]int64{
-				{0, 120},
-				{121, 249},
-				{250, 378},
-				{379, 507},
-				{508, 636},
-				{637, 765},
-				{766, 894},
-				{895, 1023},
+				{0, 511},
+				{512, 1023},
 			},
 		},
 		{
-			name:   "8_1025",
-			n:      8,
+			name:   "3_1024",
+			length: 1024,
+			parts:  make([][2]int64, 3),
+			err:    ErrTooFragmented,
+		},
+		{
+			name:   "2_1025",
 			length: 1025,
 			parts: [][2]int64{
-				{0, 121},
-				{122, 250},
-				{251, 379},
-				{380, 508},
-				{509, 637},
-				{638, 766},
-				{767, 895},
-				{896, 1024},
+				{0, 511},
+				{512, 1024},
+			},
+		},
+		{
+			name:   "2_2048",
+			length: 2048,
+			parts: [][2]int64{
+				{0, 1023},
+				{1024, 2047},
+			},
+		},
+		{
+			name:   "3_2048",
+			length: 2048,
+			parts: [][2]int64{
+				{0, 681},
+				{682, 1363},
+				{1364, 2047},
+			},
+		},
+		{
+			name:   "4_2048",
+			length: 2048,
+			parts: [][2]int64{
+				{0, 511},
+				{512, 1023},
+				{1024, 1535},
+				{1536, 2047},
+			},
+		},
+		{
+			name:   "5_2048",
+			length: 2048,
+			parts:  make([][2]int64, 5),
+			err:    ErrTooFragmented,
+		},
+		{
+			name:   "4_2049",
+			length: 2049,
+			parts: [][2]int64{
+				{0, 511},
+				{512, 1023},
+				{1024, 1535},
+				{1536, 2048},
 			},
 		},
 	}
@@ -96,25 +119,25 @@ func TestMakeParts(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			parts, err := makeParts(test.n, test.length)
+			parts, err := makeParts(len(test.parts), test.length)
 			if test.err != nil {
 				if !errors.Is(err, test.err) {
-					t.Errorf("expected error %T got %v", test.err, err)
+					t.Errorf("expected error %q got %q", test.err, err)
 				}
 			} else {
 				if err != nil {
-					t.Fatal("unexpected error", err)
+					t.Fatalf("unexpected error: %q", err)
 				}
-				if int64(len(parts)) != test.n {
-					t.Errorf("expected n %d got %d", test.n, len(parts))
+				if len(parts) != len(test.parts) {
+					t.Errorf("expected len(parts)=%d got len(parts)=%d", len(test.parts), len(parts))
 				}
 				for i, p := range parts {
 					x := test.parts[i]
 					if start := x[0]; p.Start != start {
-						t.Errorf("expected start %d got %d", start, p.Start)
+						t.Errorf("[%d] expected start %d got %d", i, start, p.Start)
 					}
 					if stop := x[1]; p.Stop != stop {
-						t.Errorf("expected stop %d got %d", stop, p.Stop)
+						t.Errorf("[%d] expected stop %d got %d", i, stop, p.Stop)
 					}
 				}
 			}
