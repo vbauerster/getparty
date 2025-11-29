@@ -38,7 +38,6 @@ type Part struct {
 	client    *http.Client              // shared among parts
 	progress  *progress                 // shared among parts
 	firstResp *firstHttpResponseContext // shared among parts
-	patcher   func(*http.Request)       // shared among parts
 	logger    *log.Logger
 	file      *os.File
 	name      string
@@ -57,6 +56,7 @@ type downloadOptions struct {
 	maxTry  uint
 	timeout time.Duration
 	sleep   time.Duration
+	patcher func(*http.Request)
 }
 
 type flashBar struct {
@@ -157,8 +157,8 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 	if err != nil {
 		return withStack(err)
 	}
-	if p.patcher != nil {
-		p.patcher(req)
+	if opt.patcher != nil {
+		opt.patcher(req)
 	}
 
 	var dtt int // decrement timeout threshold
