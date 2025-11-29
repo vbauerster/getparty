@@ -76,7 +76,7 @@ func (b *flashBar) Abort(drop bool) {
 
 func (p Part) newBar(curTry *uint32) (*flashBar, error) {
 	var filler mpb.BarFiller
-	total := p.total()
+	total := p.len()
 	if total > 0 {
 		filler = distinctBarRefiller(baseBarStyle())
 	}
@@ -212,7 +212,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 						p.logger.Prefix(),
 						err.Error(),
 						decor.SizeB1024(p.Written),
-						decor.SizeB1024(p.total()))
+						decor.SizeB1024(p.len()))
 					return
 				}
 				p.logger.Println("Retry err:", err.Error())
@@ -369,7 +369,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 
 				if !p.single {
 					p.progress.incrTotal(n)
-				} else if p.total() <= 0 {
+				} else if p.len() <= 0 {
 					bar.SetTotal(p.Written, false)
 				}
 
@@ -394,8 +394,8 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 				}
 			}
 
-			if p.total() <= 0 && errors.Is(err, io.EOF) {
-				p.Stop = p.Written - 1 // make sure next p.total() result is never negative
+			if p.len() <= 0 && errors.Is(err, io.EOF) {
+				p.Stop = p.Written - 1 // make sure next p.len() result is never negative
 				bar.EnableTriggerComplete()
 			}
 
@@ -419,14 +419,14 @@ func (p Part) getRange() string {
 	return fmt.Sprintf("bytes=%d-%d", p.Start+p.Written, p.Stop)
 }
 
-// on ContentLength =  0 p.Stop is -1 and total evaluates to  0
-// on ContentLength = -1 p.Stop is -2 and total evaluates to -1
-func (p Part) total() int64 {
+// on ContentLength =  0 p.Stop is -1 and len evaluates to  0
+// on ContentLength = -1 p.Stop is -2 and len evaluates to -1
+func (p Part) len() int64 {
 	return p.Stop - p.Start + 1
 }
 
 func (p Part) isDone() bool {
-	return p.Written == p.total()
+	return p.Written == p.len()
 }
 
 type limitTimer struct {
