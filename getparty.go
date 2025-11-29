@@ -67,6 +67,7 @@ const (
 
 	umask               = 0644
 	maxTimeout          = 90
+	minFragment         = 512
 	refreshRate         = 200
 	hUserAgentKey       = "User-Agent"
 	hContentDisposition = "Content-Disposition"
@@ -960,7 +961,7 @@ func makeParts(n int, length int64) ([]*Part, error) {
 		return nil, ErrZeroParts
 	}
 	fragment := length / int64(n)
-	if n != 1 && fragment < 64 {
+	if n != 1 && fragment < minFragment {
 		return nil, ErrTooFragmented
 	}
 
