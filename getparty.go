@@ -196,6 +196,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
+	m.Out, m.Err = m.getOut(), m.getErr()
 	userAgents[""] = fmt.Sprintf("%s/%s", cmdName, version)
 
 	if m.opt.Version {
@@ -285,8 +286,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	var recovered bool
-	debugw := m.getErr()
-	progress := newProgress(m.Ctx, session, m.getOut(), debugw)
+	progress := newProgress(m.Ctx, session, m.Out, m.Err)
 	stateQuery := makeStateQuery(session, progress.current)
 	defer func() {
 		var dump, completed bool
@@ -369,7 +369,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					atomic.AddUint32(&doneCount, 1)
 				}
 			}()
-			return p.download(debugw, session.location, options)
+			return p.download(m.Err, session.location, options)
 		})
 	}
 

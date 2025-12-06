@@ -14,9 +14,8 @@ const (
 )
 
 func (m *Cmd) initLoggers() {
-	out := m.getOut()
-	m.loggers[DEBUG] = log.New(m.getErr(), fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
-	m.loggers[INFO] = log.New(out, "[INFO] ", log.LstdFlags)
-	m.loggers[WARN] = log.New(out, "[WARN] ", log.LstdFlags)
-	m.loggers[ERRO] = log.New(out, "[ERRO] ", log.LstdFlags)
+	m.loggers[DEBUG] = log.New(m.Err, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
+	m.loggers[INFO] = log.New(m.Out, "[INFO] ", log.LstdFlags)
+	m.loggers[WARN] = log.New(m.Out, "[WARN] ", log.LstdFlags)
+	m.loggers[ERRO] = log.New(m.Out, "[ERRO] ", log.LstdFlags)
 }
