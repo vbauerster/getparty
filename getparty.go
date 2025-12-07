@@ -147,7 +147,7 @@ func (m Cmd) Exit(err error) (status int) {
 			return
 		}
 		if m.opt != nil && m.opt.Debug {
-			m.loggers[DEBUG].Printf("ERROR: %s", err.Error())
+			m.loggers[DBUG].Printf("ERROR: %s", err.Error())
 			if e := (*debugError)(nil); errors.As(err, &e) {
 				_, err := m.Err.Write(e.stack)
 				if err != nil {
@@ -379,7 +379,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	<-firstResp.ctx.Done()
 	start, cause := time.Now(), context.Cause(firstResp.ctx)
-	m.loggers[DEBUG].Printf("First Response: %v", cause)
+	m.loggers[DBUG].Printf("First Response: %v", cause)
 
 	switch {
 	case errors.Is(cause, modeFallback):
@@ -415,10 +415,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		for _, p := range session.Parts {
 			if f := p.file; f != nil {
-				m.loggers[DEBUG].Printf("%q closed with: %v", f.Name(), f.Close())
+				m.loggers[DBUG].Printf("%q closed with: %v", f.Name(), f.Close())
 				if session.Single && !session.isResumable() {
 					err := os.Rename(f.Name(), session.OutputName)
-					m.loggers[DEBUG].Printf("%q renamed to %q with: %v", f.Name(), session.OutputName, err)
+					m.loggers[DBUG].Printf("%q renamed to %q with: %v", f.Name(), session.OutputName, err)
 				}
 			}
 		}
@@ -442,19 +442,19 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 			}
 			if m.opt.SessionName != "" && os.Remove(m.opt.SessionName) == nil {
-				m.loggers[DEBUG].Printf("%q remove ok", m.opt.SessionName)
+				m.loggers[DBUG].Printf("%q remove ok", m.opt.SessionName)
 			}
 		}
 		err = p.file.Close()
 		if err != nil {
 			return withStack(err)
 		}
-		m.loggers[DEBUG].Printf("%q close ok", p.file.Name())
+		m.loggers[DBUG].Printf("%q close ok", p.file.Name())
 		err = os.Rename(p.file.Name(), session.OutputName)
 		if err != nil {
 			return withStack(err)
 		}
-		m.loggers[DEBUG].Printf("%q rename to %q ok", p.file.Name(), session.OutputName)
+		m.loggers[DBUG].Printf("%q rename to %q ok", p.file.Name(), session.OutputName)
 	}
 	return nil
 }
@@ -465,7 +465,7 @@ func (m Cmd) getHttpClient(prefix string, tls *tls.Config, pooled, withJar bool)
 		return nil, err
 	}
 	rtBuilder = rtBuilder.tls(tls).pool(pooled)
-	rtBuilder.debug(m.loggers[DEBUG], prefix)
+	rtBuilder.debug(m.loggers[DBUG], prefix)
 	client := &http.Client{
 		Transport: rtBuilder.build(),
 	}
@@ -535,7 +535,7 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 				restored.location = restored.URL
 			}
 			restored.restored = true
-			m.loggers[DEBUG].Printf("Session restored from: %q", m.opt.SessionName)
+			m.loggers[DBUG].Printf("Session restored from: %q", m.opt.SessionName)
 			return restored, nil
 		case m.opt.Positional.Location != "":
 			session, err = m.follow(client, m.opt.Positional.Location)
@@ -566,7 +566,7 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 				}
 				return session, nil
 			}
-			m.loggers[DEBUG].Printf("Reusing existing state: %q", state)
+			m.loggers[DBUG].Printf("Reusing existing state: %q", state)
 			m.opt.SessionName = state
 		}
 	}
@@ -603,7 +603,7 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 			getR := fmt.Sprintf(template, attempt)
 			for i := uint(0); i <= maxRedirect; i++ {
 				m.loggers[INFO].Printf(getR, location)
-				m.loggers[DEBUG].Printf(getR, location)
+				m.loggers[DBUG].Printf(getR, location)
 
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
@@ -615,13 +615,13 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 				}
 
 				for k, v := range req.Header {
-					m.loggers[DEBUG].Printf("Request Header: %s: %v", k, v)
+					m.loggers[DBUG].Printf("Request Header: %s: %v", k, v)
 				}
 
 				resp, err := client.Do(req.WithContext(ctx))
 				if err != nil {
 					m.loggers[WARN].Println(unwrapOrErr(err).Error())
-					m.loggers[DEBUG].Println(err.Error())
+					m.loggers[DBUG].Println(err.Error())
 					if attempt != 0 && attempt == m.opt.MaxRetry {
 						return false, ErrMaxRetry
 					}
@@ -630,14 +630,14 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 
 				if jar := client.Jar; jar != nil {
 					for _, cookie := range jar.Cookies(req.URL) {
-						m.loggers[DEBUG].Println("Cookie:", cookie) // cookie implements fmt.Stringer
+						m.loggers[DBUG].Println("Cookie:", cookie) // cookie implements fmt.Stringer
 					}
 				}
 
-				m.loggers[DEBUG].Println("Response Status:", resp.Status)
+				m.loggers[DBUG].Println("Response Status:", resp.Status)
 
 				for k, v := range resp.Header {
-					m.loggers[DEBUG].Printf("Response Header: %s: %v", k, v)
+					m.loggers[DBUG].Printf("Response Header: %s: %v", k, v)
 				}
 
 				if isRedirect(resp.StatusCode) {
@@ -717,7 +717,7 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 
 func (m Cmd) overwriteIfConfirmed(name string) (err error) {
 	if m.opt.Output.Overwrite {
-		m.loggers[DEBUG].Printf("Removing existing: %q", name)
+		m.loggers[DBUG].Printf("Removing existing: %q", name)
 		return withStack(os.Remove(name))
 	}
 	_, err = fmt.Fprintf(m.Err, "%q already exists, overwrite? [Y/n] ", name)
@@ -742,7 +742,7 @@ func (m Cmd) overwriteIfConfirmed(name string) (err error) {
 	}
 	switch b[0] {
 	case 'y', 'Y', '\r':
-		m.loggers[DEBUG].Printf("Removing existing: %q", name)
+		m.loggers[DBUG].Printf("Removing existing: %q", name)
 		return os.Remove(name)
 	default:
 		return ErrCanceledByUser
@@ -790,7 +790,7 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 			if err != nil {
 				return withStack(err)
 			}
-			m.loggers[DEBUG].Printf("%q reopen nil file ok", p.file.Name())
+			m.loggers[DBUG].Printf("%q reopen nil file ok", p.file.Name())
 		}
 		files = append(files, p.file)
 	}
@@ -814,7 +814,7 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 		pair := files[i-2 : i]
 		eg.Go(func() error {
 			defer bar.Increment()
-			return concat(pair, m.loggers[DEBUG])
+			return concat(pair, m.loggers[DBUG])
 		})
 	}
 
@@ -822,7 +822,7 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 	if err != nil {
 		for _, f := range files {
 			if f != nil {
-				m.loggers[DEBUG].Printf("%q closed with: %v", f.Name(), f.Close())
+				m.loggers[DBUG].Printf("%q closed with: %v", f.Name(), f.Close())
 			}
 		}
 		return err

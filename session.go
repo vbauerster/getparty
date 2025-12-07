@@ -77,7 +77,7 @@ func (s Session) summary(loggers [lEVELS]*log.Logger) {
 	default:
 		message := "Session is not resumable"
 		loggers[WARN].Println(message)
-		loggers[DEBUG].Println(message)
+		loggers[DBUG].Println(message)
 	}
 }
 

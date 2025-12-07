@@ -65,8 +65,8 @@ func (m Cmd) batchMirrors(input io.Reader, client *http.Client, workers, pass ui
 	src, dst := readLines(m.Ctx, input), make(chan *mirror, workers)
 	defer close(dst)
 
-	m.loggers[DEBUG].Println("BestMirror workers:", workers)
-	m.loggers[DEBUG].Println("BestMirror pass:", pass)
+	m.loggers[DBUG].Println("BestMirror workers:", workers)
+	m.loggers[DBUG].Println("BestMirror pass:", pass)
 
 	for range workers {
 		eg.Go(func() error {
