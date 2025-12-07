@@ -162,7 +162,7 @@ func (m Cmd) Exit(err error) (status int) {
 			// cmd invoked with --help switch
 			return 0
 		}
-		m.parser.WriteHelp(m.Err)
+		fmt.Fprintf(os.Stderr, "%s: try '%[1]s --help' for more information\n", cmdName)
 		return 2
 	}
 
