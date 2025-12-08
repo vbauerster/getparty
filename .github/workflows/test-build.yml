@@ -1,4 +1,4 @@
-name: test
+name: test-build
 
 on:
   push:
@@ -24,4 +24,8 @@ jobs:
     - uses: actions/setup-go@v6
       with:
         go-version: ${{ matrix.go-version }}
-    - run: go test -v ./...
+    - name: test
+      run: go test -v ./...
+    - name: build
+      working-directory: ./cmd/getparty
+      run: go build -v
