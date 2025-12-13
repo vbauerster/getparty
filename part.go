@@ -196,7 +196,8 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 				elapsed := time.Since(start)
 				totalElapsed += elapsed
 				totalIdle += idle
-				p.logger.Println("Written:", p.Written-written)
+				written = p.Written - written
+				p.logger.Println("Written:", written)
 				p.logger.Println("Elapsed:", elapsed)
 				p.logger.Println("Idle:", idle)
 				if !retry || err == nil || errors.Is(context.Cause(p.ctx), ErrCanceledByUser) {
@@ -215,18 +216,21 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 						decor.SizeB1024(p.len()))
 					return
 				}
-				p.logger.Println("Retry err:", err.Error())
-				go func(prefix string, flash bool) {
+				go func(prefix string, isBarOk bool) {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						prefix += timeoutMsg
-						if flash {
+						if isBarOk {
 							bar.flashTimeout()
 						}
 					} else {
 						prefix = strings.TrimSuffix(prefix, " ")
 					}
 					_, _ = fmt.Fprintln(p.progress, prefix, unwrapOrErr(err).Error())
+					if isBarOk && written != 0 {
+						bar.SetRefill(p.Written)
+					}
 				}(p.logger.Prefix(), bar != nil)
+				p.logger.Println("Retry err:", err.Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
 			}(p.Written)
@@ -284,9 +288,6 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 					if err != nil {
 						return false, withStack(err)
 					}
-				}
-				if p.Written != 0 {
-					go bar.SetRefill(p.Written)
 				}
 			case http.StatusOK: // no partial content, fallback to single part mode
 				select {
