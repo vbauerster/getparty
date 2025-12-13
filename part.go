@@ -226,7 +226,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 						prefix = strings.TrimSuffix(prefix, " ")
 					}
 					_, _ = fmt.Fprintln(p.progress, prefix, unwrapOrErr(err).Error())
-					if isBarOk && written != 0 {
+					if isBarOk && partial && written != 0 {
 						bar.SetRefill(p.Written)
 					}
 				}(p.logger.Prefix(), bar != nil)
