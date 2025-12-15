@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/http/httptrace"
 	"os"
@@ -216,7 +217,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 						decor.SizeB1024(p.len()))
 					return
 				}
-				go func(prefix string, isBarOk bool) {
+				go func(prefix string, isBarOk, partial bool) {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						prefix += timeoutMsg
 						if isBarOk {
@@ -227,9 +228,9 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 					}
 					_, _ = fmt.Fprintln(p.progress, prefix, unwrapOrErr(err).Error())
 					if isBarOk && partial && written != 0 {
-						bar.SetRefill(p.Written)
+						bar.SetRefill(math.MaxInt64)
 					}
-				}(p.logger.Prefix(), bar != nil)
+				}(p.logger.Prefix(), bar != nil, partial)
 				p.logger.Println("Retry err:", err.Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
 				atomic.StoreUint32(&curTry, uint32(attempt+1))
