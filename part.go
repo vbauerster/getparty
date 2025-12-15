@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"os"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -219,14 +218,13 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 				}
 				go func(prefix string, isBarOk, partial bool) {
 					if errors.Is(ctx.Err(), context.Canceled) {
-						prefix += timeoutMsg
 						if isBarOk {
 							bar.flashTimeout()
 						}
+						_, _ = fmt.Fprintln(p.progress, prefix+timeoutMsg, context.Canceled.Error())
 					} else {
-						prefix = strings.TrimSuffix(prefix, " ")
+						_, _ = fmt.Fprintln(p.progress, prefix+unwrapOrErr(err).Error())
 					}
-					_, _ = fmt.Fprintln(p.progress, prefix, unwrapOrErr(err).Error())
 					if isBarOk && partial && written != 0 {
 						bar.SetRefill(math.MaxInt64)
 					}
