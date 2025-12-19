@@ -1,6 +1,6 @@
 # getparty
 
-[![Build status](https://github.com/vbauerster/getparty/actions/workflows/build.yml/badge.svg)](https://github.com/vbauerster/getparty/actions/workflows/build.yml)
+[![Build status](https://github.com/vbauerster/getparty/actions/workflows/test-build.yml/badge.svg)](https://github.com/vbauerster/getparty/actions/workflows/test-build.yml)
 [![Lint status](https://github.com/vbauerster/getparty/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/vbauerster/getparty/actions/workflows/golangci-lint.yml)
 
 HTTP Download Manager with multi-parts
