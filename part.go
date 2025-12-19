@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"net/http/httptrace"
 	"os"
@@ -226,7 +225,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 						_, _ = fmt.Fprintln(p.progress, prefix+unwrapOrErr(err).Error())
 					}
 					if isBarOk && partial && written != 0 {
-						bar.SetRefill(math.MaxInt64)
+						bar.SetRefillCurrent()
 					}
 				}(p.logger.Prefix(), bar != nil, partial)
 				p.logger.Println("Retry err:", err.Error())
