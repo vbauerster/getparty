@@ -116,6 +116,7 @@ func (p Part) newBar(curTry *uint32) (*flashBar, error) {
 	if p.Written != 0 {
 		p.logger.Println("Setting bar current:", p.Written)
 		bar.SetCurrent(p.Written)
+		bar.SetRefillCurrent()
 	}
 	return &flashBar{bar, ch}, nil
 }
