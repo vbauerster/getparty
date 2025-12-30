@@ -62,7 +62,7 @@ func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount
 	}()
 	if p.current != 0 {
 		bar.SetCurrent(p.current)
-		bar.SetRefill(p.current)
+		bar.SetRefillCurrent()
 	}
 }
 
