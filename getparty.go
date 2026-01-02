@@ -830,14 +830,15 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 		return err
 	}
 
-	var x []*os.File
+	i := 0
 	for _, f := range files {
 		if f != nil {
-			x = append(x, f)
+			files[i] = f
+			i++
 		}
 	}
 
-	return m.concat(x, bar)
+	return m.concat(files[:i], bar)
 }
 
 func coalesce(pair [2]*os.File, logger *log.Logger) error {
