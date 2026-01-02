@@ -811,10 +811,12 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 
 	var eg errgroup.Group
 	for i := 2; i <= len(files); i += 2 {
-		pair := files[i-2 : i]
+		var pair [2]*os.File
+		copy(pair[:], files[i-2:i])
+		files[i-1] = nil
 		eg.Go(func() error {
 			defer bar.Increment()
-			return concat(pair, m.loggers[DBUG])
+			return coalesce(pair, m.loggers[DBUG])
 		})
 	}
 
@@ -838,10 +840,7 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 	return m.concat(x, bar)
 }
 
-func concat(pair []*os.File, logger *log.Logger) error {
-	if len(pair) != 2 {
-		return fmt.Errorf("unexpected pair len: %d", len(pair))
-	}
+func coalesce(pair [2]*os.File, logger *log.Logger) error {
 	// The behavior of Seek on a file opened with O_APPEND is not specified.
 	// Have to reopen file which was initially opened with O_APPEND flag.
 	dst, src := pair[0], pair[1]
@@ -873,7 +872,6 @@ func concat(pair []*os.File, logger *log.Logger) error {
 	}
 	logger.Printf("%q remove ok", src.Name())
 
-	pair[1] = nil
 	return nil
 }
 
