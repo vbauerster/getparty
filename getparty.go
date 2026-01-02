@@ -841,11 +841,16 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 	return m.concat(files[:i], bar)
 }
 
-func coalesce(pair [2]*os.File, logger *log.Logger) error {
+func coalesce(pair [2]*os.File, logger *log.Logger) (err error) {
 	// The behavior of Seek on a file opened with O_APPEND is not specified.
 	// Have to reopen file which was initially opened with O_APPEND flag.
 	dst, src := pair[0], pair[1]
-	err := src.Close()
+	defer func() {
+		if err == nil {
+			logger.Printf("%q remove ok", src.Name())
+		}
+	}()
+	err = src.Close()
 	if err != nil {
 		return err
 	}
@@ -861,19 +866,7 @@ func coalesce(pair [2]*os.File, logger *log.Logger) error {
 	}
 	logger.Printf("%d bytes copied: dst=%q src=%q", n, dst.Name(), src.Name())
 
-	err = src.Close()
-	if err != nil {
-		return err
-	}
-	logger.Printf("%q close ok", src.Name())
-
-	err = os.Remove(src.Name())
-	if err != nil {
-		return err
-	}
-	logger.Printf("%q remove ok", src.Name())
-
-	return nil
+	return cmp.Or(src.Close(), os.Remove(src.Name()))
 }
 
 func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*http.Request) {
