@@ -89,6 +89,12 @@ var (
 	}
 )
 
+// helper type used for parts concatenation
+type catFile struct {
+	name string
+	file *os.File
+}
+
 // options struct, represents cmd line options
 type options struct {
 	Parts       uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
@@ -782,44 +788,69 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 	}
 	defer bar.Abort(false)
 
-	files := make([]*os.File, 0, len(parts))
+	files := make([]*catFile, 0, len(parts))
 	for _, p := range parts {
-		// p.file is nil when session is restored with some complete part
-		if p.file == nil {
-			p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_APPEND, umask)
-			if err != nil {
-				return withStack(err)
-			}
-			m.loggers[DBUG].Printf("%q reopen nil file ok", p.file.Name())
-		}
-		files = append(files, p.file)
+		files = append(files, &catFile{p.output, p.file})
 	}
 
 	return withStack(concat(files, bar, m.loggers[DBUG]))
 }
 
 // https://go.dev/play/p/Q25_gze66yB
-func concat(files []*os.File, bar *mpb.Bar, logger *log.Logger) error {
+func concat(files []*catFile, bar *mpb.Bar, logger *log.Logger) error {
 	if len(files) == 1 {
 		return nil
 	}
 
 	var eg errgroup.Group
 	for i := 2; i <= len(files); i += 2 {
-		var pair [2]*os.File
-		copy(pair[:], files[i-2:i])
-		files[i-1] = nil
+		dst, src := files[i-2], files[i-1]
+		// dst.file can be nil when session is restored with some complete part
+		if dst.file == nil {
+			file, err := os.OpenFile(dst.name, os.O_WRONLY|os.O_APPEND, umask)
+			if err != nil {
+				return err
+			}
+			dst.file = file
+			logger.Printf("%q dst reopen ok", dst.name)
+		}
+		// have to reopen src.file for reading
+		if src.file != nil {
+			if err := src.file.Close(); err != nil {
+				return err
+			}
+		}
+		file, err := os.Open(src.name)
+		if err != nil {
+			return err
+		}
+		src.file, files[i-1] = file, nil
+		logger.Printf("%q src reopen ok", src.name)
+
 		eg.Go(func() error {
 			defer bar.Increment()
-			return coalesce(pair, logger)
+
+			n, err := io.Copy(dst.file, src.file)
+			if err != nil {
+				return err
+			}
+			logger.Printf("%d bytes copied: dst=%q src=%q", n, dst.name, src.name)
+
+			err = cmp.Or(src.file.Close(), os.Remove(src.name))
+			if err != nil {
+				return err
+			}
+			logger.Printf("%q src remove ok", src.name)
+
+			return nil
 		})
 	}
 
 	err := eg.Wait()
 	if err != nil {
 		for _, f := range files {
-			if f != nil {
-				logger.Printf("%q closed with: %v", f.Name(), f.Close())
+			if f != nil && f.file != nil {
+				logger.Printf("%q closed with: %v", f.name, f.file.Close())
 			}
 		}
 		return err
@@ -834,34 +865,6 @@ func concat(files []*os.File, bar *mpb.Bar, logger *log.Logger) error {
 	}
 
 	return concat(files[:i], bar, logger)
-}
-
-func coalesce(pair [2]*os.File, logger *log.Logger) (err error) {
-	// The behavior of Seek on a file opened with O_APPEND is not specified.
-	// Have to reopen file which was initially opened with O_APPEND flag.
-	dst, src := pair[0], pair[1]
-	defer func() {
-		if err == nil {
-			logger.Printf("%q remove ok", src.Name())
-		}
-	}()
-	err = src.Close()
-	if err != nil {
-		return err
-	}
-	src, err = os.Open(src.Name())
-	if err != nil {
-		return err
-	}
-	logger.Printf("%q reopen ok", src.Name())
-
-	n, err := io.Copy(dst, src)
-	if err != nil {
-		return err
-	}
-	logger.Printf("%d bytes copied: dst=%q src=%q", n, dst.Name(), src.Name())
-
-	return cmp.Or(src.Close(), os.Remove(src.Name()))
 }
 
 func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*http.Request) {
