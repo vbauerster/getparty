@@ -795,12 +795,7 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 		files = append(files, p.file)
 	}
 
-	err = concat(files, bar, m.loggers[DBUG])
-	if err != nil {
-		return withStack(err)
-	}
-
-	return nil
+	return withStack(concat(files, bar, m.loggers[DBUG]))
 }
 
 // https://go.dev/play/p/Q25_gze66yB
