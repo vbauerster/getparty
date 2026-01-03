@@ -795,7 +795,7 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 		files = append(files, p.file)
 	}
 
-	err = m.concat(files, bar)
+	err = concat(files, bar, m.loggers[DBUG])
 	if err != nil {
 		return withStack(err)
 	}
@@ -804,7 +804,7 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 }
 
 // https://go.dev/play/p/Q25_gze66yB
-func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
+func concat(files []*os.File, bar *mpb.Bar, logger *log.Logger) error {
 	if len(files) == 1 {
 		return nil
 	}
@@ -816,7 +816,7 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 		files[i-1] = nil
 		eg.Go(func() error {
 			defer bar.Increment()
-			return coalesce(pair, m.loggers[DBUG])
+			return coalesce(pair, logger)
 		})
 	}
 
@@ -824,7 +824,7 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 	if err != nil {
 		for _, f := range files {
 			if f != nil {
-				m.loggers[DBUG].Printf("%q closed with: %v", f.Name(), f.Close())
+				logger.Printf("%q closed with: %v", f.Name(), f.Close())
 			}
 		}
 		return err
@@ -838,7 +838,7 @@ func (m Cmd) concat(files []*os.File, bar *mpb.Bar) error {
 		}
 	}
 
-	return m.concat(files[:i], bar)
+	return concat(files[:i], bar, logger)
 }
 
 func coalesce(pair [2]*os.File, logger *log.Logger) (err error) {
