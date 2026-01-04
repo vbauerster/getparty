@@ -846,8 +846,7 @@ func concat(files []*catFile, bar *mpb.Bar, logger *log.Logger) error {
 		})
 	}
 
-	err := eg.Wait()
-	if err != nil {
+	if err := eg.Wait(); err != nil {
 		for _, f := range files {
 			if f != nil && f.file != nil {
 				logger.Printf("%q closed with: %v", f.name, f.file.Close())
