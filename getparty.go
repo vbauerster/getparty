@@ -453,8 +453,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				return withStack(ContentMismatch{session.ContentLength, stat.Size()})
 			}
 		}
-		if m.opt.SessionName != "" && os.Remove(m.opt.SessionName) == nil {
-			m.loggers[DBUG].Printf("%q remove ok", m.opt.SessionName)
+		if m.opt.SessionName != "" {
+			m.loggers[DBUG].Printf("%q removed with: %v", m.opt.SessionName, os.Remove(m.opt.SessionName))
 		}
 	}
 	if err := cmp.Or(output.Close(), os.Rename(output.Name(), session.OutputName)); err != nil {
