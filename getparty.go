@@ -466,7 +466,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 func (m Cmd) getHttpClient(prefix string, tls *tls.Config, pooled, withJar bool) (*http.Client, error) {
 	rtBuilder, err := newRoundTripperBuilder(m.opt.Proxy)
 	if err != nil {
-		return nil, err
+		return nil, withStack(err)
 	}
 	rtBuilder = rtBuilder.tls(tls).pool(pooled)
 	rtBuilder.debug(m.loggers[DBUG], prefix)
@@ -477,7 +477,7 @@ func (m Cmd) getHttpClient(prefix string, tls *tls.Config, pooled, withJar bool)
 		opt := &cookiejar.Options{PublicSuffixList: publicsuffix.List}
 		jar, err := cookiejar.New(opt)
 		if err != nil {
-			return nil, err
+			return nil, withStack(err)
 		}
 		client.Jar = jar
 	}
