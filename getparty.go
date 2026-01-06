@@ -199,7 +199,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	m.parser = flags.NewParser(m.opt, flags.Default)
 	_, err = m.parser.ParseArgs(args)
 	if err != nil {
-		return err
+		return withStack(err)
 	}
 
 	m.Out, m.Err = m.getOut(), m.getErr()
@@ -208,7 +208,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if m.opt.Version {
 		_, e1 := fmt.Fprintf(m.Out, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
 		_, e2 := fmt.Fprintf(m.Out, "Project home: %s\n", projectHome)
-		return cmp.Or(e1, e2)
+		return withStack(cmp.Or(e1, e2))
 	}
 
 	m.initLoggers()
@@ -225,12 +225,12 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				return withStack(err)
 			}
 			if err := context.Cause(m.Ctx); err != nil {
-				return err
+				return withStack(err)
 			}
 			m.opt.AuthPass = string(pass)
 			_, err = fmt.Fprintln(m.Out)
 			if err != nil {
-				return err
+				return withStack(err)
 			}
 		}
 		userinfo = url.UserPassword(m.opt.AuthUser, m.opt.AuthPass)
@@ -428,7 +428,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 			}
 		}
-		return cmp.Or(context.Cause(m.Ctx), err)
+		return withStack(cmp.Or(context.Cause(m.Ctx), err))
 	}
 
 	var output *os.File
