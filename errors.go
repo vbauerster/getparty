@@ -63,8 +63,12 @@ func withStack(err error) error {
 	if err == nil {
 		return nil
 	}
+	stack := debug.Stack()
+	if e := (*debugError)(nil); errors.As(err, &e) {
+		stack = append(stack, e.stack...)
+	}
 	return &debugError{
 		err,
-		debug.Stack(),
+		stack,
 	}
 }
