@@ -430,38 +430,38 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
-	if !session.Single {
-		err = m.concatenate(session.Parts, progress)
+
+	var output *os.File
+	if session.Single {
+		output = session.Parts[0].file
+	} else {
+		output, err = m.concatenate(session.Parts, progress)
 		if err != nil {
-			return err
+			return withStack(err)
 		}
 	}
-	if p := session.Parts[0]; p.file != nil {
-		err = p.file.Sync()
-		if err != nil {
-			return withStack(err)
-		}
-		if session.isResumable() {
-			if stat, err := p.file.Stat(); err == nil {
-				if session.ContentLength != stat.Size() {
-					return withStack(ContentMismatch{session.ContentLength, stat.Size()})
-				}
-			}
-			if m.opt.SessionName != "" && os.Remove(m.opt.SessionName) == nil {
-				m.loggers[DBUG].Printf("%q remove ok", m.opt.SessionName)
-			}
-		}
-		err = p.file.Close()
-		if err != nil {
-			return withStack(err)
-		}
-		m.loggers[DBUG].Printf("%q close ok", p.file.Name())
-		err = os.Rename(p.file.Name(), session.OutputName)
-		if err != nil {
-			return withStack(err)
-		}
-		m.loggers[DBUG].Printf("%q rename to %q ok", p.file.Name(), session.OutputName)
+	if output == nil {
+		m.loggers[DBUG].Println("output file is nil, nothing to do")
+		return nil
 	}
+	if err := output.Sync(); err != nil {
+		return withStack(err)
+	}
+	if session.isResumable() {
+		if stat, err := output.Stat(); err == nil {
+			if session.ContentLength != stat.Size() {
+				return withStack(ContentMismatch{session.ContentLength, stat.Size()})
+			}
+		}
+		if m.opt.SessionName != "" && os.Remove(m.opt.SessionName) == nil {
+			m.loggers[DBUG].Printf("%q remove ok", m.opt.SessionName)
+		}
+	}
+	if err := cmp.Or(output.Close(), os.Rename(output.Name(), session.OutputName)); err != nil {
+		return withStack(err)
+	}
+	m.loggers[DBUG].Printf("%q renamed to %q", output.Name(), session.OutputName)
+
 	return nil
 }
 
@@ -781,10 +781,10 @@ func (m Cmd) invariantCheck() error {
 	return nil
 }
 
-func (m Cmd) concatenate(parts []*Part, progress *progress) error {
+func (m Cmd) concatenate(parts []*Part, progress *progress) (*os.File, error) {
 	bar, err := progress.addConcatBar(len(parts))
 	if err != nil {
-		return withStack(err)
+		return nil, err
 	}
 	defer bar.Abort(false)
 
@@ -793,7 +793,7 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) error {
 		files = append(files, &catFile{p.output, p.file})
 	}
 
-	return withStack(concat(files, bar, m.loggers[DBUG]))
+	return files[0].file, concat(files, bar, m.loggers[DBUG])
 }
 
 // https://go.dev/play/p/Q25_gze66yB
