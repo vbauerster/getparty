@@ -314,9 +314,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			} else {
 				dumpName = session.OutputName + ".json"
 			}
-			dumpErr := session.dumpState(dumpName)
+			err := session.dumpState(dumpName)
+			m.loggers[DBUG].Printf("Session state dumped with: %v", err)
 			progress.Wait()
-			if dumpErr == nil {
+			if err == nil {
 				m.loggers[INFO].Printf("Session state saved to %q", dumpName)
 			}
 		case completed:
