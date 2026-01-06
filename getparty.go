@@ -523,7 +523,7 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 			restored := new(Session)
 			err = restored.loadState(m.opt.SessionName)
 			if err != nil {
-				return nil, err
+				return nil, withStack(err)
 			}
 			switch {
 			case session == nil && restored.Redirected:
@@ -559,16 +559,16 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 				}
 				parts, err := makeParts(n, session.ContentLength)
 				if err != nil {
-					return session, err
+					return session, withStack(err)
 				}
 				session.Parts = parts
 				session.Single = n == 1
 				exist, err := session.isOutputFileExist()
 				if err != nil {
-					return nil, err
+					return nil, withStack(err)
 				}
 				if exist {
-					return session, m.overwriteIfConfirmed(session.OutputName)
+					return session, withStack(m.overwriteIfConfirmed(session.OutputName))
 				}
 				return session, nil
 			}
@@ -724,22 +724,21 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 func (m Cmd) overwriteIfConfirmed(name string) (err error) {
 	if m.opt.Output.Overwrite {
 		m.loggers[DBUG].Printf("Removing existing: %q", name)
-		return withStack(os.Remove(name))
+		return os.Remove(name)
 	}
 	_, err = fmt.Fprintf(m.Err, "%q already exists, overwrite? [Y/n] ", name)
 	if err != nil {
-		return withStack(err)
+		return err
 	}
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		return withStack(err)
+		return err
 	}
 	defer func() {
 		err = cmp.Or(err, term.Restore(int(os.Stdin.Fd()), state))
 		if err == nil {
 			_, err = fmt.Fprintln(m.Err)
 		}
-		err = withStack(err)
 	}()
 	b := make([]byte, 1)
 	_, err = os.Stdin.Read(b)

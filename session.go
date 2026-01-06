@@ -34,19 +34,17 @@ type Session struct {
 func (s *Session) loadState(name string) error {
 	f, err := os.Open(name)
 	if err != nil {
-		return withStack(err)
+		return err
 	}
-	err = cmp.Or(json.NewDecoder(f).Decode(s), f.Close())
-	return withStack(err)
+	return cmp.Or(json.NewDecoder(f).Decode(s), f.Close())
 }
 
 func (s *Session) dumpState(name string) error {
 	f, err := os.Create(name)
 	if err != nil {
-		return withStack(err)
+		return err
 	}
-	err = cmp.Or(json.NewEncoder(f).Encode(s), f.Close())
-	return withStack(err)
+	return cmp.Or(json.NewEncoder(f).Encode(s), f.Close())
 }
 
 func (s Session) isResumable() bool {
