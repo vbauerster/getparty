@@ -29,7 +29,7 @@ func (m Cmd) bestMirror(client *http.Client) (top []*mirror, err error) {
 	var fdClose func() error
 	defer func() {
 		if fdClose != nil {
-			err = withStack(errors.Join(err, fdClose()))
+			err = withStack(cmp.Or(err, fdClose()))
 		} else {
 			err = withStack(err)
 		}
