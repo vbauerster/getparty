@@ -445,9 +445,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		m.loggers[DBUG].Println("output file is nil, nothing to do")
 		return nil
 	}
-	if err := output.Sync(); err != nil {
-		return withStack(err)
-	}
 	if session.isResumable() {
 		if stat, err := output.Stat(); err == nil {
 			if session.ContentLength != stat.Size() {
@@ -458,7 +455,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			m.loggers[DBUG].Printf("%q removed with: %v", m.opt.SessionName, os.Remove(m.opt.SessionName))
 		}
 	}
-	if err := cmp.Or(output.Close(), os.Rename(output.Name(), session.OutputName)); err != nil {
+	if err := cmp.Or(output.Sync(), output.Close(), os.Rename(output.Name(), session.OutputName)); err != nil {
 		return withStack(err)
 	}
 	m.loggers[DBUG].Printf("%q renamed to %q", output.Name(), session.OutputName)
