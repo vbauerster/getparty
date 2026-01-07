@@ -790,11 +790,11 @@ func concatenate(parts []*Part, progress *progress, logger *log.Logger) (*os.Fil
 		files = append(files, &catFile{p.output, p.file})
 	}
 
-	return files[0].file, concat(files, bar, logger)
+	return files[0].file, cat(files, bar, logger)
 }
 
 // https://go.dev/play/p/Q25_gze66yB
-func concat(files []*catFile, bar *mpb.Bar, logger *log.Logger) error {
+func cat(files []*catFile, bar *mpb.Bar, logger *log.Logger) error {
 	if len(files) == 1 {
 		return nil
 	}
@@ -860,7 +860,7 @@ func concat(files []*catFile, bar *mpb.Bar, logger *log.Logger) error {
 		}
 	}
 
-	return concat(files[:i], bar, logger)
+	return cat(files[:i], bar, logger)
 }
 
 func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*http.Request) {
