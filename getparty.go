@@ -436,7 +436,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if session.Single {
 		output = session.Parts[0].file
 	} else {
-		output, err = m.concatenate(session.Parts, progress)
+		output, err = concatenate(session.Parts, progress, m.loggers[DBUG])
 		if err != nil {
 			return withStack(err)
 		}
@@ -778,7 +778,7 @@ func (m Cmd) invariantCheck() error {
 	return nil
 }
 
-func (m Cmd) concatenate(parts []*Part, progress *progress) (*os.File, error) {
+func concatenate(parts []*Part, progress *progress, logger *log.Logger) (*os.File, error) {
 	bar, err := progress.addConcatBar(len(parts))
 	if err != nil {
 		return nil, err
@@ -790,7 +790,7 @@ func (m Cmd) concatenate(parts []*Part, progress *progress) (*os.File, error) {
 		files = append(files, &catFile{p.output, p.file})
 	}
 
-	return files[0].file, concat(files, bar, m.loggers[DBUG])
+	return files[0].file, concat(files, bar, logger)
 }
 
 // https://go.dev/play/p/Q25_gze66yB
