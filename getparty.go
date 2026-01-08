@@ -441,10 +441,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			return withStack(err)
 		}
 	}
-	if output == nil {
-		m.loggers[DBUG].Println("output file is nil, nothing to do")
-		return nil
-	}
 	if session.isResumable() {
 		if stat, err := output.Stat(); err == nil {
 			if session.ContentLength != stat.Size() {
