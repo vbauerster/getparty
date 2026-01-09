@@ -720,19 +720,13 @@ func (m Cmd) overwriteIfConfirmed(name string) (err error) {
 		m.loggers[DBUG].Printf("Removing existing: %q", name)
 		return os.Remove(name)
 	}
-	_, err = fmt.Fprintf(m.Err, "%q already exists, overwrite? [Y/n] ", name)
-	if err != nil {
-		return err
-	}
+	m.loggers[WARN].Printf("Output file %q already exists, overwrite? [Y/n]", name)
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		return err
 	}
 	defer func() {
 		err = cmp.Or(err, term.Restore(int(os.Stdin.Fd()), state))
-		if err == nil {
-			_, err = fmt.Fprintln(m.Err)
-		}
 	}()
 	b := make([]byte, 1)
 	_, err = os.Stdin.Read(b)
