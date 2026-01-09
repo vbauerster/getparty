@@ -569,7 +569,7 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 					m.loggers[DBUG].Printf("%q removed with: %v", session.OutputName, err)
 					return session, withStack(err)
 				}
-				return session, withStack(m.overwriteIfConfirmed(session.OutputName))
+				return session, withStack(m.confirmFileOverwrite(session.OutputName))
 			}
 			m.loggers[DBUG].Printf("Reusing existing state: %q", state)
 			m.opt.SessionName = state
@@ -720,7 +720,7 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 	return session, err
 }
 
-func (m Cmd) overwriteIfConfirmed(name string) (err error) {
+func (m Cmd) confirmFileOverwrite(name string) (err error) {
 	m.loggers[WARN].Printf("Output file %q already exists, overwrite? [Y/n]", name)
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
