@@ -3,7 +3,6 @@ package getparty
 import (
 	"cmp"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -77,15 +76,4 @@ func (s Session) summary(loggers [lEVELS]*log.Logger) {
 		loggers[WARN].Println(message)
 		loggers[DBUG].Println(message)
 	}
-}
-
-func (s Session) isOutputFileExist() (bool, error) {
-	stat, err := os.Stat(s.OutputName)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err == nil && stat.IsDir() {
-		return true, fmt.Errorf("%q is a directory", s.OutputName)
-	}
-	return true, err
 }

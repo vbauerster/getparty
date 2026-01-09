@@ -544,20 +544,25 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 			}
 			session.HeaderMap = m.opt.HeaderMap
 			state := session.OutputName + ".json"
-			if _, err := os.Stat(state); errors.Is(err, os.ErrNotExist) {
+			exist, err := isFileExist(state)
+			if err != nil {
+				return nil, withStack(err)
+			}
+			if exist {
+				m.opt.SessionName = state // goto case m.opt.SessionName != "":
+			} else {
 				var n int
 				if session.isResumable() {
 					n = int(m.opt.Parts)
 				} else {
 					n = 1
 				}
-				parts, err := makeParts(n, session.ContentLength)
+				session.Parts, err = makeParts(n, session.ContentLength)
 				if err != nil {
 					return session, withStack(err)
 				}
-				session.Parts = parts
 				session.Single = n == 1
-				exist, err := session.isOutputFileExist()
+				exist, err = isFileExist(session.OutputName)
 				if err != nil {
 					return nil, withStack(err)
 				}
@@ -571,8 +576,6 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 				}
 				return session, withStack(m.confirmFileOverwrite(session.OutputName))
 			}
-			m.loggers[DBUG].Printf("Reusing existing state: %q", state)
-			m.opt.SessionName = state
 		}
 	}
 }
@@ -961,4 +964,18 @@ func makeParts(n int, length int64) ([]*Part, error) {
 	}
 
 	return parts, nil
+}
+
+func isFileExist(name string) (bool, error) {
+	stat, err := os.Stat(name)
+	if err == nil {
+		if stat.IsDir() {
+			return true, fmt.Errorf("%q is a directory", name)
+		}
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
 }
