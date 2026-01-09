@@ -561,10 +561,15 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 				if err != nil {
 					return nil, withStack(err)
 				}
-				if exist {
-					return session, withStack(m.overwriteIfConfirmed(session.OutputName))
+				if !exist {
+					return session, nil
 				}
-				return session, nil
+				if m.opt.Output.Overwrite {
+					err := os.Remove(session.OutputName)
+					m.loggers[DBUG].Printf("%q removed with: %v", session.OutputName, err)
+					return session, withStack(err)
+				}
+				return session, withStack(m.overwriteIfConfirmed(session.OutputName))
 			}
 			m.loggers[DBUG].Printf("Reusing existing state: %q", state)
 			m.opt.SessionName = state
@@ -716,10 +721,6 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 }
 
 func (m Cmd) overwriteIfConfirmed(name string) (err error) {
-	if m.opt.Output.Overwrite {
-		m.loggers[DBUG].Printf("Removing existing: %q", name)
-		return os.Remove(name)
-	}
 	m.loggers[WARN].Printf("Output file %q already exists, overwrite? [Y/n]", name)
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
@@ -735,8 +736,9 @@ func (m Cmd) overwriteIfConfirmed(name string) (err error) {
 	}
 	switch b[0] {
 	case 'y', 'Y', '\r':
-		m.loggers[DBUG].Printf("Removing existing: %q", name)
-		return os.Remove(name)
+		err := os.Remove(name)
+		m.loggers[DBUG].Printf("%q removed with: %v", name, err)
+		return err
 	default:
 		return ErrCanceledByUser
 	}
