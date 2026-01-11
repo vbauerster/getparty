@@ -490,7 +490,7 @@ func (m Cmd) getState() (session *Session, err error) {
 			}
 			switch {
 			case session == nil && restored.Redirected:
-				client, err = m.getHttpClient("Main", tlsConfig, m.opt.Parts > 1, true)
+				client, err = m.getHttpClient("Main", tlsConfig, true, true)
 				if err != nil {
 					return nil, err
 				}
@@ -531,7 +531,7 @@ func (m Cmd) getState() (session *Session, err error) {
 			fallthrough
 		case m.opt.Positional.Location != "":
 			if client == nil {
-				client, err = m.getHttpClient("Main", tlsConfig, m.opt.Parts > 1, true)
+				client, err = m.getHttpClient("Main", tlsConfig, true, true)
 				if err != nil {
 					return nil, err
 				}
