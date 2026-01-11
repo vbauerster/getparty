@@ -537,15 +537,14 @@ func (m Cmd) getState() (session *Session, err error) {
 			if exist {
 				m.opt.SessionName = state // goto case m.opt.SessionName != "":
 			} else {
-				n := m.opt.Parts
-				if !session.isResumable() && n != 0 {
-					n = 1
+				if !session.isResumable() && m.opt.Parts != 0 {
+					m.opt.Parts = 1
 				}
-				session.Parts, err = makeParts(n, session.ContentLength)
+				session.Parts, err = makeParts(m.opt.Parts, session.ContentLength)
 				if err != nil {
 					return session, withStack(err)
 				}
-				session.Single = n == 1
+				session.Single = m.opt.Parts == 1
 				exist, err = isFileExist(session.OutputName)
 				if err != nil {
 					return nil, withStack(err)
