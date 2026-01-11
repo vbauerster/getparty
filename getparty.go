@@ -214,22 +214,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var userinfo *url.Userinfo
 	if m.opt.AuthUser != "" {
 		if m.opt.AuthPass == "" {
-			_, err := fmt.Fprint(m.Out, "Enter password: ")
-			if err != nil {
-				return err
-			}
-			pass, err := term.ReadPassword(int(os.Stdin.Fd()))
+			pass, err := m.readPassword()
 			if err != nil {
 				return withStack(err)
 			}
-			if err := context.Cause(m.Ctx); err != nil {
-				return withStack(err)
-			}
-			m.opt.AuthPass = string(pass)
-			_, err = fmt.Fprintln(m.Out)
-			if err != nil {
-				return withStack(err)
-			}
+			m.opt.AuthPass = pass
 		}
 		userinfo = url.UserPassword(m.opt.AuthUser, m.opt.AuthPass)
 		m.opt.AuthUser = ""
@@ -722,6 +711,22 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 		})
 
 	return session, err
+}
+
+func (m Cmd) readPassword() (string, error) {
+	_, err := fmt.Fprint(m.Out, "Enter password: ")
+	if err != nil {
+		return "", err
+	}
+	pass, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+	_, err = fmt.Fprintln(m.Out)
+	if err != nil {
+		return "", err
+	}
+	return string(pass), context.Cause(m.Ctx)
 }
 
 func (m Cmd) confirmFileOverwrite(name string) (err error) {
