@@ -517,7 +517,7 @@ func (m Cmd) getState() (session *Session, err error) {
 			}
 			top, err := m.bestMirror(client)
 			if err != nil {
-				return nil, err
+				return nil, withStack(err)
 			}
 			topN, topLen := m.opt.BestMirror.TopN, uint(len(top))
 			topN = min(topN, topLen)
