@@ -513,7 +513,7 @@ func (m Cmd) getState() (session *Session, err error) {
 				m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
 			}
 			if topN != 1 {
-				return nil, withStack(ErrCanceledByUser)
+				return nil, ErrCanceledByUser
 			}
 			m.opt.Positional.Location = top[0].url
 			fallthrough
