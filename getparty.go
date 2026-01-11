@@ -537,10 +537,8 @@ func (m Cmd) getState() (session *Session, err error) {
 			if exist {
 				m.opt.SessionName = state // goto case m.opt.SessionName != "":
 			} else {
-				var n int
-				if session.isResumable() {
-					n = int(m.opt.Parts)
-				} else {
+				n := m.opt.Parts
+				if !session.isResumable() && n != 0 {
 					n = 1
 				}
 				session.Parts, err = makeParts(n, session.ContentLength)
@@ -942,7 +940,7 @@ func makeStateQuery(session *Session, initialWritten int64) func(int64, error) s
 	}
 }
 
-func makeParts(n int, length int64) ([]*Part, error) {
+func makeParts(n uint, length int64) ([]*Part, error) {
 	if n == 0 {
 		return nil, ErrZeroParts
 	}
