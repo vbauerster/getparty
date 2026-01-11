@@ -503,7 +503,7 @@ func (m Cmd) getState() (session *Session, err error) {
 				if restored.ContentLength != session.ContentLength {
 					return nil, withStack(ContentMismatch{restored.ContentLength, session.ContentLength})
 				}
-				restored.location = session.location
+				restored.location, restored.URL = session.location, session.URL
 			default:
 				restored.location = restored.URL
 			}
