@@ -470,17 +470,18 @@ func (m Cmd) getTLSConfig() (*tls.Config, error) {
 }
 
 func (m Cmd) getState() (session *Session, err error) {
-	tlsConfig, err := m.getTLSConfig()
-	if err != nil {
-		return nil, err
-	}
 	var client *http.Client
 	defer func() {
 		if client != nil {
 			client.CheckRedirect = nil
 			httpClient = client
 		}
+		err = withMessage(err, "getState")
 	}()
+	tlsConfig, err := m.getTLSConfig()
+	if err != nil {
+		return nil, err
+	}
 	for {
 		switch {
 		case m.opt.SessionName != "":
