@@ -58,7 +58,7 @@ func (s Session) totalWritten() int64 {
 	return total
 }
 
-func (s Session) summary(loggers [lEVELS]*log.Logger) {
+func (s Session) summary(loggers [lEVELS]*log.Logger, saving bool) {
 	format := fmt.Sprintf("Length: %%s [%s]", s.ContentType)
 	switch {
 	case s.isResumable():
@@ -75,5 +75,8 @@ func (s Session) summary(loggers [lEVELS]*log.Logger) {
 		message := "Session is not resumable"
 		loggers[WARN].Println(message)
 		loggers[DBUG].Println(message)
+	}
+	if saving {
+		loggers[INFO].Printf("Saving to: %q", s.OutputName)
 	}
 }

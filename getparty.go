@@ -231,12 +231,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	session, err := m.getState()
 	if err != nil {
 		if session != nil && errors.Is(err, ErrZeroParts) {
-			session.summary(m.loggers)
+			session.summary(m.loggers, false)
 		}
 		return err
 	}
-	session.summary(m.loggers)
-	m.loggers[INFO].Printf("Saving to: %q", session.OutputName)
+	session.summary(m.loggers, true)
 
 	if session.restored {
 		if m.opt.UserAgent != "" {
