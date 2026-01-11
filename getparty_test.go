@@ -119,7 +119,7 @@ func TestMakeParts(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			parts, err := makeParts(len(test.parts), test.length)
+			parts, err := makeParts(uint(len(test.parts)), test.length)
 			if test.err != nil {
 				if !errors.Is(err, test.err) {
 					t.Errorf("expected error %q got %q", test.err, err)
