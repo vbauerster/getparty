@@ -34,7 +34,6 @@ type Part struct {
 	id        int
 	ctx       context.Context
 	cancel    context.CancelFunc
-	client    *http.Client              // shared among parts
 	progress  *progress                 // shared among parts
 	firstResp *firstHttpResponseContext // shared among parts
 	logger    *log.Logger
@@ -241,7 +240,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 				p.logger.Printf("Request Header: %s: %v", k, v)
 			}
 
-			resp, err := p.client.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
+			resp, err := httpClient.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 			if err != nil {
 				return true, err
 			}
@@ -253,9 +252,9 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 
 			p.logger.Println("Response Status:", resp.Status)
 
-			if jar := p.client.Jar; jar != nil {
+			if jar := httpClient.Jar; jar != nil {
 				for _, cookie := range jar.Cookies(req.URL) {
-					p.logger.Println("Cookie:", cookie) // cookie implements fmt.Stringer
+					p.logger.Println("Cookie:", cookie) // *http.Cookie implements fmt.Stringer
 				}
 			}
 

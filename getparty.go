@@ -79,15 +79,14 @@ const (
 	hHost               = "Host"
 )
 
-var (
-	reContentDisposition = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`) // https://regex101.com/r/N4AovD/3
-	userAgents           = map[string]string{
-		"chrome":  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-		"firefox": "Mozilla/5.0 (X11; Linux x86_64; rv:129.0) Gecko/20100101 Firefox/129.0",
-		"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
-		"edge":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
-	}
-)
+var httpClient *http.Client
+var reContentDisposition = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`) // https://regex101.com/r/N4AovD/3
+var userAgents = map[string]string{
+	"chrome":  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+	"edge":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
+	"firefox": "Mozilla/5.0 (X11; Linux x86_64; rv:129.0) Gecko/20100101 Firefox/129.0",
+	"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
+}
 
 // helper type used for parts concatenation
 type catFile struct {
@@ -240,41 +239,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	m.opt.HeaderMap[hUserAgentKey] = userAgents[m.opt.UserAgent]
 	m.patcher = makeReqPatcher(userinfo, m.opt.HeaderMap)
-	tlsConfig, err := m.getTLSConfig()
-	if err != nil {
-		return err
-	}
 
-	if m.opt.SessionName == "" {
-		if m.opt.BestMirror.Mirrors != "" {
-			client, err := m.getHttpClient("BestMirror", tlsConfig, false, false)
-			if err != nil {
-				return err
-			}
-			top, err := m.bestMirror(client)
-			if err != nil {
-				return err
-			}
-			topN, topLen := m.opt.BestMirror.TopN, uint(len(top))
-			topN = min(topN, topLen)
-			for _, mirror := range top[:cmp.Or(topN, topLen)] {
-				m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
-			}
-			if topN != 1 {
-				return nil
-			}
-			m.opt.Positional.Location = top[0].url
-		}
-		if m.opt.Positional.Location == "" {
-			return new(flags.Error)
-		}
-	}
-
-	client, err := m.getHttpClient("Main", tlsConfig, m.opt.Parts > 1, true)
-	if err != nil {
-		return err
-	}
-	session, err := m.getState(client)
+	session, err := m.getState()
 	if err != nil {
 		if session != nil && errors.Is(err, ErrZeroParts) {
 			session.summary(m.loggers)
@@ -349,7 +315,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			continue
 		}
 		p.ctx, p.cancel = context.WithCancel(m.Ctx)
-		p.client = client
 		p.firstResp = firstResp
 		p.progress = progress
 		p.single = session.Single
@@ -504,23 +469,31 @@ func (m Cmd) getTLSConfig() (*tls.Config, error) {
 	return nil, nil
 }
 
-func (m Cmd) getState(client *http.Client) (session *Session, err error) {
-	client.CheckRedirect = func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
+func (m Cmd) getState() (session *Session, err error) {
+	tlsConfig, err := m.getTLSConfig()
+	if err != nil {
+		return nil, err
 	}
+	var client *http.Client
 	defer func() {
-		client.CheckRedirect = nil
+		if client != nil {
+			client.CheckRedirect = nil
+			httpClient = client
+		}
 	}()
 	for {
 		switch {
 		case m.opt.SessionName != "":
 			restored := new(Session)
-			err = restored.loadState(m.opt.SessionName)
-			if err != nil {
+			if err := restored.loadState(m.opt.SessionName); err != nil {
 				return nil, withStack(err)
 			}
 			switch {
 			case session == nil && restored.Redirected:
+				client, err = m.getHttpClient("Main", tlsConfig, m.opt.Parts > 1, true)
+				if err != nil {
+					return nil, err
+				}
 				session, err = m.follow(client, restored.URL)
 				if err != nil {
 					return nil, err
@@ -537,7 +510,32 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 			restored.restored = true
 			m.loggers[DBUG].Printf("Session restored from: %q", m.opt.SessionName)
 			return restored, nil
+		case m.opt.BestMirror.Mirrors != "":
+			client, err := m.getHttpClient("BestMirror", tlsConfig, false, false)
+			if err != nil {
+				return nil, err
+			}
+			top, err := m.bestMirror(client)
+			if err != nil {
+				return nil, err
+			}
+			topN, topLen := m.opt.BestMirror.TopN, uint(len(top))
+			topN = min(topN, topLen)
+			for _, mirror := range top[:cmp.Or(topN, topLen)] {
+				m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
+			}
+			if topN != 1 {
+				return nil, withStack(ErrCanceledByUser)
+			}
+			m.opt.Positional.Location = top[0].url
+			fallthrough
 		case m.opt.Positional.Location != "":
+			if client == nil {
+				client, err = m.getHttpClient("Main", tlsConfig, m.opt.Parts > 1, true)
+				if err != nil {
+					return nil, err
+				}
+			}
 			session, err = m.follow(client, m.opt.Positional.Location)
 			if err != nil {
 				return nil, err
@@ -576,6 +574,8 @@ func (m Cmd) getState(client *http.Client) (session *Session, err error) {
 				}
 				return session, withStack(m.confirmFileOverwrite(session.OutputName))
 			}
+		default:
+			return nil, new(flags.Error)
 		}
 	}
 }
@@ -586,11 +586,12 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 		if redirected {
 			client.CloseIdleConnections()
 		}
+		client.CheckRedirect = nil
 		err = withMessage(err, "follow")
 	}()
 
-	if client.CheckRedirect == nil {
-		return nil, withStack(errors.New("expected non nil client.CheckRedirect"))
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 
 	location := rawURL
