@@ -172,16 +172,17 @@ func (m Cmd) Exit(err error) (status int) {
 	}
 
 	if e := ExpectedError(""); errors.As(err, &e) {
-		if errors.Is(e, ErrBadInvariant) {
-			log.Default().Println(e.Error())
-			return 4
+		var logger *log.Logger
+		switch e {
+		case ErrBadInvariant:
+			logger, status = log.Default(), 4
+		case ErrInteractionRequired:
+			logger, status = log.Default(), 6
+		default:
+			logger, status = m.loggers[ERRO], 1
 		}
-		if errors.Is(e, ErrInteractionRequired) {
-			log.Default().Println(e.Error())
-			return 6
-		}
-		m.loggers[ERRO].Println(e.Error())
-		return 1
+		logger.Println(err.Error())
+		return status
 	}
 
 	m.loggers[ERRO].Println(err.Error())
