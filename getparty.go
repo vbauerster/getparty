@@ -53,12 +53,13 @@ const (
 )
 
 const (
-	ErrBadInvariant   = ExpectedError("Bad invariant")
-	ErrCanceledByUser = ExpectedError("Canceled by user")
-	ErrMaxRedirect    = ExpectedError("Max redirections")
-	ErrMaxRetry       = ExpectedError("Max retries")
-	ErrZeroParts      = ExpectedError("No parts no work")
-	ErrTooFragmented  = ExpectedError("Too fragmented, reduce number of parts maybe?")
+	ErrBadInvariant        = ExpectedError("Bad invariant")
+	ErrCanceledByUser      = ExpectedError("Canceled by user")
+	ErrMaxRedirect         = ExpectedError("Max redirections")
+	ErrMaxRetry            = ExpectedError("Max retries")
+	ErrZeroParts           = ExpectedError("No parts no work")
+	ErrTooFragmented       = ExpectedError("Too fragmented, reduce number of parts maybe?")
+	ErrInteractionRequired = ExpectedError("Interaction required, run without --queit maybe?")
 )
 
 const (
@@ -148,7 +149,7 @@ func (m Cmd) Exit(err error) (status int) {
 
 	defer func() {
 		switch status {
-		case 0, 2, 4:
+		case 0, 2, 4, 6:
 			return
 		}
 		if m.opt != nil && m.opt.Debug {
@@ -174,6 +175,10 @@ func (m Cmd) Exit(err error) (status int) {
 		if errors.Is(e, ErrBadInvariant) {
 			log.Default().Println(e.Error())
 			return 4
+		}
+		if errors.Is(e, ErrInteractionRequired) {
+			log.Default().Println(e.Error())
+			return 6
 		}
 		m.loggers[ERRO].Println(e.Error())
 		return 1
@@ -726,6 +731,9 @@ func (m Cmd) readPassword() (string, error) {
 }
 
 func (m Cmd) confirmFileOverwrite(name string) (err error) {
+	if m.opt.Quiet {
+		return ErrInteractionRequired
+	}
 	m.loggers[WARN].Printf("Output file %q already exists, overwrite? [Y/n]", name)
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
