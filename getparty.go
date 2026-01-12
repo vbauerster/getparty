@@ -421,14 +421,14 @@ func (m Cmd) getTLSConfig() (*tls.Config, error) {
 	if m.opt.Https.CertsFileName != "" {
 		buf, err := os.ReadFile(m.opt.Https.CertsFileName)
 		if err != nil {
-			return nil, withStack(err)
+			return nil, err
 		}
 		pool, err := x509.SystemCertPool()
 		if err != nil {
-			return nil, withStack(err)
+			return nil, err
 		}
 		if ok := pool.AppendCertsFromPEM(buf); !ok {
-			return nil, withStack(fmt.Errorf("bad cert file %q", m.opt.Https.CertsFileName))
+			return nil, fmt.Errorf("bad cert file %q", m.opt.Https.CertsFileName)
 		}
 		return &tls.Config{
 			InsecureSkipVerify: m.opt.Https.InsecureSkipVerify,
@@ -461,7 +461,7 @@ func (m Cmd) getState() (session *Session, err error) {
 	}
 	tlsConfig, err := m.getTLSConfig()
 	if err != nil {
-		return nil, err
+		return nil, withStack(err)
 	}
 	rtBuilder = rtBuilder.tls(tlsConfig)
 	jar, err := cookiejar.New(&cookiejar.Options{
