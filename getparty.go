@@ -424,7 +424,7 @@ func (m Cmd) getState() (session *Session, err error) {
 		if client != nil {
 			client.CheckRedirect = nil
 			httpClient = client
-			rtBuilder.debug(m.loggers[DBUG], "rtBuilder")
+			rtBuilder.debug(m.loggers[DBUG])
 		}
 		err = withMessage(err, "getState")
 	}()

@@ -15,45 +15,62 @@ type config struct {
 	pooled bool
 }
 
+type history struct {
+	events []func(*log.Logger, string)
+}
+
+func (h *history) append(event func(*log.Logger, string)) {
+	h.events = append(h.events, event)
+}
+
+func (h *history) debug(logger *log.Logger, prefix string) {
+	for _, fn := range h.events {
+		fn(logger, prefix)
+	}
+}
+
 type roundTripperBuilder struct {
-	cfg     *config
-	history []func(*log.Logger, string)
+	cfg  *config
+	hist *history
 }
 
 func newRoundTripperBuilder() roundTripperBuilder {
-	return roundTripperBuilder{cfg: new(config)}
+	return roundTripperBuilder{
+		cfg:  new(config),
+		hist: new(history),
+	}
 }
 
 func (b roundTripperBuilder) tls(config *tls.Config) roundTripperBuilder {
 	b.cfg.tls = config
-	b.history = append(b.history, func(logger *log.Logger, prefix string) {
-		logger.Println(prefix, "tls set to:", config)
+	b.hist.append(func(logger *log.Logger, prefix string) {
+		logger.Printf("%s: tls set to: %#v", prefix, config)
 	})
 	return b
 }
 
 func (b roundTripperBuilder) proxy(fixedURL *url.URL) roundTripperBuilder {
-	if fixedURL != nil {
+	if fixedURL == nil {
+		b.cfg.proxy = nil
+	} else {
 		b.cfg.proxy = http.ProxyURL(fixedURL)
-		b.history = append(b.history, func(logger *log.Logger, prefix string) {
-			logger.Println(prefix, "proxy set to:", fixedURL.String())
-		})
 	}
+	b.hist.append(func(logger *log.Logger, prefix string) {
+		logger.Printf("%s: proxy set to: %#v", prefix, fixedURL)
+	})
 	return b
 }
 
 func (b roundTripperBuilder) pool(ok bool) roundTripperBuilder {
 	b.cfg.pooled = ok
-	b.history = append(b.history, func(logger *log.Logger, prefix string) {
-		logger.Println(prefix, "pool set to:", ok)
+	b.hist.append(func(logger *log.Logger, prefix string) {
+		logger.Printf("%s: pool set to: %t", prefix, ok)
 	})
 	return b
 }
 
-func (b roundTripperBuilder) debug(logger *log.Logger, prefix string) {
-	for _, fn := range b.history {
-		fn(logger, prefix)
-	}
+func (b roundTripperBuilder) debug(logger *log.Logger) {
+	b.hist.debug(logger, "RT builder")
 }
 
 func (b roundTripperBuilder) build() http.RoundTripper {
