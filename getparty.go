@@ -723,7 +723,7 @@ func (m Cmd) readPassword() (string, error) {
 	return string(pass), context.Cause(m.Ctx)
 }
 
-func (m Cmd) confirmFileOverwrite(name string) (err error) {
+func (m Cmd) confirmFileOverwrite(name string) error {
 	if m.opt.Quiet {
 		return ErrInteractionRequired
 	}
