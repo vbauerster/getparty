@@ -14,7 +14,7 @@ type (
 		got      int64
 	}
 	BadProxyURL struct {
-		err error
+		error
 	}
 )
 
@@ -30,12 +30,8 @@ func (e ContentMismatch) Error() string {
 	return fmt.Sprintf("ContentLength mismatch: expected %d got %d", e.expected, e.got)
 }
 
-func (e BadProxyURL) Error() string {
-	return fmt.Sprintf("Bad proxy url: %s", e.err.Error())
-}
-
 func (e BadProxyURL) Unwrap() error {
-	return e.err
+	return e.error
 }
 
 type debugError struct {
@@ -43,7 +39,9 @@ type debugError struct {
 	stack []byte
 }
 
-func (s *debugError) Unwrap() error { return s.error }
+func (e *debugError) Unwrap() error {
+	return e.error
+}
 
 func unwrapOrErr(err error) error {
 	if e := errors.Unwrap(err); e != nil {
