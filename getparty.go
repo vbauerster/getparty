@@ -417,30 +417,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (m Cmd) getTLSConfig() (*tls.Config, error) {
-	if m.opt.Https.CertsFileName != "" {
-		buf, err := os.ReadFile(m.opt.Https.CertsFileName)
-		if err != nil {
-			return nil, err
-		}
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			return nil, err
-		}
-		if ok := pool.AppendCertsFromPEM(buf); !ok {
-			return nil, fmt.Errorf("bad cert file %q", m.opt.Https.CertsFileName)
-		}
-		return &tls.Config{
-			InsecureSkipVerify: m.opt.Https.InsecureSkipVerify,
-			RootCAs:            pool,
-		}, nil
-	}
-	if m.opt.Https.InsecureSkipVerify {
-		return &tls.Config{InsecureSkipVerify: true}, nil
-	}
-	return nil, nil
-}
-
 func (m Cmd) getState() (session *Session, err error) {
 	var client *http.Client
 	rtBuilder := newRoundTripperBuilder()
@@ -560,6 +536,31 @@ func (m Cmd) getState() (session *Session, err error) {
 			return nil, new(flags.Error)
 		}
 	}
+}
+
+func (m Cmd) getTLSConfig() (config *tls.Config, err error) {
+	defer func() {
+		err = withMessage(err, "getTLSConfig")
+	}()
+	config = new(tls.Config)
+	if m.opt.Https.InsecureSkipVerify {
+		config.InsecureSkipVerify = true
+	}
+	if m.opt.Https.CertsFileName != "" {
+		buf, err := os.ReadFile(m.opt.Https.CertsFileName)
+		if err != nil {
+			return nil, err
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, err
+		}
+		if ok := pool.AppendCertsFromPEM(buf); !ok {
+			return nil, fmt.Errorf("bad cert file %q", m.opt.Https.CertsFileName)
+		}
+		config.RootCAs = pool
+	}
+	return config, nil
 }
 
 func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err error) {
