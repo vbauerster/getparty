@@ -86,5 +86,8 @@ func (b roundTripperBuilder) build() http.RoundTripper {
 	if b.cfg.tls != nil {
 		transport.TLSClientConfig = b.cfg.tls
 	}
+	b.hist.append(func(logger *log.Logger, prefix string) {
+		logger.Printf("%s: build called", prefix)
+	})
 	return transport
 }
