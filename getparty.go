@@ -417,27 +417,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (m Cmd) getHttpClient(prefix string, tls *tls.Config, pooled, withJar bool) (*http.Client, error) {
-	rtBuilder, err := newRoundTripperBuilder(m.opt.Proxy)
-	if err != nil {
-		return nil, withStack(err)
-	}
-	rtBuilder = rtBuilder.tls(tls).pool(pooled)
-	rtBuilder.debug(m.loggers[DBUG], prefix)
-	client := &http.Client{
-		Transport: rtBuilder.build(),
-	}
-	if withJar { // All users of cookiejar should import "golang.org/x/net/publicsuffix"
-		opt := &cookiejar.Options{PublicSuffixList: publicsuffix.List}
-		jar, err := cookiejar.New(opt)
-		if err != nil {
-			return nil, withStack(err)
-		}
-		client.Jar = jar
-	}
-	return client, nil
-}
-
 func (m Cmd) getTLSConfig() (*tls.Config, error) {
 	if m.opt.Https.CertsFileName != "" {
 		buf, err := os.ReadFile(m.opt.Https.CertsFileName)
@@ -464,16 +443,32 @@ func (m Cmd) getTLSConfig() (*tls.Config, error) {
 
 func (m Cmd) getState() (session *Session, err error) {
 	var client *http.Client
+	rtBuilder := newRoundTripperBuilder()
 	defer func() {
 		if client != nil {
 			client.CheckRedirect = nil
 			httpClient = client
+			rtBuilder.debug(m.loggers[DBUG], "rtBuilder")
 		}
 		err = withMessage(err, "getState")
 	}()
+	if m.opt.Proxy != "" {
+		fixedURL, err := url.Parse(m.opt.Proxy)
+		if err != nil {
+			return nil, withStack(BadProxyURL{err})
+		}
+		rtBuilder = rtBuilder.proxy(fixedURL)
+	}
 	tlsConfig, err := m.getTLSConfig()
 	if err != nil {
 		return nil, err
+	}
+	rtBuilder = rtBuilder.tls(tlsConfig)
+	jar, err := cookiejar.New(&cookiejar.Options{
+		PublicSuffixList: publicsuffix.List, // All users of cookiejar should import "golang.org/x/net/publicsuffix"
+	})
+	if err != nil {
+		return nil, withStack(err)
 	}
 	for {
 		switch {
@@ -484,9 +479,9 @@ func (m Cmd) getState() (session *Session, err error) {
 			}
 			switch {
 			case session == nil && restored.Redirected:
-				client, err = m.getHttpClient("Main", tlsConfig, true, true)
-				if err != nil {
-					return nil, err
+				client = &http.Client{
+					Jar:       jar,
+					Transport: rtBuilder.pool(true).build(),
 				}
 				session, err = m.follow(client, restored.URL)
 				if err != nil {
@@ -505,11 +500,9 @@ func (m Cmd) getState() (session *Session, err error) {
 			m.loggers[DBUG].Printf("Session restored from: %q", m.opt.SessionName)
 			return restored, nil
 		case m.opt.BestMirror.Mirrors != "":
-			client, err := m.getHttpClient("BestMirror", tlsConfig, false, false)
-			if err != nil {
-				return nil, err
-			}
-			top, err := m.bestMirror(client)
+			top, err := m.bestMirror(&http.Client{
+				Transport: rtBuilder.pool(false).build(),
+			})
 			if err != nil {
 				return nil, withStack(err)
 			}
@@ -524,11 +517,9 @@ func (m Cmd) getState() (session *Session, err error) {
 			m.opt.Positional.Location = top[0].url
 			fallthrough
 		case m.opt.Positional.Location != "":
-			if client == nil {
-				client, err = m.getHttpClient("Main", tlsConfig, true, true)
-				if err != nil {
-					return nil, err
-				}
+			client = &http.Client{
+				Jar:       jar,
+				Transport: rtBuilder.pool(true).build(),
 			}
 			session, err = m.follow(client, m.opt.Positional.Location)
 			if err != nil {

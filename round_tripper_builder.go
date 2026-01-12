@@ -20,40 +20,39 @@ type roundTripperBuilder struct {
 	history []func(*log.Logger, string)
 }
 
-func newRoundTripperBuilder(proxy string) (roundTripperBuilder, error) {
-	b := roundTripperBuilder{cfg: new(config)}
-	if proxy != "" {
-		fixedURL, err := url.Parse(proxy)
-		if err != nil {
-			return b, BadProxyURL{err}
-		}
-		b.cfg.proxy = http.ProxyURL(fixedURL)
-		b.history = append(b.history, func(log *log.Logger, prefix string) {
-			log.Println(prefix, "proxy set to:", proxy)
-		})
-	}
-	return b, nil
+func newRoundTripperBuilder() roundTripperBuilder {
+	return roundTripperBuilder{cfg: new(config)}
 }
 
 func (b roundTripperBuilder) tls(config *tls.Config) roundTripperBuilder {
 	b.cfg.tls = config
-	b.history = append(b.history, func(log *log.Logger, prefix string) {
-		log.Println(prefix, "tls set to:", config)
+	b.history = append(b.history, func(logger *log.Logger, prefix string) {
+		logger.Println(prefix, "tls set to:", config)
 	})
+	return b
+}
+
+func (b roundTripperBuilder) proxy(fixedURL *url.URL) roundTripperBuilder {
+	if fixedURL != nil {
+		b.cfg.proxy = http.ProxyURL(fixedURL)
+		b.history = append(b.history, func(logger *log.Logger, prefix string) {
+			logger.Println(prefix, "proxy set to:", fixedURL.String())
+		})
+	}
 	return b
 }
 
 func (b roundTripperBuilder) pool(ok bool) roundTripperBuilder {
 	b.cfg.pooled = ok
-	b.history = append(b.history, func(log *log.Logger, prefix string) {
-		log.Println(prefix, "pool set to:", ok)
+	b.history = append(b.history, func(logger *log.Logger, prefix string) {
+		logger.Println(prefix, "pool set to:", ok)
 	})
 	return b
 }
 
-func (b roundTripperBuilder) debug(log *log.Logger, prefix string) {
+func (b roundTripperBuilder) debug(logger *log.Logger, prefix string) {
 	for _, fn := range b.history {
-		fn(log, prefix)
+		fn(logger, prefix)
 	}
 }
 
