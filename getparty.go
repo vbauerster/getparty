@@ -420,7 +420,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 func (m Cmd) getState() (session *Session, err error) {
 	var client *http.Client
 	defer func() {
-		if client != nil {
+		if err == nil && client != nil {
 			client.CheckRedirect = nil
 			httpClient = client
 		}
