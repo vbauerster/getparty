@@ -15,37 +15,21 @@ type config struct {
 	pooled bool
 }
 
-type history struct {
-	events []func(*log.Logger, string)
-}
-
-func (h *history) append(event func(*log.Logger, string)) {
-	h.events = append(h.events, event)
-}
-
-func (h *history) debug(logger *log.Logger, prefix string) {
-	for _, fn := range h.events {
-		fn(logger, prefix)
-	}
-}
-
 type roundTripperBuilder struct {
-	cfg  *config
-	hist *history
+	logger *log.Logger
+	cfg    *config
 }
 
-func newRoundTripperBuilder() roundTripperBuilder {
+func newRoundTripperBuilder(logger *log.Logger) roundTripperBuilder {
 	return roundTripperBuilder{
-		cfg:  new(config),
-		hist: new(history),
+		logger: logger,
+		cfg:    new(config),
 	}
 }
 
 func (b roundTripperBuilder) tls(config *tls.Config) roundTripperBuilder {
 	b.cfg.tls = config
-	b.hist.append(func(logger *log.Logger, prefix string) {
-		logger.Printf("%s: tls set to: %#v", prefix, config)
-	})
+	b.logger.Printf("RT Builder: tls set to %#v", config)
 	return b
 }
 
@@ -55,22 +39,14 @@ func (b roundTripperBuilder) proxy(fixedURL *url.URL) roundTripperBuilder {
 	} else {
 		b.cfg.proxy = http.ProxyURL(fixedURL)
 	}
-	b.hist.append(func(logger *log.Logger, prefix string) {
-		logger.Printf("%s: proxy set to: %#v", prefix, fixedURL)
-	})
+	b.logger.Printf("RT Builder: proxy set to %#v", fixedURL)
 	return b
 }
 
 func (b roundTripperBuilder) pool(ok bool) roundTripperBuilder {
 	b.cfg.pooled = ok
-	b.hist.append(func(logger *log.Logger, prefix string) {
-		logger.Printf("%s: pool set to: %t", prefix, ok)
-	})
+	b.logger.Printf("RT Builder: pool set to %t", ok)
 	return b
-}
-
-func (b roundTripperBuilder) debug(logger *log.Logger) {
-	b.hist.debug(logger, "RT builder")
 }
 
 func (b roundTripperBuilder) build() http.RoundTripper {
@@ -86,8 +62,6 @@ func (b roundTripperBuilder) build() http.RoundTripper {
 	if b.cfg.tls != nil {
 		transport.TLSClientConfig = b.cfg.tls
 	}
-	b.hist.append(func(logger *log.Logger, prefix string) {
-		logger.Printf("%s: build called", prefix)
-	})
+	b.logger.Printf("RT Builder: build called")
 	return transport
 }

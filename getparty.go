@@ -419,15 +419,14 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 func (m Cmd) getState() (session *Session, err error) {
 	var client *http.Client
-	rtBuilder := newRoundTripperBuilder()
 	defer func() {
 		if client != nil {
 			client.CheckRedirect = nil
 			httpClient = client
-			rtBuilder.debug(m.loggers[DBUG])
 		}
 		err = withMessage(err, "getState")
 	}()
+	rtBuilder := newRoundTripperBuilder(m.loggers[DBUG])
 	if m.opt.Proxy != "" {
 		fixedURL, err := url.Parse(m.opt.Proxy)
 		if err != nil {
