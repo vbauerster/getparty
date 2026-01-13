@@ -22,7 +22,7 @@ var (
 
 func main() {
 	runtime.MemProfileRate = 0
-	quit := make(chan os.Signal, 1)
+	quit := make(chan os.Signal, 2)
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer func() {
 		cancel(nil)
