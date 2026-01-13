@@ -136,7 +136,6 @@ type Cmd struct {
 	Out     io.Writer
 	Err     io.Writer
 	opt     *options
-	parser  *flags.Parser
 	patcher func(*http.Request)
 	loggers [lEVELS]*log.Logger
 }
@@ -194,8 +193,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}()
 
 	m.init()
-	m.parser = flags.NewParser(m.opt, flags.Default)
-	_, err = m.parser.ParseArgs(args)
+	parser := flags.NewParser(m.opt, flags.Default)
+	_, err = parser.ParseArgs(args)
 	if err != nil {
 		return err
 	}
