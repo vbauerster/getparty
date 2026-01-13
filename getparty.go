@@ -480,9 +480,8 @@ func (m Cmd) getState() (session *Session, err error) {
 			if err != nil {
 				return nil, withStack(err)
 			}
-			topN, topLen := m.opt.BestMirror.TopN, uint(len(top))
-			topN = min(topN, topLen)
-			for _, mirror := range top[:cmp.Or(topN, topLen)] {
+			topN := min(m.opt.BestMirror.TopN, uint(len(top)))
+			for _, mirror := range top[:cmp.Or(topN, uint(len(top)))] {
 				m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
 			}
 			if topN != 1 {
