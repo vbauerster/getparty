@@ -165,7 +165,10 @@ func (m *Cmd) Exit(err error) (status int) {
 		if e.Type == flags.ErrHelp {
 			return 0 // cmd invoked with --help switch
 		}
-		fmt.Fprintf(os.Stderr, "%s: try '%[1]s --help' for more information\n", cmdName)
+		_, err := fmt.Fprintf(os.Stderr, "%s: try '%[1]s --help' for more information\n", cmdName)
+		if err != nil {
+			panic(err)
+		}
 		return 2
 	}
 
