@@ -132,15 +132,16 @@ type options struct {
 }
 
 type Cmd struct {
-	Ctx     context.Context
-	Out     io.Writer
-	Err     io.Writer
+	Ctx context.Context
+	Out io.Writer
+	Err io.Writer
+
 	opt     *options
-	patcher func(*http.Request)
 	loggers [lEVELS]*log.Logger
+	patcher func(*http.Request)
 }
 
-func (m Cmd) Exit(err error) (status int) {
+func (m *Cmd) Exit(err error) (status int) {
 	if err == nil {
 		return 0
 	}
