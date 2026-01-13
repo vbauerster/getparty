@@ -18,7 +18,6 @@ type Session struct {
 	location      string
 	URL           string
 	OutputName    string
-	ContentMD5    string
 	AcceptRanges  string
 	ContentType   string
 	StatusCode    int

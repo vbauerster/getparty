@@ -72,7 +72,6 @@ const (
 	refreshRate         = 200
 	hUserAgentKey       = "User-Agent"
 	hContentDisposition = "Content-Disposition"
-	hContentMD5         = "Content-MD5"
 	hAcceptRanges       = "Accept-Ranges"
 	hContentType        = "Content-Type"
 	hRange              = "Range"
@@ -691,7 +690,6 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 					location:      location,
 					URL:           rawURL,
 					OutputName:    m.opt.Output.Name,
-					ContentMD5:    resp.Header.Get(hContentMD5),
 					AcceptRanges:  resp.Header.Get(hAcceptRanges),
 					ContentType:   resp.Header.Get(hContentType),
 					StatusCode:    resp.StatusCode,
