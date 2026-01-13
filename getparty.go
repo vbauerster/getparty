@@ -512,30 +512,30 @@ func (m Cmd) getState() (session *Session, err error) {
 				return nil, withStack(err)
 			}
 			if exist {
-				m.opt.SessionName = state // goto case m.opt.SessionName != "":
-			} else {
-				if !session.isResumable() && m.opt.Parts != 0 {
-					m.opt.Parts = 1
-				}
-				session.Parts, err = makeParts(m.opt.Parts, session.ContentLength)
-				if err != nil {
-					return session, withStack(err)
-				}
-				session.Single = m.opt.Parts == 1
-				exist, err = isFileExist(session.OutputName)
-				if err != nil {
-					return nil, withStack(err)
-				}
-				if !exist {
-					return session, nil
-				}
-				if m.opt.Output.Overwrite {
-					err := os.Remove(session.OutputName)
-					m.loggers[DBUG].Printf("%q removed with: %v", session.OutputName, err)
-					return session, withStack(err)
-				}
-				return session, withStack(m.confirmFileOverwrite(session.OutputName))
+				m.opt.SessionName = state
+				break // goto case m.opt.SessionName != "":
 			}
+			if !session.isResumable() && m.opt.Parts != 0 {
+				m.opt.Parts = 1
+			}
+			session.Parts, err = makeParts(m.opt.Parts, session.ContentLength)
+			if err != nil {
+				return session, withStack(err)
+			}
+			session.Single = m.opt.Parts == 1
+			exist, err = isFileExist(session.OutputName)
+			if err != nil {
+				return nil, withStack(err)
+			}
+			if !exist {
+				return session, nil
+			}
+			if m.opt.Output.Overwrite {
+				err := os.Remove(session.OutputName)
+				m.loggers[DBUG].Printf("%q removed with: %v", session.OutputName, err)
+				return session, withStack(err)
+			}
+			return session, withStack(m.confirmFileOverwrite(session.OutputName))
 		default:
 			return nil, new(flags.Error)
 		}
