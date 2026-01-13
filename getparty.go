@@ -193,19 +193,13 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		err = withMessage(err, "run")
 	}()
 
-	err = m.invariantCheck()
+	m.init()
+	m.parser = flags.NewParser(m.opt, flags.Default)
+	_, err = m.parser.ParseArgs(args)
 	if err != nil {
 		return err
 	}
 
-	m.opt = new(options)
-	m.parser = flags.NewParser(m.opt, flags.Default)
-	_, err = m.parser.ParseArgs(args)
-	if err != nil {
-		return withStack(err)
-	}
-
-	m.Out, m.Err = m.getOut(), m.getErr()
 	userAgents[""] = fmt.Sprintf("%s/%s", cmdName, version)
 
 	if m.opt.Version {
@@ -214,7 +208,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return withStack(cmp.Or(e1, e2))
 	}
 
-	m.initLoggers()
+	err = m.initLoggers()
+	if err != nil {
+		return err
+	}
 
 	var userinfo *url.Userinfo
 	if m.opt.AuthUser != "" {
@@ -414,6 +411,19 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	m.loggers[DBUG].Printf("%q renamed to %q", output.Name(), session.OutputName)
 
 	return nil
+}
+
+func (m *Cmd) init() {
+	if m.Ctx == nil {
+		m.Ctx = context.Background()
+	}
+	if m.Out == nil {
+		m.Out = os.Stdout
+	}
+	if m.Err == nil {
+		m.Err = os.Stderr
+	}
+	m.opt = new(options)
 }
 
 func (m Cmd) getState() (session *Session, err error) {
@@ -748,27 +758,6 @@ func (m Cmd) confirmFileOverwrite(name string) error {
 func (m Cmd) getTimeout() time.Duration {
 	timeout := min(cmp.Or(m.opt.Timeout, maxTimeout), maxTimeout)
 	return time.Duration(timeout) * time.Second
-}
-
-func (m Cmd) getOut() io.Writer {
-	if m.opt == nil || m.opt.Quiet {
-		return io.Discard
-	}
-	return m.Out
-}
-
-func (m Cmd) getErr() io.Writer {
-	if m.opt != nil && m.opt.Debug {
-		return m.Err
-	}
-	return io.Discard
-}
-
-func (m Cmd) invariantCheck() error {
-	if m.Ctx == nil || m.Out == nil || m.Err == nil {
-		return ErrBadInvariant
-	}
-	return nil
 }
 
 func concatenate(parts []*Part, progress *progress, logger *log.Logger) (*os.File, error) {
