@@ -205,7 +205,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if m.opt.Version {
 		_, e1 := fmt.Fprintf(m.Out, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
 		_, e2 := fmt.Fprintf(m.Out, "Project home: %s\n", projectHome)
-		return withStack(cmp.Or(e1, e2))
+		return cmp.Or(e1, e2)
 	}
 
 	err = m.initLoggers()
