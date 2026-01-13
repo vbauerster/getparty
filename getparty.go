@@ -480,11 +480,10 @@ func (m Cmd) getState() (session *Session, err error) {
 			if err != nil {
 				return nil, withStack(err)
 			}
-			topN := min(m.opt.BestMirror.TopN, uint(len(top)))
-			for _, mirror := range top[:cmp.Or(topN, uint(len(top)))] {
+			for _, mirror := range top[:cmp.Or(min(m.opt.BestMirror.TopN, uint(len(top))), uint(len(top)))] {
 				m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
 			}
-			if topN != 1 {
+			if m.opt.BestMirror.TopN != 1 {
 				return nil, ErrCanceledByUser
 			}
 			m.opt.Positional.Location = top[0].url
