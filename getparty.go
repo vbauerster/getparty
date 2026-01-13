@@ -53,7 +53,6 @@ const (
 )
 
 const (
-	ErrBadInvariant        = ExpectedError("Bad invariant")
 	ErrCanceledByUser      = ExpectedError("Canceled by user")
 	ErrMaxRedirect         = ExpectedError("Max redirections")
 	ErrMaxRetry            = ExpectedError("Max retries")
@@ -148,7 +147,7 @@ func (m *Cmd) Exit(err error) (status int) {
 
 	defer func() {
 		switch status {
-		case 0, 2, 4, 6:
+		case 0, 2, 4:
 			return
 		}
 		if m.opt != nil && m.opt.Debug {
@@ -171,17 +170,12 @@ func (m *Cmd) Exit(err error) (status int) {
 	}
 
 	if e := ExpectedError(""); errors.As(err, &e) {
-		var logger *log.Logger
-		switch e {
-		case ErrBadInvariant:
-			logger, status = log.Default(), 4
-		case ErrInteractionRequired:
-			logger, status = log.Default(), 6
-		default:
-			logger, status = m.loggers[ERRO], 1
+		if e == ErrInteractionRequired {
+			log.Default().Println(err.Error())
+			return 4
 		}
-		logger.Println(err.Error())
-		return status
+		m.loggers[ERRO].Println(err.Error())
+		return 1
 	}
 
 	m.loggers[ERRO].Println(err.Error())
@@ -208,10 +202,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(e1, e2)
 	}
 
-	err = m.initLoggers()
-	if err != nil {
-		return err
-	}
+	m.initLoggers()
 
 	var userinfo *url.Userinfo
 	if m.opt.AuthUser != "" {
