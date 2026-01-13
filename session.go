@@ -14,19 +14,20 @@ import (
 
 // Session represents download session state
 type Session struct {
-	restored      bool
-	location      string
 	URL           string
 	OutputName    string
 	AcceptRanges  string
 	ContentType   string
 	StatusCode    int
 	ContentLength int64
-	Redirected    bool
-	Single        bool
 	Elapsed       time.Duration
 	HeaderMap     map[string]string
 	Parts         []*Part
+	Redirected    bool
+	Single        bool
+
+	restored bool
+	location string
 }
 
 func (s *Session) loadState(name string) error {
