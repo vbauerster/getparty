@@ -24,7 +24,7 @@ type mirror struct {
 }
 
 // bestMirror invariant: len(top) != 0 on err == nil
-func (m Cmd) bestMirror(client *http.Client) (top []*mirror, err error) {
+func (m Cmd) bestMirror(patcher httpRequestPatcher, client *http.Client) (top []*mirror, err error) {
 	var input io.Reader
 	var fdClose func() error
 	defer func() {
@@ -43,7 +43,7 @@ func (m Cmd) bestMirror(client *http.Client) (top []*mirror, err error) {
 	}
 	workers := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
 	pass := cmp.Or(m.opt.BestMirror.Pass, 1)
-	res, err := m.batchMirrors(input, client, workers, pass)
+	res, err := m.batchMirrors(input, patcher, client, workers, pass)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (m Cmd) bestMirror(client *http.Client) (top []*mirror, err error) {
 	return top, nil
 }
 
-func (m Cmd) batchMirrors(input io.Reader, client *http.Client, workers, pass uint) (<-chan []*mirror, error) {
+func (m Cmd) batchMirrors(input io.Reader, patcher httpRequestPatcher, client *http.Client, workers, pass uint) (<-chan []*mirror, error) {
 	var eg errgroup.Group
 	query := makeQueryFunc(m.Ctx, client, m.getTimeout())
 	src, dst := readLines(m.Ctx, input), make(chan *mirror, workers)
@@ -74,9 +74,7 @@ func (m Cmd) batchMirrors(input io.Reader, client *http.Client, workers, pass ui
 					m.loggers[WARN].Println(mirror.url, err.Error())
 					continue
 				}
-				if m.patcher != nil {
-					m.patcher(req)
-				}
+				patcher.patch(req)
 				var bad bool
 				for i := uint(0); i < pass && !bad; i++ {
 					// it's safe to reuse *http.Request here

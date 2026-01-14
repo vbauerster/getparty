@@ -23,7 +23,6 @@ type Session struct {
 	Elapsed       time.Duration
 	HeaderMap     map[string]string
 	Parts         []*Part
-	Redirected    bool
 	Single        bool
 
 	restored bool

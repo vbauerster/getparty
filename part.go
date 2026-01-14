@@ -54,7 +54,7 @@ type downloadOptions struct {
 	maxTry  uint
 	timeout time.Duration
 	sleep   time.Duration
-	patcher func(*http.Request)
+	patcher httpRequestPatcher
 }
 
 type flashBar struct {
@@ -156,9 +156,8 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 	if err != nil {
 		return withStack(err)
 	}
-	if opt.patcher != nil {
-		opt.patcher(req)
-	}
+
+	opt.patcher.patch(req)
 
 	var dtt int // decrement timeout threshold
 	var curTry uint32

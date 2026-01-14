@@ -7,11 +7,12 @@ import (
 )
 
 type (
-	UnexpectedHttpStatus int
-	ExpectedError        string
-	ContentMismatch      struct {
-		expected int64
-		got      int64
+	UnexpectedHttpStatus   int
+	ExpectedError          string
+	ContentMismatch[T any] struct {
+		kind string
+		old  T
+		new  T
 	}
 	BadProxyURL struct {
 		error
@@ -26,8 +27,8 @@ func (e UnexpectedHttpStatus) Error() string {
 	return fmt.Sprintf("Unexpected http status: %d", int(e))
 }
 
-func (e ContentMismatch) Error() string {
-	return fmt.Sprintf("ContentLength mismatch: expected %d got %d", e.expected, e.got)
+func (e ContentMismatch[T]) Error() string {
+	return fmt.Sprintf("Content%s mismatch: expected %v got %v", e.kind, e.old, e.new)
 }
 
 func (e BadProxyURL) Unwrap() error {

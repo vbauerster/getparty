@@ -130,6 +130,44 @@ type catFile struct {
 	file *os.File
 }
 
+type httpRequestPatcher interface {
+	patch(*http.Request)
+}
+
+// requestPatcher type used to patch *http.Request with headers
+type requestPatcher struct {
+	userinfo *url.Userinfo
+	headers  map[string]string
+}
+
+func (p requestPatcher) patch(req *http.Request) {
+	if req == nil {
+		return
+	}
+	if p.userinfo != nil && req.URL != nil {
+		req.URL.User = p.userinfo
+	}
+	for k, v := range p.headers {
+		if k == hCookie {
+			continue
+		}
+		switch k {
+		case hHost:
+			req.Host = v
+		default:
+			req.Header.Set(k, v)
+		}
+	}
+}
+
+func (p *requestPatcher) setHeaders(headers map[string]string) {
+	p.headers = headers
+}
+
+func (p *requestPatcher) setUserAgent(agent string) {
+	p.headers[hUserAgentKey] = agent
+}
+
 // Cmd type used to manage download session
 type Cmd struct {
 	Ctx context.Context
@@ -138,7 +176,6 @@ type Cmd struct {
 
 	opt     *options
 	loggers [lEVELS]*log.Logger
-	patcher func(*http.Request)
 }
 
 func (m *Cmd) Exit(err error) (status int) {
@@ -212,24 +249,12 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	m.initLoggers()
 
-	var userinfo *url.Userinfo
-	if m.opt.AuthUser != "" {
-		if m.opt.AuthPass == "" {
-			pass, err := m.readPassword()
-			if err != nil {
-				return withStack(err)
-			}
-			m.opt.AuthPass = pass
-		}
-		userinfo = url.UserPassword(m.opt.AuthUser, m.opt.AuthPass)
-		m.opt.AuthUser = ""
-		m.opt.AuthPass = ""
+	patcher, err := m.newRequestPatcher()
+	if err != nil {
+		return err
 	}
 
-	m.opt.HeaderMap[hUserAgentKey] = userAgents[m.opt.UserAgent]
-	m.patcher = makeReqPatcher(userinfo, m.opt.HeaderMap)
-
-	session, err := m.getState()
+	session, err := m.getState(patcher)
 	if err != nil {
 		if session != nil && errors.Is(err, ErrZeroParts) {
 			session.summary(m.loggers, false)
@@ -237,13 +262,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 	session.summary(m.loggers, true)
-
-	if session.restored {
-		if m.opt.UserAgent != "" {
-			session.HeaderMap[hUserAgentKey] = userAgents[m.opt.UserAgent]
-		}
-		m.patcher = makeReqPatcher(userinfo, session.HeaderMap)
-	}
 
 	var recovered bool
 	progress := newProgress(m.Ctx, session, m.Out, m.Err)
@@ -290,7 +308,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		maxTry:  m.opt.MaxRetry,
 		timeout: m.getTimeout(),
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
-		patcher: m.patcher,
+		patcher: patcher,
 	}
 
 	for i, p := range session.Parts {
@@ -397,7 +415,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if session.isResumable() {
 		if stat, err := output.Stat(); err == nil {
 			if session.ContentLength != stat.Size() {
-				return withStack(ContentMismatch{session.ContentLength, stat.Size()})
+				return withStack(ContentMismatch[int64]{
+					kind: "Length",
+					old:  session.ContentLength,
+					new:  stat.Size(),
+				})
 			}
 		}
 		if m.opt.SessionName != "" {
@@ -425,7 +447,24 @@ func (m *Cmd) init() {
 	m.opt = new(options)
 }
 
-func (m Cmd) getState() (session *Session, err error) {
+func (m *Cmd) newRequestPatcher() (*requestPatcher, error) {
+	patcher := new(requestPatcher)
+	if m.opt.AuthUser != "" {
+		if m.opt.AuthPass == "" {
+			pass, err := m.readPassword()
+			if err != nil {
+				return nil, withStack(err)
+			}
+			m.opt.AuthPass = pass
+		}
+		patcher.userinfo = url.UserPassword(m.opt.AuthUser, m.opt.AuthPass)
+		m.opt.AuthUser = ""
+		m.opt.AuthPass = ""
+	}
+	return patcher, nil
+}
+
+func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 	var client *http.Client
 	defer func() {
 		if err == nil && client != nil {
@@ -453,6 +492,8 @@ func (m Cmd) getState() (session *Session, err error) {
 	if err != nil {
 		return nil, withStack(err)
 	}
+	patcher.setHeaders(m.opt.HeaderMap)
+	patcher.setUserAgent(userAgents[m.opt.UserAgent])
 	for {
 		switch {
 		case m.opt.SessionName != "":
@@ -460,30 +501,45 @@ func (m Cmd) getState() (session *Session, err error) {
 			if err := restored.loadState(m.opt.SessionName); err != nil {
 				return nil, withStack(err)
 			}
-			switch {
-			case session == nil && restored.Redirected:
+			m.loggers[DBUG].Printf("Session restored from: %q", m.opt.SessionName)
+			m.loggers[DBUG].Println("Follow with restored headers")
+			m.opt.Output.Name = restored.OutputName
+			patcher.setHeaders(restored.HeaderMap)
+			if m.opt.UserAgent != "" {
+				patcher.setUserAgent(userAgents[m.opt.UserAgent])
+			}
+			if client == nil {
 				client = &http.Client{
 					Jar:       jar,
 					Transport: rtBuilder.pool(true).build(),
 				}
-				session, err = m.follow(client, restored.URL)
-				if err != nil {
-					return nil, err
-				}
-				fallthrough
-			case session != nil:
-				if restored.ContentLength != session.ContentLength {
-					return nil, withStack(ContentMismatch{restored.ContentLength, session.ContentLength})
-				}
-				restored.location, restored.URL = session.location, session.URL
-			default:
-				restored.location = restored.URL
 			}
-			restored.restored = true
-			m.loggers[DBUG].Printf("Session restored from: %q", m.opt.SessionName)
-			return restored, nil
+			session, err = m.follow(patcher, client, restored.URL)
+			if err != nil {
+				return nil, err
+			}
+			if restored.ContentLength != session.ContentLength {
+				return nil, withStack(ContentMismatch[int64]{
+					kind: "Length",
+					old:  restored.ContentLength,
+					new:  session.ContentLength,
+				})
+			}
+			if restored.ContentType != session.ContentType {
+				return nil, withStack(ContentMismatch[string]{
+					kind: "Type",
+					old:  restored.ContentType,
+					new:  session.ContentType,
+				})
+			}
+			session.Single = restored.Single
+			session.Parts = restored.Parts
+			session.Elapsed = restored.Elapsed
+			session.HeaderMap = restored.HeaderMap
+			session.restored = true
+			return session, nil
 		case m.opt.BestMirror.Mirrors != "":
-			top, err := m.bestMirror(&http.Client{
+			top, err := m.bestMirror(patcher, &http.Client{
 				Transport: rtBuilder.pool(false).build(),
 			})
 			if err != nil {
@@ -502,11 +558,10 @@ func (m Cmd) getState() (session *Session, err error) {
 				Jar:       jar,
 				Transport: rtBuilder.pool(true).build(),
 			}
-			session, err = m.follow(client, m.opt.Positional.Location)
+			session, err = m.follow(patcher, client, m.opt.Positional.Location)
 			if err != nil {
 				return nil, err
 			}
-			session.HeaderMap = m.opt.HeaderMap
 			state := session.OutputName + ".json"
 			exist, err := isFileExist(state)
 			if err != nil {
@@ -523,11 +578,12 @@ func (m Cmd) getState() (session *Session, err error) {
 			if err != nil {
 				return session, withStack(err)
 			}
-			session.Single = m.opt.Parts == 1
 			exist, err = isFileExist(session.OutputName)
 			if err != nil {
 				return nil, withStack(err)
 			}
+			session.Single = m.opt.Parts == 1
+			session.HeaderMap = m.opt.HeaderMap
 			if !exist {
 				return session, nil
 			}
@@ -568,7 +624,7 @@ func (m Cmd) getTLSConfig() (config *tls.Config, err error) {
 	return config, nil
 }
 
-func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err error) {
+func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL string) (session *Session, err error) {
 	var redirected bool
 	defer func() {
 		if redirected {
@@ -607,9 +663,7 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 					return false, withStack(err)
 				}
 
-				if m.patcher != nil {
-					m.patcher(req)
-				}
+				patcher.patch(req)
 
 				for k, v := range req.Header {
 					m.loggers[DBUG].Printf("Request Header: %s: %v", k, v)
@@ -694,14 +748,13 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 				}
 
 				session = &Session{
-					location:      location,
 					URL:           rawURL,
 					OutputName:    m.opt.Output.Name,
 					AcceptRanges:  resp.Header.Get(hAcceptRanges),
 					ContentType:   resp.Header.Get(hContentType),
 					StatusCode:    resp.StatusCode,
 					ContentLength: resp.ContentLength,
-					Redirected:    redirected,
+					location:      location,
 				}
 				return false, withStack(resp.Body.Close())
 			}
@@ -842,28 +895,6 @@ func cat(files []*catFile, bar *mpb.Bar, logger *log.Logger) error {
 	}
 
 	return cat(files[:i], bar, logger)
-}
-
-func makeReqPatcher(userinfo *url.Userinfo, headers map[string]string) func(*http.Request) {
-	return func(req *http.Request) {
-		if req == nil {
-			return
-		}
-		if userinfo != nil && req.URL != nil {
-			req.URL.User = userinfo
-		}
-		for k, v := range headers {
-			if k == hCookie {
-				continue
-			}
-			switch k {
-			case hHost:
-				req.Host = v
-			default:
-				req.Header.Set(k, v)
-			}
-		}
-	}
 }
 
 func parseContentDisposition(input string) (output string) {
