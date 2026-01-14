@@ -597,10 +597,10 @@ func (m Cmd) follow(client *http.Client, rawURL string) (session *Session, err e
 				}
 				cancel()
 			}()
-			getR := fmt.Sprintf(template, attempt)
+			template := fmt.Sprintf(template, attempt)
 			for i := uint(0); i <= maxRedirect; i++ {
-				m.loggers[INFO].Printf(getR, location)
-				m.loggers[DBUG].Printf(getR, location)
+				m.loggers[INFO].Printf(template, location)
+				m.loggers[DBUG].Printf(template, location)
 
 				req, err := http.NewRequest(http.MethodGet, location, nil)
 				if err != nil {
