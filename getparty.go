@@ -130,6 +130,7 @@ type options struct {
 	} `positional-args:"yes"`
 }
 
+// Cmd type used to manage download session
 type Cmd struct {
 	Ctx context.Context
 	Out io.Writer
