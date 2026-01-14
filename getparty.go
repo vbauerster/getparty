@@ -502,7 +502,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				return nil, withStack(err)
 			}
 			m.loggers[DBUG].Printf("Session restored from: %q", m.opt.SessionName)
-			m.loggers[DBUG].Println("Follow with restored headers")
 			m.opt.Output.Name = restored.OutputName
 			patcher.setHeaders(restored.HeaderMap)
 			if m.opt.UserAgent != "" {
@@ -514,6 +513,11 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 					Transport: rtBuilder.pool(true).build(),
 				}
 			}
+			if session != nil && restored.URL != session.URL {
+				m.loggers[DBUG].Printf("Updating session.URL from: %q to: %q", restored.URL, session.URL)
+				restored.URL = session.URL
+			}
+			// re-follow with patcher set to restored.HeaderMap
 			session, err = m.follow(patcher, client, restored.URL)
 			if err != nil {
 				return nil, err
