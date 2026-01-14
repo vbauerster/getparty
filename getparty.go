@@ -840,7 +840,7 @@ func concatenate(parts []*Part, progress *progress, logger *log.Logger) (*os.Fil
 
 // https://go.dev/play/p/Q25_gze66yB
 func cat(files []*catFile, bar *mpb.Bar, logger *log.Logger) error {
-	if len(files) == 1 {
+	if len(files) <= 1 {
 		return nil
 	}
 
