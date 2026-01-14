@@ -87,12 +87,6 @@ var userAgents = map[string]string{
 	"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
 }
 
-// helper type used for parts concatenation
-type catFile struct {
-	name string
-	file *os.File
-}
-
 // options struct, represents cmd line options
 type options struct {
 	Parts       uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
@@ -128,6 +122,12 @@ type options struct {
 	Positional struct {
 		Location string `positional-arg-name:"<url>" description:"http location"`
 	} `positional-args:"yes"`
+}
+
+// helper type used for parts concatenation
+type catFile struct {
+	name string
+	file *os.File
 }
 
 // Cmd type used to manage download session
