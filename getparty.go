@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"math"
 	"net/http"
 	"net/http/cookiejar"
@@ -502,9 +503,9 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				return nil, withStack(err)
 			}
 			m.loggers[DBUG].Printf("Session restored from: %q", m.opt.SessionName)
-			m.opt.Output.Name = restored.OutputName
 			patcher.setHeaders(restored.HeaderMap)
 			if m.opt.UserAgent != "" {
+				// respect UserAgent explicitly set by user
 				patcher.setUserAgent(userAgents[m.opt.UserAgent])
 			}
 			if client == nil {
@@ -513,35 +514,28 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 					Transport: rtBuilder.pool(true).build(),
 				}
 			}
-			if session != nil && restored.URL != session.URL {
-				m.loggers[DBUG].Printf("Updating session.URL from: %q to: %q", restored.URL, session.URL)
-				restored.URL = session.URL
+			if session != nil {
+				if restored.URL != session.URL {
+					m.loggers[DBUG].Printf("Updating session.URL from: %q to: %q", restored.URL, session.URL)
+					restored.URL = session.URL
+				}
+				if maps.Equal(restored.HeaderMap, session.HeaderMap) {
+					restored.location = session.location
+					return restored, withStack(checkContentMismatch(restored, session))
+				}
 			}
-			// re-follow with patcher set to restored.HeaderMap
+			// re-follow with patcher set to restored.HeaderMap and restored.URL
+			m.opt.Output.Name = restored.OutputName
 			session, err = m.follow(patcher, client, restored.URL)
 			if err != nil {
 				return nil, err
-			}
-			if restored.ContentLength != session.ContentLength {
-				return nil, withStack(ContentMismatch[int64]{
-					kind: "Length",
-					old:  restored.ContentLength,
-					new:  session.ContentLength,
-				})
-			}
-			if restored.ContentType != session.ContentType {
-				return nil, withStack(ContentMismatch[string]{
-					kind: "Type",
-					old:  restored.ContentType,
-					new:  session.ContentType,
-				})
 			}
 			session.Single = restored.Single
 			session.Parts = restored.Parts
 			session.Elapsed = restored.Elapsed
 			session.HeaderMap = restored.HeaderMap
 			session.restored = true
-			return session, nil
+			return session, withStack(checkContentMismatch(restored, session))
 		case m.opt.BestMirror.Mirrors != "":
 			top, err := m.bestMirror(patcher, &http.Client{
 				Transport: rtBuilder.pool(false).build(),
@@ -566,6 +560,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if err != nil {
 				return nil, err
 			}
+			session.HeaderMap = m.opt.HeaderMap
 			state := session.OutputName + ".json"
 			exist, err := isFileExist(state)
 			if err != nil {
@@ -587,7 +582,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				return nil, withStack(err)
 			}
 			session.Single = m.opt.Parts == 1
-			session.HeaderMap = m.opt.HeaderMap
 			if !exist {
 				return session, nil
 			}
@@ -999,4 +993,22 @@ func isFileExist(name string) (bool, error) {
 		return false, nil
 	}
 	return false, err
+}
+
+func checkContentMismatch(old, new *Session) error {
+	if old.ContentType != new.ContentType {
+		return ContentMismatch[string]{
+			kind: "Type",
+			old:  old.ContentType,
+			new:  new.ContentType,
+		}
+	}
+	if old.ContentLength != new.ContentLength {
+		return ContentMismatch[int64]{
+			kind: "Length",
+			old:  old.ContentLength,
+			new:  new.ContentLength,
+		}
+	}
+	return nil
 }
