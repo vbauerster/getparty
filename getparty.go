@@ -525,6 +525,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				}
 			}
 			// re-follow with patcher set to restored.HeaderMap and restored.URL
+			m.opt.HeaderMap = restored.HeaderMap
 			m.opt.Output.Name = restored.OutputName
 			session, err = m.follow(patcher, client, restored.URL)
 			if err != nil {
@@ -533,7 +534,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			session.Single = restored.Single
 			session.Parts = restored.Parts
 			session.Elapsed = restored.Elapsed
-			session.HeaderMap = restored.HeaderMap
 			session.restored = true
 			return session, withStack(checkContentMismatch(restored, session))
 		case m.opt.BestMirror.Mirrors != "":
@@ -560,7 +560,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if err != nil {
 				return nil, err
 			}
-			session.HeaderMap = m.opt.HeaderMap
 			state := session.OutputName + ".json"
 			exist, err := isFileExist(state)
 			if err != nil {
@@ -752,6 +751,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 					ContentType:   resp.Header.Get(hContentType),
 					StatusCode:    resp.StatusCode,
 					ContentLength: resp.ContentLength,
+					HeaderMap:     m.opt.HeaderMap,
 					location:      location,
 				}
 				return false, withStack(resp.Body.Close())
