@@ -518,7 +518,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				restored.URL = session.URL
 			}
 			// re-follow with patcher set to restored.HeaderMap
-			session, err = m.follow(restored.URL, patcher, client, session != nil)
+			session, err = m.follow(patcher, client, restored.URL)
 			if err != nil {
 				return nil, err
 			}
@@ -562,7 +562,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				Jar:       jar,
 				Transport: rtBuilder.pool(true).build(),
 			}
-			session, err = m.follow(m.opt.Positional.Location, patcher, client, false)
+			session, err = m.follow(patcher, client, m.opt.Positional.Location)
 			if err != nil {
 				return nil, err
 			}
@@ -628,12 +628,9 @@ func (m Cmd) getTLSConfig() (config *tls.Config, err error) {
 	return config, nil
 }
 
-func (m Cmd) follow(rawURL string, patcher httpRequestPatcher, client *http.Client, discardInfoLogs bool) (session *Session, err error) {
+func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL string) (session *Session, err error) {
 	var redirected bool
 	defer func() {
-		if discardInfoLogs {
-			m.loggers[INFO].SetOutput(m.Out)
-		}
 		if redirected {
 			client.CloseIdleConnections()
 		}
@@ -643,10 +640,6 @@ func (m Cmd) follow(rawURL string, patcher httpRequestPatcher, client *http.Clie
 
 	client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
-	}
-
-	if discardInfoLogs {
-		m.loggers[INFO].SetOutput(io.Discard)
 	}
 
 	location := rawURL
