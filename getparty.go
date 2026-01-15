@@ -503,7 +503,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				return nil, withStack(err)
 			}
 			m.loggers[DBUG].Printf("Session restored from: %q", m.opt.SessionName)
-			patcher.setHeaders(restored.HeaderMap)
+			patcher.setHeaders(restored.Headers)
 			if m.opt.UserAgent != "" {
 				// respect UserAgent explicitly set by user
 				patcher.setUserAgent(userAgents[m.opt.UserAgent])
@@ -519,13 +519,13 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 					m.loggers[DBUG].Printf("Updating session.URL from: %q to: %q", restored.URL, session.URL)
 					restored.URL = session.URL
 				}
-				if maps.Equal(restored.HeaderMap, session.HeaderMap) {
+				if maps.Equal(restored.Headers, session.Headers) {
 					restored.location = session.location
 					return restored, withStack(checkContentMismatch(restored, session))
 				}
 			}
 			// re-follow with patcher set to restored.HeaderMap and restored.URL
-			m.opt.HeaderMap = restored.HeaderMap
+			m.opt.HeaderMap = restored.Headers
 			m.opt.Output.Name = restored.OutputName
 			session, err = m.follow(patcher, client, restored.URL)
 			if err != nil {
@@ -751,7 +751,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 					ContentType:   resp.Header.Get(hContentType),
 					StatusCode:    resp.StatusCode,
 					ContentLength: resp.ContentLength,
-					HeaderMap:     m.opt.HeaderMap,
+					Headers:       m.opt.HeaderMap,
 					location:      location,
 				}
 				return false, withStack(resp.Body.Close())

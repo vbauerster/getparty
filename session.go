@@ -21,7 +21,7 @@ type Session struct {
 	StatusCode    int
 	ContentLength int64
 	Elapsed       time.Duration
-	HeaderMap     map[string]string
+	Headers       map[string]string
 	Parts         []*Part
 	Single        bool
 
