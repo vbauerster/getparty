@@ -100,7 +100,7 @@ type options struct {
 	UserAgent   string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" description:"User-Agent header (default: getparty/ver)"`
 	AuthUser    string            `long:"username" description:"basic http auth username"`
 	AuthPass    string            `long:"password" description:"basic http auth password"`
-	HeaderMap   map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
+	Headers     map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
 	Proxy       string            `short:"x" long:"proxy" value-name:"<[scheme://]host[:port]>" description:"use the specified proxy, if scheme is empty http is assumed"`
 	Quiet       bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	Debug       bool              `short:"d" long:"debug" description:"enable debug to stderr"`
@@ -493,7 +493,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 	if err != nil {
 		return nil, withStack(err)
 	}
-	patcher.setHeaders(m.opt.HeaderMap)
+	patcher.setHeaders(m.opt.Headers)
 	patcher.setUserAgent(userAgents[m.opt.UserAgent])
 	for {
 		switch {
@@ -525,7 +525,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				}
 			}
 			// re-follow with patcher set to restored.HeaderMap and restored.URL
-			m.opt.HeaderMap = restored.Headers
+			m.opt.Headers = restored.Headers
 			m.opt.Output.Name = restored.OutputName
 			session, err = m.follow(patcher, client, restored.URL)
 			if err != nil {
@@ -751,7 +751,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 					ContentType:   resp.Header.Get(hContentType),
 					StatusCode:    resp.StatusCode,
 					ContentLength: resp.ContentLength,
-					Headers:       m.opt.HeaderMap,
+					Headers:       m.opt.Headers,
 					location:      location,
 				}
 				return false, withStack(resp.Body.Close())
