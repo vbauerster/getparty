@@ -10,7 +10,7 @@ require (
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/vbauerster/backoff v0.2.0
 	github.com/vbauerster/mpb/v8 v8.11.3
-	golang.org/x/net v0.48.0
+	golang.org/x/net v0.49.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/term v0.39.0
 )
