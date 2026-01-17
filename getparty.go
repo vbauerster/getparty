@@ -165,6 +165,7 @@ func (p *requestPatcher) setHeaders(headers map[string]string) {
 	p.headers = headers
 }
 
+// setUserAgent invariant: p.headers != nil
 func (p *requestPatcher) setUserAgent(agent string) {
 	p.headers[hUserAgentKey] = agent
 }
