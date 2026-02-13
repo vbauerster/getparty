@@ -440,8 +440,12 @@ func (m *Cmd) init() {
 	if m.Ctx == nil {
 		m.Ctx = context.Background()
 	}
-	m.Out = cmp.Or[io.Writer](m.Out, os.Stdout)
-	m.Err = cmp.Or[io.Writer](m.Err, os.Stderr)
+	if m.Out == nil {
+		m.Out = os.Stdout
+	}
+	if m.Err == nil {
+		m.Err = os.Stderr
+	}
 	m.opt = new(options)
 }
 
