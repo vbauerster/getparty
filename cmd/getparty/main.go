@@ -22,11 +22,13 @@ var (
 
 func main() {
 	runtime.MemProfileRate = 0
+	var status int
 	quit := make(chan os.Signal, 2)
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer func() {
 		cancel(nil)
 		signal.Stop(quit)
+		os.Exit(status)
 	}()
 	go func() {
 		select {
@@ -41,5 +43,5 @@ func main() {
 		Out: os.Stdout,
 		Err: os.Stderr,
 	}
-	os.Exit(cmd.Exit(cmd.Run(os.Args[1:], version, commit)))
+	status = cmd.Exit(cmd.Run(os.Args[1:], version, commit))
 }
