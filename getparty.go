@@ -358,7 +358,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}()
 
 	<-firstResp.ctx.Done()
-	start, cause := time.Now(), context.Cause(firstResp.ctx)
+
+	var fallback bool
+	start := time.Now()
+	cause := context.Cause(firstResp.ctx)
 	m.loggers[DBUG].Printf("First Response: %v", cause)
 
 	switch {
@@ -378,18 +381,19 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			err := fmt.Errorf("restored session is expected to get status %d but got status %d instead", http.StatusPartialContent, http.StatusOK)
 			panic(err)
 		}
-		err = eg.Wait()
-		if !session.Single {
-			id := <-firstResp.id
-			session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
-			session.Single = true
-		}
+		fallback = true
 	case errors.Is(cause, modePartial) && !session.Single:
 		progress.runTotalBar(session.ContentLength, &doneCount, len(session.Parts), start.Add(-session.Elapsed))
-		fallthrough
-	default:
-		err = eg.Wait()
+	}
+
+	err = eg.Wait()
+
+	if !fallback {
 		session.Elapsed += time.Since(start)
+	} else if !session.Single {
+		id := <-firstResp.id
+		session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
+		session.Single = true
 	}
 
 	if err != nil {
