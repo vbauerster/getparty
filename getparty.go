@@ -320,7 +320,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		if err := p.init(i+1, session); err != nil {
 			return err
 		}
-		// at ContentLength = 0 p.isDone() is always true therefore we shouldn't skip written = 0 part
+		// p.Written=0 should be processed regardless of p.isDone() output
 		if p.Written != 0 && p.isDone() {
 			atomic.AddUint32(&doneCount, 1)
 			continue
@@ -382,8 +382,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					_ = p.file.Close()
 				}
 			}
-			err := fmt.Errorf("restored session is expected to get status %d but got status %d instead", http.StatusPartialContent, http.StatusOK)
-			panic(err)
+			panic(fmt.Errorf("restored session is expected to get status %d but got status %d instead", http.StatusPartialContent, http.StatusOK))
 		}
 		fallback = true
 	case errors.Is(cause, modePartial) && !session.Single:
