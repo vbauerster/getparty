@@ -259,15 +259,15 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	session, err := m.getState(patcher)
 	if err != nil {
 		if session != nil && errors.Is(err, ErrZeroParts) {
-			session.summary(m.loggers, false)
+			session.summary(m.loggers)
 		}
 		return err
 	}
-	session.summary(m.loggers, true)
 
 	var recovered bool
 	progress := newProgress(m.Ctx, session, m.Out, m.Err)
 	stateQuery := makeStateQuery(session, progress.current)
+	outputName := filepath.Join(session.dir, session.OutputName)
 	defer func() {
 		var dump, completed bool
 		tw := session.totalWritten()
@@ -282,12 +282,13 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		switch {
 		case dump:
-			var dumpName string
+			var ext string
 			if recovered {
-				dumpName = session.OutputName + ".recovered"
+				ext = ".recovered"
 			} else {
-				dumpName = session.OutputName + ".json"
+				ext = ".json"
 			}
+			dumpName := filepath.Join(session.dir, session.OutputName+ext)
 			err := session.dumpState(dumpName)
 			m.loggers[DBUG].Printf("Session state dumped with: %v", err)
 			progress.Wait()
@@ -295,7 +296,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				m.loggers[INFO].Printf("Session state saved to %q", dumpName)
 			}
 		case completed:
-			m.loggers[INFO].Printf("%q saved [%d/%d]", session.OutputName, session.ContentLength, tw)
+			m.loggers[INFO].Printf("%q saved [%d/%d]", outputName, session.ContentLength, tw)
 		}
 	}()
 
@@ -304,7 +305,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var recoverHandler sync.Once
 	firstResp := &firstHttpResponseContext{id: make(chan int, 1)}
 	firstResp.ctx, firstResp.cancel = context.WithCancelCause(m.Ctx)
-
 	options := downloadOptions{
 		bufSize: m.opt.BufferSize,
 		maxTry:  m.opt.MaxRetry,
@@ -312,6 +312,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
 		patcher: patcher,
 	}
+
+	session.summary(m.loggers)
+	m.loggers[INFO].Printf("Saving to: %q", outputName)
 
 	for i, p := range session.Parts {
 		if err := p.init(i+1, session); err != nil {
@@ -406,23 +409,23 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 		}
 		if session.Single && !session.isResumable() && f != nil {
-			err := os.Rename(f.Name(), session.OutputName)
-			m.loggers[DBUG].Printf("%q renamed to %q with: %v", f.Name(), session.OutputName, err)
+			err := os.Rename(f.Name(), outputName)
+			m.loggers[DBUG].Printf("%q renamed to %q with: %v", f.Name(), outputName, err)
 		}
 		return withStack(cmp.Or(context.Cause(m.Ctx), err))
 	}
 
-	var output *os.File
+	var part *os.File
 	if session.Single {
-		output = session.Parts[0].file
+		part = session.Parts[0].file
 	} else {
-		output, err = concatenate(session.Parts, progress, m.loggers[DBUG])
+		part, err = concatenate(session.Parts, progress, m.loggers[DBUG])
 		if err != nil {
 			return withStack(err)
 		}
 	}
 	if session.isResumable() {
-		if stat, err := output.Stat(); err == nil {
+		if stat, err := part.Stat(); err == nil {
 			if session.ContentLength != stat.Size() {
 				return withStack(ContentMismatch[int64]{
 					kind: "Length",
@@ -435,10 +438,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			m.loggers[DBUG].Printf("%q removed with: %v", m.opt.SessionName, os.Remove(m.opt.SessionName))
 		}
 	}
-	if err := cmp.Or(output.Sync(), output.Close(), os.Rename(output.Name(), session.OutputName)); err != nil {
+	if err := cmp.Or(part.Sync(), part.Close(), os.Rename(part.Name(), outputName)); err != nil {
 		return withStack(err)
 	}
-	m.loggers[DBUG].Printf("%q renamed to %q", output.Name(), session.OutputName)
+	m.loggers[DBUG].Printf("%q renamed to %q", part.Name(), outputName)
 
 	return nil
 }
@@ -543,6 +546,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			session.Parts = restored.Parts
 			session.Elapsed = restored.Elapsed
 			session.restored = true
+			session.dir = filepath.Dir(m.opt.SessionName)
 			return session, withStack(checkContentMismatch(restored, session))
 		case m.opt.BestMirror.Mirrors != "":
 			top, err := m.bestMirror(patcher, &http.Client{

@@ -27,6 +27,7 @@ type Session struct {
 
 	restored bool
 	location string
+	dir      string
 }
 
 func (s *Session) loadState(name string) error {
@@ -57,7 +58,7 @@ func (s Session) totalWritten() int64 {
 	return total
 }
 
-func (s Session) summary(loggers [lEVELS]*log.Logger, saving bool) {
+func (s Session) summary(loggers [lEVELS]*log.Logger) {
 	format := fmt.Sprintf("Length: %%s [%s]", s.ContentType)
 	switch {
 	case s.isResumable():
@@ -74,8 +75,5 @@ func (s Session) summary(loggers [lEVELS]*log.Logger, saving bool) {
 		message := "Session is not resumable"
 		loggers[WARN].Println(message)
 		loggers[DBUG].Println(message)
-	}
-	if saving {
-		loggers[INFO].Printf("Saving to: %q", s.OutputName)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -123,7 +124,7 @@ func (p Part) newBar(curTry *uint32) (*flashBar, error) {
 func (p *Part) init(id int, session *Session) error {
 	p.id = id
 	p.name = fmt.Sprintf("P%02d", id)
-	p.output = fmt.Sprintf("%s.%02d", session.OutputName, id)
+	p.output = filepath.Join(session.dir, fmt.Sprintf("%s.%02d", session.OutputName, id))
 	if session.restored && p.Written != 0 {
 		stat, err := os.Stat(p.output)
 		if err != nil {
