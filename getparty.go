@@ -397,14 +397,16 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	if err != nil {
+		var f *os.File
 		for _, p := range session.Parts {
-			if f := p.file; f != nil {
+			if p.file != nil {
+				f = p.file
 				m.loggers[DBUG].Printf("%q closed with: %v", f.Name(), f.Close())
-				if session.Single && !session.isResumable() {
-					err := os.Rename(f.Name(), session.OutputName)
-					m.loggers[DBUG].Printf("%q renamed to %q with: %v", f.Name(), session.OutputName, err)
-				}
 			}
+		}
+		if session.Single && !session.isResumable() && f != nil {
+			err := os.Rename(f.Name(), session.OutputName)
+			m.loggers[DBUG].Printf("%q renamed to %q with: %v", f.Name(), session.OutputName, err)
 		}
 		return withStack(cmp.Or(context.Cause(m.Ctx), err))
 	}
