@@ -354,7 +354,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	go func() {
-		firstResp.cancel(eg.Wait())
+		err := eg.Wait()
+		firstResp.cancel(err)
 	}()
 
 	<-firstResp.ctx.Done()
