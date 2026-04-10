@@ -433,7 +433,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if session.isResumable() {
 		if stat, err := part.Stat(); err == nil {
 			if session.ContentLength != stat.Size() {
-				return withStack(ContentMismatch[int64]{
+				return withStack(ContentMismatchError[int64]{
 					kind: "Length",
 					old:  session.ContentLength,
 					new:  stat.Size(),
@@ -1015,14 +1015,14 @@ func isFileExist(name string) (bool, error) {
 
 func checkContentMismatch(old, new *Session) error {
 	if old.ContentType != new.ContentType {
-		return ContentMismatch[string]{
+		return ContentMismatchError[string]{
 			kind: "Type",
 			old:  old.ContentType,
 			new:  new.ContentType,
 		}
 	}
 	if old.ContentLength != new.ContentLength {
-		return ContentMismatch[int64]{
+		return ContentMismatchError[int64]{
 			kind: "Length",
 			old:  old.ContentLength,
 			new:  new.ContentLength,
