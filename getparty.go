@@ -365,7 +365,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	start := time.Now()
 	cause := context.Cause(firstResp.ctx)
-	m.loggers[DBUG].Printf("First Response: %v", cause)
+	m.loggers[DBUG].Printf("%T: %[1]v", cause)
 
 	switch {
 	case errors.Is(cause, errContextFallback):
