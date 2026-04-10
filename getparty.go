@@ -724,7 +724,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 				}
 
 				if resp.StatusCode != http.StatusOK {
-					err := withStack(UnexpectedHttpStatus(resp.StatusCode))
+					err := withStack(UnexpectedHttpStatusError(resp.StatusCode))
 					m.loggers[WARN].Println(err.Error())
 					if isServerError(resp.StatusCode) { // server error may be temporary
 						return attempt != m.opt.MaxRetry, err

@@ -124,7 +124,7 @@ func makeQueryFunc(ctx context.Context, client *http.Client, timeout time.Durati
 				return
 			}
 			if resp.StatusCode != http.StatusOK {
-				err = UnexpectedHttpStatus(resp.StatusCode)
+				err = UnexpectedHttpStatusError(resp.StatusCode)
 			}
 			if resp.Body != nil {
 				_ = resp.Body.Close()

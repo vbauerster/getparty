@@ -271,7 +271,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 				default:
 					if !partial && errors.Is(context.Cause(p.firstResp.ctx), modeFallback) {
 						// some other part got http.StatusOK first
-						panic(UnexpectedHttpStatus(http.StatusPartialContent))
+						panic(UnexpectedHttpStatusError(http.StatusPartialContent))
 					}
 					partial = true
 				}
@@ -308,7 +308,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 					if !p.single || partial {
 						if errors.Is(context.Cause(p.firstResp.ctx), modePartial) {
 							// some other part got http.StatusPartialContent first
-							panic(UnexpectedHttpStatus(http.StatusOK))
+							panic(UnexpectedHttpStatusError(http.StatusOK))
 						}
 						p.logger.Println("Some other part got:", resp.Status)
 						return false, nil
@@ -324,12 +324,12 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 					}
 				}
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-				return true, withStack(UnexpectedHttpStatus(resp.StatusCode))
+				return true, withStack(UnexpectedHttpStatusError(resp.StatusCode))
 			default:
 				if attempt != 0 {
 					atomic.AddUint32(&globTry, ^uint32(0))
 				}
-				err := UnexpectedHttpStatus(resp.StatusCode)
+				err := UnexpectedHttpStatusError(resp.StatusCode)
 				_, _ = fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
 				return false, withStack(err)
 			}

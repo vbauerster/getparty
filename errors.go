@@ -7,9 +7,9 @@ import (
 )
 
 type (
-	UnexpectedHttpStatus   int
-	ExpectedError          string
-	ContentMismatch[T any] struct {
+	UnexpectedHttpStatusError int
+	ExpectedError             string
+	ContentMismatch[T any]    struct {
 		kind string
 		old  T
 		new  T
@@ -23,7 +23,7 @@ func (e ExpectedError) Error() string {
 	return string(e)
 }
 
-func (e UnexpectedHttpStatus) Error() string {
+func (e UnexpectedHttpStatusError) Error() string {
 	return fmt.Sprintf("Unexpected http status: %d", int(e))
 }
 
