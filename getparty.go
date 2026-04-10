@@ -1,4 +1,4 @@
-//go:generate go tool stringer -type=sessionMode -trimprefix=mode
+//go:generate go tool stringer -type=statusContextError -trimprefix=err
 
 package getparty
 
@@ -35,9 +35,9 @@ import (
 )
 
 type sessionState int
-type sessionMode int
+type statusContextError int
 
-func (s sessionMode) Error() string {
+func (s statusContextError) Error() string {
 	return s.String()
 }
 
@@ -49,8 +49,8 @@ const (
 )
 
 const (
-	modePartial sessionMode = iota
-	modeFallback
+	errContextPartial statusContextError = iota
+	errContextFallback
 )
 
 const (
@@ -368,7 +368,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	m.loggers[DBUG].Printf("First Response: %v", cause)
 
 	switch {
-	case errors.Is(cause, modeFallback):
+	case errors.Is(cause, errContextFallback):
 		if session.restored {
 			for _, p := range session.Parts {
 				if p.cancel != nil {
@@ -393,7 +393,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
 			session.Single = true
 		}
-	case errors.Is(cause, modePartial) && !session.Single:
+	case errors.Is(cause, errContextPartial) && !session.Single:
 		progress.runTotalBar(
 			session.ContentLength,
 			&doneCount,

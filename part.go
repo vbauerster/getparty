@@ -266,10 +266,10 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 			case http.StatusPartialContent:
 				select {
 				case p.firstResp.id <- p.id:
-					p.firstResp.cancel(modePartial)
+					p.firstResp.cancel(errContextPartial)
 					partial = true
 				default:
-					if !partial && errors.Is(context.Cause(p.firstResp.ctx), modeFallback) {
+					if !partial && errors.Is(context.Cause(p.firstResp.ctx), errContextFallback) {
 						// some other part got http.StatusOK first
 						panic(UnexpectedHttpStatusError(http.StatusPartialContent))
 					}
@@ -290,7 +290,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 			case http.StatusOK: // no partial content, fallback to single part mode
 				select {
 				case p.firstResp.id <- p.id:
-					p.firstResp.cancel(modeFallback)
+					p.firstResp.cancel(errContextFallback)
 					p.single = true
 					p.Start, p.Stop = 0, resp.ContentLength-1
 					if p.Written != 0 {
@@ -306,7 +306,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 					}
 				default:
 					if !p.single || partial {
-						if errors.Is(context.Cause(p.firstResp.ctx), modePartial) {
+						if errors.Is(context.Cause(p.firstResp.ctx), errContextPartial) {
 							// some other part got http.StatusPartialContent first
 							panic(UnexpectedHttpStatusError(http.StatusOK))
 						}
