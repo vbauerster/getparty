@@ -14,7 +14,7 @@ type (
 		old  T
 		new  T
 	}
-	BadProxyURL struct {
+	BadProxyUrlError struct {
 		error
 	}
 )
@@ -31,7 +31,7 @@ func (e ContentMismatchError[T]) Error() string {
 	return fmt.Sprintf("Content%s mismatch: expected %v got %v", e.kind, e.old, e.new)
 }
 
-func (e BadProxyURL) Unwrap() error {
+func (e BadProxyUrlError) Unwrap() error {
 	return e.error
 }
 
