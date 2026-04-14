@@ -42,7 +42,7 @@ Application Options:
   -t, --timeout=sec                                initial timeout to fill a buffer (default: 10)
   -b, --buf-size=KiB[2|4|8|16]                     buffer size, prefer smaller for slow connection (default: 8)
   -l, --speed-limit=[1|2|3|4|5]                    speed limit (default: 0 = no limit; 5 = max limit)
-  -s, --session=FILE                               session state of incomplete download, file with json extension
+  -s, --session=FILE                               auto saved json file of previous incomplete download session
   -U, --user-agent=[chrome|firefox|safari|edge]    User-Agent header (default: getparty/ver)
       --username=                                  basic http auth username
       --password=                                  basic http auth password
