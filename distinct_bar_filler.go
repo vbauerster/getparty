@@ -8,6 +8,6 @@ func green(s string) string {
 	return "\x1b[32m" + s + "\x1b[0m"
 }
 
-func distinctBarRefiller() mpb.BarFiller {
+func distinctBarFiller() mpb.BarFiller {
 	return baseBarStyle.Refiller("#").RefillerMeta(green).Build()
 }
