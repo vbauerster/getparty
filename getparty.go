@@ -294,7 +294,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			progress.Wait()
 			if err == nil {
 				m.loggers[INFO].Println("Session state saved")
-				m.loggers[INFO].Printf("To resume session run: %s --session %q", cmdName, dumpName)
+				m.loggers[INFO].Printf("To resume run: %s --session %q", cmdName, dumpName)
 			}
 		case completed:
 			m.loggers[INFO].Printf("%q saved [%d/%d]", outputName, session.ContentLength, tw)
