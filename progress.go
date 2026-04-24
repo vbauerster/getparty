@@ -33,7 +33,7 @@ func (p *progress) incrTotal(n int) {
 }
 
 func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount int, start time.Time) {
-	bar := p.MustAdd(contentLength, distinctBarRefiller(baseBarStyle()),
+	bar := p.MustAdd(contentLength, distinctBarRefiller(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+1),
 		mpb.PrependDecorators(
@@ -67,7 +67,7 @@ func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount
 }
 
 func (p *progress) addConcatBar(partCount int) (*mpb.Bar, error) {
-	return p.Add(int64(partCount-1), baseBarStyle().Build(),
+	return p.Add(int64(partCount-1), baseBarStyle.Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+2),
 		mpb.PrependDecorators(

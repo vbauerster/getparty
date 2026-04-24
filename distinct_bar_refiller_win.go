@@ -4,6 +4,6 @@ package getparty
 
 import "github.com/vbauerster/mpb/v8"
 
-func distinctBarRefiller(style mpb.BarStyleComposer) mpb.BarFiller {
-	return style.Refiller("$").Build()
+func distinctBarRefiller() mpb.BarFiller {
+	return baseBarStyle.Refiller("$").Build()
 }

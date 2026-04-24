@@ -74,14 +74,10 @@ func (b *flashBar) Abort(drop bool) {
 }
 
 func (p Part) newBar(curTry *uint32) (*flashBar, error) {
-	var filler mpb.BarFiller
 	total := p.len()
-	if total > 0 {
-		filler = distinctBarRefiller(baseBarStyle())
-	}
 	p.logger.Println("Setting bar total:", total)
 	msg, ch := fmt.Sprintf("%s %s", p.name, timeoutMsg), make(chan struct{}, 1)
-	bar, err := p.progress.Add(total, filler,
+	bar, err := p.progress.Add(total, distinctBarRefiller(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.id),
 		mpb.PrependDecorators(
