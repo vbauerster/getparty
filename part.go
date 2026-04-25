@@ -77,7 +77,7 @@ func (p Part) newBar(curTry *uint32) (*flashBar, error) {
 	total := p.len()
 	p.logger.Println("Setting bar total:", total)
 	msg, ch := fmt.Sprintf("%s %s", p.name, timeoutMsg), make(chan struct{}, 1)
-	bar, err := p.progress.Add(total, distinctBarFiller(),
+	bar, err := p.progress.Add(total, barBuilder.Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.id),
 		mpb.PrependDecorators(
