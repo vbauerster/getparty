@@ -192,7 +192,7 @@ func (m *Cmd) Exit(err error) (status int) {
 		}
 		if m.opt != nil && m.opt.Debug {
 			m.loggers[DBUG].Printf("ERROR: %s", err.Error())
-			if e := (*debugError)(nil); errors.As(err, &e) {
+			if e, ok := errors.AsType[*debugError](err); ok {
 				_, err := m.Err.Write(e.stack)
 				if err != nil {
 					panic(err)
@@ -201,7 +201,7 @@ func (m *Cmd) Exit(err error) (status int) {
 		}
 	}()
 
-	if e := (*flags.Error)(nil); errors.As(err, &e) {
+	if e, ok := errors.AsType[*flags.Error](err); ok {
 		if e.Type == flags.ErrHelp {
 			return 0 // cmd invoked with --help switch
 		}
@@ -212,7 +212,7 @@ func (m *Cmd) Exit(err error) (status int) {
 		return 2
 	}
 
-	if e := ExpectedError(""); errors.As(err, &e) {
+	if e, ok := errors.AsType[ExpectedError](err); ok {
 		if e == ErrInteractionRequired {
 			log.Default().Println(err.Error())
 			return 4

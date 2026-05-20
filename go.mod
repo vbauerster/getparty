@@ -1,6 +1,6 @@
 module github.com/vbauerster/getparty
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/VividCortex/ewma v1.2.0
