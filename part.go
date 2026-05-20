@@ -195,7 +195,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 				p.logger.Println("Written:", written)
 				p.logger.Println("Elapsed:", elapsed)
 				p.logger.Println("Idle:", idle)
-				if !retry || err == nil || errors.Is(context.Cause(p.ctx), ErrCanceledByUser) {
+				if !retry || err == nil || p.ctx.Err() != nil {
 					return
 				}
 				switch attempt {

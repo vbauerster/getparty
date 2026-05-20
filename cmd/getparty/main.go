@@ -23,21 +23,11 @@ var (
 func main() {
 	runtime.MemProfileRate = 0
 	var status int
-	quit := make(chan os.Signal, 2)
-	ctx, cancel := context.WithCancelCause(context.Background())
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer func() {
-		cancel(nil)
-		signal.Stop(quit)
+		stop()
 		os.Exit(status)
 	}()
-	go func() {
-		select {
-		case <-quit:
-			cancel(getparty.ErrCanceledByUser)
-		case <-ctx.Done():
-		}
-	}()
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	cmd := &getparty.Cmd{
 		Ctx: ctx,
 		Out: os.Stdout,
