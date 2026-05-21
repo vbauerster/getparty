@@ -261,7 +261,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		if session != nil && errors.Is(err, ErrZeroParts) {
 			session.summary(m.loggers)
 		}
-		return err
+		return withStack(cmp.Or(context.Cause(m.Ctx), err))
 	}
 
 	var recovered bool
