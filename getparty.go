@@ -293,7 +293,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			m.loggers[DBUG].Printf("Session state dumped with: %v", err)
 			progress.Wait()
 			if err == nil {
-				m.loggers[INFO].Println("Session state saved, to resume run following")
+				m.loggers[INFO].Println("Session state saved, run following to resume")
 				m.loggers[INFO].Printf("%s --session %q", cmdName, dumpName)
 			}
 		case completed:
