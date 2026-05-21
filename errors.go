@@ -63,7 +63,7 @@ func withStack(err error) error {
 		return nil
 	}
 	stack := debug.Stack()
-	if e := (*debugError)(nil); errors.As(err, &e) {
+	if e, ok := errors.AsType[*debugError](err); ok {
 		stack = append(stack, e.stack...)
 	}
 	return &debugError{
