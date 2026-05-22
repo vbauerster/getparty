@@ -203,7 +203,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 					atomic.AddUint32(&globTry, 1)
 				case opt.maxTry:
 					atomic.AddUint32(&globTry, ^uint32(0))
-					retry, err = false, ErrMaxRetry
+					retry, err = false, withStack(ErrMaxRetry)
 					_, _ = fmt.Fprintf(p.progress, "%s%s (%.1f / %.1f)\n",
 						p.logger.Prefix(),
 						err.Error(),
@@ -238,7 +238,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 
 			resp, err := httpClient.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 			if err != nil {
-				return true, err
+				return true, withStack(err)
 			}
 			defer func() {
 				if resp.Body != nil {

@@ -261,7 +261,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		if session != nil && errors.Is(err, ErrZeroParts) {
 			session.summary(m.loggers)
 		}
-		return withStack(cmp.Or(context.Cause(m.Ctx), err))
+		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
 	var recovered bool
@@ -419,7 +419,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			err := os.Rename(f.Name(), outputName)
 			m.loggers[DBUG].Printf("%q renamed to %q with: %v", f.Name(), outputName, err)
 		}
-		return withStack(cmp.Or(context.Cause(m.Ctx), err))
+		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
 	var part *os.File
@@ -566,7 +566,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
 			}
 			if m.opt.BestMirror.TopN != 1 {
-				return nil, ErrCanceledByUser
+				return nil, withStack(ErrCanceledByUser)
 			}
 			m.opt.Positional.Location = top[0].url
 			fallthrough
@@ -690,9 +690,9 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 					m.loggers[WARN].Println(unwrapOrErr(err).Error())
 					m.loggers[DBUG].Println(err.Error())
 					if attempt != 0 && attempt == m.opt.MaxRetry {
-						return false, ErrMaxRetry
+						return false, withStack(ErrMaxRetry)
 					}
-					return true, err
+					return true, withStack(err)
 				}
 
 				if jar := client.Jar; jar != nil {
