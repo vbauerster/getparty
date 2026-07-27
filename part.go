@@ -32,9 +32,10 @@ type Part struct {
 	Stop    int64
 	Written int64
 
-	id        int
 	ctx       context.Context
 	cancel    context.CancelFunc
+	id        int
+	curTry    *atomic.Uint32
 	progress  *progress                 // shared among parts
 	firstResp *firstHttpResponseContext // shared among parts
 	logger    *log.Logger
@@ -73,7 +74,7 @@ func (b *flashBar) Abort(drop bool) {
 	}
 }
 
-func (p Part) newBar(curTry *atomic.Uint32) (*flashBar, error) {
+func (p Part) newBar() (*flashBar, error) {
 	total := p.len()
 	p.logger.Println("Setting bar total:", total)
 	msg, ch := fmt.Sprintf("%s %s", p.name, timeoutMsg), make(chan struct{}, 1)
@@ -81,7 +82,7 @@ func (p Part) newBar(curTry *atomic.Uint32) (*flashBar, error) {
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.id),
 		mpb.PrependDecorators(
-			newFlashDecorator(newMainDecorator(curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msg, ch),
+			newFlashDecorator(newMainDecorator(p.curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msg, ch),
 			decor.Conditional(total > 0,
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WC{C: decor.DextraSpace}), "100% "),
@@ -118,7 +119,6 @@ func (p Part) newBar(curTry *atomic.Uint32) (*flashBar, error) {
 }
 
 func (p *Part) init(id int, session *Session) error {
-	p.id = id
 	p.name = fmt.Sprintf("P%02d", id)
 	p.output = filepath.Join(session.dir, fmt.Sprintf("%s.%02d", session.OutputName, id))
 	if session.restored && p.Written != 0 {
@@ -131,6 +131,8 @@ func (p *Part) init(id int, session *Session) error {
 			return withStack(err)
 		}
 	}
+	p.id = id
+	p.curTry = new(atomic.Uint32)
 	return nil
 }
 
@@ -157,7 +159,6 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 	opt.patcher.patch(req)
 
 	var dtt int // decrement timeout threshold
-	var curTry atomic.Uint32
 	var partial bool
 	var buffer [bufMax]byte
 
@@ -226,7 +227,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 				}(p.logger.Prefix(), bar != nil, partial)
 				p.logger.Println("Retry err:", err.Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
-				curTry.Store(uint32(attempt + 1))
+				p.curTry.Store(uint32(attempt + 1))
 			}(p.Written)
 
 			p.logger.Printf("GET(timeout=%s,dtt=%d): %s", timeout, dtt, req.URL)
@@ -278,7 +279,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 					}
 				}
 				if bar == nil {
-					bar, err = p.newBar(&curTry)
+					bar, err = p.newBar()
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -296,7 +297,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 					if err != nil {
 						return false, withStack(err)
 					}
-					bar, err = p.newBar(&curTry)
+					bar, err = p.newBar()
 					if err != nil {
 						return false, withStack(err)
 					}
