@@ -64,25 +64,25 @@ func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 
 type mainDecorator struct {
 	decor.WC
+	curTry *atomic.Uint32
 	name   string
 	format string
-	curTry *uint32
 }
 
-func newMainDecorator(curTry *uint32, name, format string, wc decor.WC) decor.Decorator {
+func newMainDecorator(curTry *atomic.Uint32, name, format string, wc decor.WC) decor.Decorator {
 	d := &mainDecorator{
 		WC:     wc.Init(),
+		curTry: curTry,
 		name:   name,
 		format: format,
-		curTry: curTry,
 	}
 	return d
 }
 
 func (d *mainDecorator) Decor(stat decor.Statistics) (string, int) {
 	var name string
-	if atomic.LoadUint32(&globTry) != 0 {
-		name = fmt.Sprintf("%s:R%02d", d.name, atomic.LoadUint32(d.curTry))
+	if globTry.Load() != 0 {
+		name = fmt.Sprintf("%s:R%02d", d.name, d.curTry.Load())
 	} else {
 		name = d.name
 	}

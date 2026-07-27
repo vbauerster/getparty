@@ -24,7 +24,7 @@ const bufMax = 1 << 14
 const timeoutMsg = "Timeout..."
 const prefixFormat = "[%s:R%02d] "
 
-var globTry uint32
+var globTry atomic.Uint32
 
 // Part represents state of each download part
 type Part struct {
@@ -73,7 +73,7 @@ func (b *flashBar) Abort(drop bool) {
 	}
 }
 
-func (p Part) newBar(curTry *uint32) (*flashBar, error) {
+func (p Part) newBar(curTry *atomic.Uint32) (*flashBar, error) {
 	total := p.len()
 	p.logger.Println("Setting bar total:", total)
 	msg, ch := fmt.Sprintf("%s %s", p.name, timeoutMsg), make(chan struct{}, 1)
@@ -157,7 +157,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 	opt.patcher.patch(req)
 
 	var dtt int // decrement timeout threshold
-	var curTry uint32
+	var curTry atomic.Uint32
 	var partial bool
 	var buffer [bufMax]byte
 
@@ -200,9 +200,9 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 				}
 				switch attempt {
 				case 0:
-					atomic.AddUint32(&globTry, 1)
+					globTry.Add(1)
 				case opt.maxTry:
-					atomic.AddUint32(&globTry, ^uint32(0))
+					globTry.Add(^uint32(0)) // decrement
 					retry, err = false, withStack(ErrMaxRetry)
 					_, _ = fmt.Fprintf(p.progress, "%s%s (%.1f / %.1f)\n",
 						p.logger.Prefix(),
@@ -226,7 +226,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 				}(p.logger.Prefix(), bar != nil, partial)
 				p.logger.Println("Retry err:", err.Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
-				atomic.StoreUint32(&curTry, uint32(attempt+1))
+				curTry.Store(uint32(attempt + 1))
 			}(p.Written)
 
 			p.logger.Printf("GET(timeout=%s,dtt=%d): %s", timeout, dtt, req.URL)
@@ -323,7 +323,7 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 				return true, withStack(UnexpectedHttpStatusError(resp.StatusCode))
 			default:
 				if attempt != 0 {
-					atomic.AddUint32(&globTry, ^uint32(0))
+					globTry.Add(^uint32(0)) // decrement
 				}
 				err := UnexpectedHttpStatusError(resp.StatusCode)
 				_, _ = fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
