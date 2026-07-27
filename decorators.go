@@ -2,6 +2,7 @@ package getparty
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"math"
 	"sync/atomic"
@@ -70,6 +71,9 @@ type mainDecorator struct {
 }
 
 func newMainDecorator(curTry *atomic.Uint32, name, format string, wc decor.WC) decor.Decorator {
+	if curTry == nil {
+		panic(errors.New("expected non nil curTry"))
+	}
 	d := &mainDecorator{
 		WC:     wc.Init(),
 		curTry: curTry,
