@@ -33,7 +33,7 @@ func (p *progress) incrTotal(n int) {
 }
 
 func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount int, start time.Time) {
-	bar := p.MustAdd(contentLength, barBuilder.Build(),
+	bar := p.New(contentLength, barBuilder,
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+1),
 		mpb.PrependDecorators(
@@ -105,7 +105,7 @@ func newProgress(ctx context.Context, session *Session, out, err io.Writer) *pro
 	)
 	return &progress{
 		Progress: p,
-		topBar:   p.MustAdd(0, nil),
+		topBar:   p.New(0, nil),
 		total:    total,
 		current:  session.totalWritten(),
 		out:      out,
