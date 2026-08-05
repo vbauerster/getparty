@@ -16,8 +16,8 @@ var (
 	_ decor.Decorator     = (*mainDecorator)(nil)
 	_ decor.Decorator     = (*flashDecorator)(nil)
 	_ decor.Wrapper       = (*flashDecorator)(nil)
-	_ decor.Decorator     = (*peak)(nil)
-	_ decor.EwmaDecorator = (*peak)(nil)
+	_ decor.Decorator     = (*ewmaPeak)(nil)
+	_ decor.EwmaDecorator = (*ewmaPeak)(nil)
 )
 
 func newFlashDecorator(decorator decor.Decorator, msg string, signal <-chan struct{}) decor.Decorator {
@@ -93,7 +93,7 @@ func (d *mainDecorator) Decor(stat decor.Statistics) (string, int) {
 	return d.Format(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
 }
 
-type peak struct {
+type ewmaPeak struct {
 	decor.WC
 	mean   ewma.MovingAverage
 	format string
@@ -103,7 +103,7 @@ type peak struct {
 }
 
 func newSpeedPeak(format string, age float64, wc decor.WC) decor.Decorator {
-	d := &peak{
+	d := &ewmaPeak{
 		WC:     wc.Init(),
 		mean:   decor.NewThreadSafeMovingAverage(ewma.NewMovingAverage(age)),
 		format: format,
@@ -111,7 +111,7 @@ func newSpeedPeak(format string, age float64, wc decor.WC) decor.Decorator {
 	return d
 }
 
-func (d *peak) EwmaUpdate(n int64, dur time.Duration) {
+func (d *ewmaPeak) EwmaUpdate(n int64, dur time.Duration) {
 	if n <= 0 {
 		d.zDur += dur
 		return
@@ -125,7 +125,7 @@ func (d *peak) EwmaUpdate(n int64, dur time.Duration) {
 	}
 }
 
-func (d *peak) Decor(stat decor.Statistics) (string, int) {
+func (d *ewmaPeak) Decor(stat decor.Statistics) (string, int) {
 	if !stat.Completed {
 		mean := d.mean.Value()
 		if d.min == 0 || mean < d.min {
