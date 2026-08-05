@@ -95,12 +95,11 @@ func (d *mainDecorator) Decor(stat decor.Statistics) (string, int) {
 
 type peak struct {
 	decor.WC
-	format   string
-	msg      string
-	min      float64
-	updCount uint8
-	zDur     time.Duration
-	mean     ewma.MovingAverage
+	mean   ewma.MovingAverage
+	format string
+	msg    string
+	min    float64
+	zDur   time.Duration
 }
 
 func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
@@ -118,30 +117,24 @@ func (d *peak) EwmaUpdate(n int64, dur time.Duration) {
 		return
 	}
 	durPerByte := float64(d.zDur+dur) / float64(n)
-	if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) || durPerByte == 0 {
+	if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) {
 		d.zDur += dur
-		return
-	}
-	d.zDur = 0
-	d.mean.Add(durPerByte)
-	switch d.updCount {
-	case ewma.WARMUP_SAMPLES:
-		mean := d.mean.Value()
-		if d.min == 0 || mean < d.min {
-			d.min = mean
-		}
-	default:
-		d.updCount++
+	} else {
+		d.zDur = 0
+		d.mean.Add(durPerByte)
 	}
 }
 
 func (d *peak) Decor(stat decor.Statistics) (string, int) {
-	if stat.Completed && d.msg == "" {
-		if d.min == 0 {
-			d.msg = "N/A"
-		} else {
-			d.msg = fmt.Sprintf(d.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/d.min))))
+	if !stat.Completed {
+		mean := d.mean.Value()
+		if d.min == 0 || mean < d.min {
+			d.min = mean
 		}
+		return d.Format("")
 	}
-	return d.Format(d.msg)
+	if d.min != 0 && d.msg == "" {
+		d.msg = fmt.Sprintf(d.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/d.min))))
+	}
+	return d.Format(cmp.Or(d.msg, "N/A"))
 }
