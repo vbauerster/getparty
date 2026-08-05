@@ -23,6 +23,7 @@ import (
 const bufMax = 1 << 14
 const timeoutMsg = "Timeout..."
 const prefixFormat = "[%s:R%02d] "
+const ewmaAge = 31
 
 var globTry atomic.Uint32
 
@@ -102,9 +103,9 @@ func (p Part) newBar() (*flashBar, error) {
 				decor.OnCompleteOrOnAbort(decor.Name("", decor.WCSyncWidth), ":"),
 				nil,
 			),
-			decor.EwmaSpeed(decor.SizeB1024(0), "%.1f", 30, decor.WCSyncSpace),
+			decor.EwmaSpeed(decor.SizeB1024(0), "%.1f", ewmaAge, decor.WCSyncSpace),
 			decor.OnComplete(decor.Name("", decor.WCSyncSpace), "Peak:"),
-			newSpeedPeak("%.1f", decor.WCSyncSpace),
+			newSpeedPeak("%.1f", ewmaAge, decor.WCSyncSpace),
 		),
 	)
 	if err != nil {

@@ -102,10 +102,10 @@ type peak struct {
 	zDur   time.Duration
 }
 
-func newSpeedPeak(format string, wc decor.WC) decor.Decorator {
+func newSpeedPeak(format string, age float64, wc decor.WC) decor.Decorator {
 	d := &peak{
 		WC:     wc.Init(),
-		mean:   decor.NewThreadSafeMovingAverage(ewma.NewMovingAverage(32)),
+		mean:   decor.NewThreadSafeMovingAverage(ewma.NewMovingAverage(age)),
 		format: format,
 	}
 	return d
