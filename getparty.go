@@ -426,7 +426,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if session.Single {
 		part = session.Parts[0].file
 	} else {
-		part, err = concatenate(session.Parts, progress, m.loggers[DBUG])
+		part, err = concatenate(session, progress, m.loggers[DBUG])
 		if err != nil {
 			return withStack(err)
 		}
@@ -829,15 +829,15 @@ func (m Cmd) getTimeout() time.Duration {
 	return time.Duration(timeout) * time.Second
 }
 
-func concatenate(parts []*Part, progress *progress, logger *log.Logger) (*os.File, error) {
-	bar, err := progress.addConcatBar(len(parts))
+func concatenate(session *Session, progress *progress, logger *log.Logger) (*os.File, error) {
+	bar, err := progress.addConcatBar(len(session.Parts), session.ContentLength)
 	if err != nil {
 		return nil, err
 	}
 	defer bar.Abort(false)
 
-	files := make([]*catFile, 0, len(parts))
-	for _, p := range parts {
+	files := make([]*catFile, 0, len(session.Parts))
+	for _, p := range session.Parts {
 		files = append(files, &catFile{p.output, p.file})
 	}
 
