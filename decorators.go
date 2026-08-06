@@ -6,18 +6,16 @@ import (
 	"fmt"
 	"math"
 	"sync/atomic"
-	"time"
 
 	"github.com/VividCortex/ewma"
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
 var (
-	_ decor.Decorator     = (*mainDecorator)(nil)
-	_ decor.Decorator     = (*flashDecorator)(nil)
-	_ decor.Wrapper       = (*flashDecorator)(nil)
-	_ decor.Decorator     = (*ewmaPeak)(nil)
-	_ decor.EwmaDecorator = (*ewmaPeak)(nil)
+	_ decor.Decorator = (*mainDecorator)(nil)
+	_ decor.Decorator = (*flashDecorator)(nil)
+	_ decor.Wrapper   = (*flashDecorator)(nil)
+	_ decor.Decorator = (*ewmaSpeedPeak)(nil)
 )
 
 func newFlashDecorator(decorator decor.Decorator, msg string, signal <-chan struct{}) decor.Decorator {
@@ -93,45 +91,36 @@ func (d *mainDecorator) Decor(stat decor.Statistics) (string, int) {
 	return d.Format(fmt.Sprintf(d.format, name, decor.SizeB1024(stat.Total)))
 }
 
-type ewmaPeak struct {
-	decor.WC
+type ewmaSpeedPeak struct {
+	decor.Decorator
 	mean   ewma.MovingAverage
 	format string
 	msg    string
 	min    float64
-	zDur   time.Duration
 }
 
-func newSpeedPeak(format string, age float64, wc decor.WC) decor.Decorator {
-	d := &ewmaPeak{
-		WC:     wc.Init(),
-		mean:   decor.NewThreadSafeMovingAverage(ewma.NewMovingAverage(age)),
-		format: format,
+func newEwmaSpeedPeak(format string, age float64, wc decor.WC) decor.Decorator {
+	mean := decor.NewThreadSafeMovingAverage(ewma.NewMovingAverage(age))
+	d := &ewmaSpeedPeak{
+		Decorator: decor.MovingAverageSpeed(decor.SizeB1024(0), format, mean, wc),
+		mean:      mean,
+		format:    format,
 	}
 	return d
 }
 
-func (d *ewmaPeak) EwmaUpdate(n int64, dur time.Duration) {
-	if n <= 0 {
-		d.zDur += dur
-		return
-	}
-	durPerByte := float64(d.zDur+dur) / float64(n)
-	if math.IsInf(durPerByte, 0) || math.IsNaN(durPerByte) {
-		d.zDur += dur
-	} else {
-		d.zDur = 0
-		d.mean.Add(durPerByte)
-	}
+// Unwrap is needed to expose EwmaUpdate(int64, time.Duration)
+func (d *ewmaSpeedPeak) Unwrap() decor.Decorator {
+	return d.Decorator
 }
 
-func (d *ewmaPeak) Decor(stat decor.Statistics) (string, int) {
-	if !stat.Completed {
+func (d *ewmaSpeedPeak) Decor(stat decor.Statistics) (string, int) {
+	if !stat.Completed && !stat.Aborted {
 		mean := d.mean.Value()
 		if d.min == 0 || mean < d.min {
 			d.min = mean
 		}
-		return d.Format("")
+		return d.Decorator.Decor(stat)
 	}
 	if d.min != 0 && d.msg == "" {
 		d.msg = fmt.Sprintf(d.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/d.min))))

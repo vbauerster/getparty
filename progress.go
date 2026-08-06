@@ -47,11 +47,8 @@ func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount
 				decor.ET_STYLE_MMSS,
 				start,
 				nil,
-				decor.WCSyncWidth), ""),
-			decor.OnCompleteOrOnAbort(decor.Name("", decor.WCSyncWidth), ":"),
+				decor.WCSyncWidth), "avrg:"),
 			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
-			decor.Name("", decor.WCSyncSpace),
 		),
 	)
 	go func() {
