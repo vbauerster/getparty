@@ -20,7 +20,7 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
-const bufMax = 1 << 14
+const bufMax = 16 * 1024
 const timeoutMsg = "Timeout..."
 const prefixFormat = "[%s:R%02d] "
 const ewmaAge = 31
