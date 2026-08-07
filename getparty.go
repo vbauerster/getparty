@@ -1,4 +1,4 @@
-//go:generate go tool stringer -type=statusContextError -trimprefix=err
+//go:generate go tool stringer -type=sessionState,statusContextError -trimprefix=err -output enums_string.go
 
 package getparty
 
@@ -260,13 +260,14 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	var recovered bool
+	outputName := filepath.Join(session.dir, session.OutputName)
 	progress := newProgress(m.Ctx, session, m.Out, m.Err)
 	stateQuery := makeStateQuery(session, progress.current)
-	outputName := filepath.Join(session.dir, session.OutputName)
 	defer func() {
 		var dump, completed bool
-		tw := session.totalWritten()
-		switch stateQuery(tw, err) {
+		tw, state := stateQuery(err)
+		m.loggers[DBUG].Println(state)
+		switch state {
 		case sessionUncompletedWithAdvance, sessionCompletedWithError:
 			dump = true
 		case sessionCompleted:
@@ -940,26 +941,28 @@ func isServerError(status int) bool {
 	return status > 499 && status < 600
 }
 
-func makeStateQuery(session *Session, initialWritten int64) func(int64, error) sessionState {
+func makeStateQuery(session *Session, initialWritten int64) func(error) (int64, sessionState) {
 	if !session.isResumable() {
-		return func(_ int64, err error) sessionState {
+		return func(err error) (int64, sessionState) {
+			tw := session.totalWritten()
 			if err != nil {
-				return sessionUncompleted
+				return tw, sessionUncompleted
 			}
-			return sessionCompleted
+			return tw, sessionCompleted
 		}
 	}
-	return func(written int64, err error) sessionState {
-		if written != session.ContentLength {
-			if written != initialWritten { // if some bytes were written
-				return sessionUncompletedWithAdvance
+	return func(err error) (int64, sessionState) {
+		tw := session.totalWritten()
+		if tw != session.ContentLength {
+			if tw != initialWritten { // if some bytes were written
+				return tw, sessionUncompletedWithAdvance
 			}
-			return sessionUncompleted
+			return tw, sessionUncompleted
 		}
 		if err != nil {
-			return sessionCompletedWithError
+			return tw, sessionCompletedWithError
 		}
-		return sessionCompleted
+		return tw, sessionCompleted
 	}
 }
 
