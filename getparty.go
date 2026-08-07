@@ -279,7 +279,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				panic(err)
 			}
 			progress.Wait()
-			m.loggers[INFO].Println("Session state saved, run following to resume")
+			m.loggers[INFO].Println("Session state saved; to resume run:")
 			m.loggers[INFO].Printf("%s --session %q", cmdName, dumpName)
 		case sessionCompleted:
 			progress.Wait()
