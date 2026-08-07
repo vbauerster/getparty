@@ -32,13 +32,13 @@ func (p *progress) incrTotal(n int) {
 	p.total <- n
 }
 
-func (p *progress) runTotalBar(contentLength int64, doneCount *uint32, partCount int, start time.Time) {
+func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount int, doneCount *atomic.Uint32) {
 	bar := p.New(contentLength, barBuilder,
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+1),
 		mpb.PrependDecorators(
 			decor.Any(func(_ decor.Statistics) string {
-				return fmt.Sprintf("Total(%d/%d)", atomic.LoadUint32(doneCount), partCount)
+				return fmt.Sprintf("Total(%d/%d)", doneCount.Load(), partCount)
 			}, decor.WCSyncWidthR),
 			decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 		),

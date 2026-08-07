@@ -301,7 +301,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}()
 
-	var doneCount uint32
+	var doneCount atomic.Uint32
 	var eg errgroup.Group
 	var recoverHandler sync.Once
 	firstResp := &firstHttpResponseContext{id: make(chan int, 1)}
@@ -323,7 +323,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		// p.Written=0 should be processed regardless of p.isDone() output
 		if p.Written != 0 && p.isDone() {
-			atomic.AddUint32(&doneCount, 1)
+			doneCount.Add(1)
 			continue
 		}
 		p.ctx, p.cancel = context.WithCancel(m.Ctx)
@@ -350,7 +350,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					return
 				}
 				if !p.single && p.isDone() {
-					atomic.AddUint32(&doneCount, 1)
+					doneCount.Add(1)
 				}
 			}()
 			return p.download(m.Err, session.location, options)
@@ -396,10 +396,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	case errors.Is(cause, errContextPartial) && !session.Single:
 		progress.runTotalBar(
-			session.ContentLength,
-			&doneCount,
-			len(session.Parts),
 			start.Add(-session.Elapsed),
+			session.ContentLength,
+			len(session.Parts),
+			&doneCount,
 		)
 		fallthrough
 	default:
