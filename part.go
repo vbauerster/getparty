@@ -92,7 +92,7 @@ func (p Part) newBar() (*flashBar, error) {
 			decor.Conditional(total > 0,
 				decor.OnCompleteOrOnAbort(decor.EwmaNormalizedETA(
 					decor.ET_STYLE_MMSS,
-					30,
+					ewmaAge,
 					decor.FixedIntervalTimeNormalizer(50),
 					decor.WCSyncWidth,
 				), "peak:"),
