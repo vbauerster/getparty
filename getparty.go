@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -123,12 +124,6 @@ type options struct {
 	Positional struct {
 		Location string `positional-arg-name:"<url>" description:"http location"`
 	} `positional-args:"yes"`
-}
-
-// helper type used for parts concatenation
-type catFile struct {
-	name string
-	file *os.File
 }
 
 type httpRequestPatcher interface {
@@ -379,8 +374,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 			_ = eg.Wait()
 			for _, p := range session.Parts {
-				if p.file != nil {
-					_ = p.file.Close()
+				if p.output != nil {
+					_ = p.output.Close()
 				}
 			}
 			panic(fmt.Errorf(
@@ -409,31 +404,30 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	if err != nil {
-		var f *os.File
+		var of *outFile
 		for _, p := range session.Parts {
-			if p.file != nil {
-				f = p.file
-				m.loggers[DBUG].Printf("%q closed with: %v", f.Name(), f.Close())
+			if p.output != nil {
+				of = p.output
+				m.loggers[DBUG].Printf("%q closed with: %v", of, of.Close())
 			}
 		}
-		if session.Single && !session.isResumable() && f != nil {
-			err := os.Rename(f.Name(), outputName)
-			m.loggers[DBUG].Printf("%q renamed to %q with: %v", f.Name(), outputName, err)
+		if session.Single && !session.isResumable() && of != nil {
+			err := os.Rename(of.Name(), outputName)
+			m.loggers[DBUG].Printf("%q renamed to %q with: %v", of, outputName, err)
 		}
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
-	var part *os.File
-	if session.Single {
-		part = session.Parts[0].file
-	} else {
-		part, err = concatenate(session, progress, m.loggers[DBUG])
+	if !session.Single {
+		err := concatenate(session, progress, m.loggers[DBUG])
 		if err != nil {
 			return withStack(err)
 		}
 	}
+
+	of := session.Parts[0].output
 	if session.isResumable() {
-		if stat, err := part.Stat(); err == nil {
+		if stat, err := of.Stat(); err == nil {
 			if session.ContentLength != stat.Size() {
 				return withStack(ContentMismatchError[int64]{
 					kind: "Length",
@@ -443,13 +437,16 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 		}
 		if m.opt.SessionName != "" {
-			m.loggers[DBUG].Printf("%q removed with: %v", m.opt.SessionName, os.Remove(m.opt.SessionName))
+			err := os.Remove(m.opt.SessionName)
+			m.loggers[DBUG].Printf("%q removed with: %v", m.opt.SessionName, err)
 		}
 	}
-	if err := cmp.Or(part.Sync(), part.Close(), os.Rename(part.Name(), outputName)); err != nil {
+
+	err = cmp.Or(of.Sync(), of.Close(), os.Rename(of.Name(), outputName))
+	if err != nil {
 		return withStack(err)
 	}
-	m.loggers[DBUG].Printf("%q renamed to %q", part.Name(), outputName)
+	m.loggers[DBUG].Printf("%q renamed to %q", of, outputName)
 
 	return nil
 }
@@ -830,89 +827,84 @@ func (m Cmd) getTimeout() time.Duration {
 	return time.Duration(timeout) * time.Second
 }
 
-func concatenate(session *Session, progress *progress, logger *log.Logger) (*os.File, error) {
+func concatenate(session *Session, progress *progress, logger *log.Logger) error {
 	bar, err := progress.addConcatBar(len(session.Parts), session.ContentLength)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer bar.Abort(false)
 
-	files := make([]*catFile, 0, len(session.Parts))
+	parts := make([]*outFile, 0, len(session.Parts))
 	for _, p := range session.Parts {
-		files = append(files, &catFile{p.output, p.file})
+		parts = append(parts, p.output)
 	}
 
-	return files[0].file, cat(files, bar, logger)
+	return cat(logger, bar, parts)
 }
 
 // https://go.dev/play/p/Q25_gze66yB
-func cat(files []*catFile, bar *mpb.Bar, logger *log.Logger) error {
-	if len(files) < 2 {
+func cat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
+	if len(parts) < 2 {
 		return nil
 	}
 
 	var eg errgroup.Group
-	for i := 2; i <= len(files); i += 2 {
-		dst, src := files[i-2], files[i-1]
-		// dst.file can be nil when session is restored with some complete part
+	for c := range slices.Chunk(parts, 2) {
+		if len(c) != 2 {
+			break
+		}
+		dst, src := c[0], c[1]
+		// dst.file can be nil when session is restored with some done part
 		if dst.file == nil {
-			file, err := os.OpenFile(dst.name, os.O_WRONLY|os.O_APPEND, umask)
+			err := dst.Open(os.O_WRONLY | os.O_APPEND)
 			if err != nil {
 				return err
 			}
-			dst.file = file
-			logger.Printf("%q dst reopen ok", dst.name)
+			logger.Printf("%q dst reopen ok", dst)
 		}
 		// have to reopen src.file for reading
-		if src.file != nil {
-			if err := src.file.Close(); err != nil {
-				return err
-			}
-		}
-		file, err := os.Open(src.name)
+		err := src.Open(os.O_RDONLY)
 		if err != nil {
 			return err
 		}
-		src.file, files[i-1] = file, nil
-		logger.Printf("%q src reopen ok", src.name)
+		logger.Printf("%q src reopen ok", src)
 
-		eg.Go(func() error {
-			defer bar.Increment()
+		eg.Go(func() (err error) {
+			defer func() {
+				if err == nil {
+					bar.Increment()
+					src.file = nil
+				}
+			}()
 
 			n, err := io.Copy(dst.file, src.file)
 			if err != nil {
 				return err
 			}
-			logger.Printf("%d bytes copied: dst=%q src=%q", n, dst.name, src.name)
 
-			err = cmp.Or(src.file.Close(), os.Remove(src.name))
-			if err != nil {
-				return err
-			}
-			logger.Printf("%q src remove ok", src.name)
+			logger.Printf("%d bytes copied: dst=%q src=%q", n, dst, src)
 
-			return nil
+			return cmp.Or(src.Close(), os.Remove(src.Name()))
 		})
 	}
 
-	if err := eg.Wait(); err != nil {
-		for _, f := range files {
-			if f != nil && f.file != nil {
-				logger.Printf("%q closed with: %v", f.name, f.file.Close())
-			}
+	err := eg.Wait()
+	if err != nil {
+		for _, p := range parts {
+			_ = p.Close()
 		}
 		return err
 	}
 
 	i := 0
-	for _, f := range files {
-		if f != nil {
-			files[i] = f
+	for _, p := range parts {
+		if p.file != nil {
+			parts[i] = p
 			i++
 		}
 	}
 
-	return cat(files[:i], bar, logger)
+	return cat(logger, bar, parts[:i])
 }
 
 func parseContentDisposition(input string) (output string) {

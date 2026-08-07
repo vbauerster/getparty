@@ -40,9 +40,8 @@ type Part struct {
 	progress  *progress                 // shared among parts
 	firstResp *firstHttpResponseContext // shared among parts
 	logger    *log.Logger
-	file      *os.File
+	output    *outFile
 	name      string
-	output    string
 	single    bool
 }
 
@@ -114,10 +113,12 @@ func (p Part) newBar() (*flashBar, error) {
 }
 
 func (p *Part) init(id int, session *Session) error {
-	p.name = fmt.Sprintf("P%02d", id)
-	p.output = filepath.Join(session.dir, fmt.Sprintf("%s.%02d", session.OutputName, id))
+	p.id = id
+	p.output = &outFile{
+		name: filepath.Join(session.dir, fmt.Sprintf("%s.%02d", session.OutputName, id)),
+	}
 	if session.restored && p.Written != 0 {
-		stat, err := os.Stat(p.output)
+		stat, err := p.output.Stat()
 		if err != nil {
 			return withStack(err)
 		}
@@ -126,8 +127,8 @@ func (p *Part) init(id int, session *Session) error {
 			return withStack(err)
 		}
 	}
-	p.id = id
 	p.curTry = new(atomic.Uint32)
+	p.name = fmt.Sprintf("P%02d", id)
 	return nil
 }
 
@@ -265,13 +266,11 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 					}
 					partial = true
 				}
-				if p.file == nil {
-					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, umask)
+				if p.output.file == nil {
+					err := p.output.Open(os.O_WRONLY | os.O_CREATE | os.O_APPEND)
 					if err != nil {
 						return false, withStack(err)
 					}
-				}
-				if bar == nil {
 					bar, err = p.newBar()
 					if err != nil {
 						return false, withStack(err)
@@ -286,7 +285,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 					if p.Written != 0 {
 						panic(fmt.Errorf("unexpected written %d on first %s", p.Written, resp.Status))
 					}
-					p.file, err = os.OpenFile(p.output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, umask)
+					err := p.output.Open(os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
 					if err != nil {
 						return false, withStack(err)
 					}
@@ -305,7 +304,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 					}
 					if p.Written != 0 {
 						// there is no way to resume on http.StatusOK so retry from scratch
-						err := p.file.Truncate(0)
+						err := p.output.Truncate(0)
 						if err != nil {
 							return false, withStack(err)
 						}
@@ -349,9 +348,9 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 					limit = limitTimer.nop
 				}
 
-				if _, err := p.file.Write(buffer[:n]); err != nil {
+				if _, err := p.output.Write(buffer[:n]); err != nil {
 					timer.stop()
-					return false, withStack(cmp.Or(p.file.Truncate(p.Written), err))
+					return false, withStack(cmp.Or(p.output.Truncate(p.Written), err))
 				}
 
 				p.Written += int64(n)
