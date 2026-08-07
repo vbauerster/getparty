@@ -284,13 +284,12 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				ext = ".json"
 			}
 			dumpName := filepath.Join(session.dir, session.OutputName+ext)
-			err := session.dumpState(dumpName)
-			m.loggers[DBUG].Printf("Session state dumped with: %v", err)
-			progress.Wait()
-			if err == nil {
-				m.loggers[INFO].Println("Session state saved, run following to resume")
-				m.loggers[INFO].Printf("%s --session %q", cmdName, dumpName)
+			if err := session.dumpState(dumpName); err != nil {
+				panic(err)
 			}
+			progress.Wait()
+			m.loggers[INFO].Println("Session state saved, run following to resume")
+			m.loggers[INFO].Printf("%s --session %q", cmdName, dumpName)
 		case completed:
 			m.loggers[INFO].Printf("%q saved [%d/%d]", outputName, session.ContentLength, tw)
 		}
