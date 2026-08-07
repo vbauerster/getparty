@@ -131,7 +131,7 @@ func (p *Part) init(id int, session *Session) error {
 	return nil
 }
 
-func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) (err error) {
+func (p *Part) download(location string, opt downloadOptions) (err error) {
 	var bar *flashBar
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
@@ -143,8 +143,6 @@ func (p *Part) download(debugw io.Writer, location string, opt downloadOptions) 
 		p.logger.Println("Return err:", err)
 		err = withMessage(err, p.name)
 	}()
-
-	p.logger = log.New(debugw, fmt.Sprintf(prefixFormat, p.name, 0), log.LstdFlags)
 
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	if err != nil {
