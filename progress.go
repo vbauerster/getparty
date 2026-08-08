@@ -63,7 +63,7 @@ func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount i
 	}
 }
 
-func (p *progress) addConcatBar(partCount int) (*mpb.Bar, error) {
+func (p *progress) addMergeBar(partCount int) (*mpb.Bar, error) {
 	return p.Add(int64(partCount), barBuilder.Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+2),

@@ -54,7 +54,7 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (*outFile, 
 	if !s.isResumable() {
 		return nil, errors.New("attempt to concat unresumable session")
 	}
-	bar, err := progress.addConcatBar(len(s.Parts))
+	bar, err := progress.addMergeBar(len(s.Parts))
 	if err != nil {
 		return nil, err
 	}
