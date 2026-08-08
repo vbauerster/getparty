@@ -419,27 +419,17 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	of := session.Parts[0].output
-	if session.isResumable() {
-		if stat, err := of.Stat(); err == nil {
-			if session.ContentLength != stat.Size() {
-				return withStack(ContentMismatchError[int64]{
-					kind: "Length",
-					old:  session.ContentLength,
-					new:  stat.Size(),
-				})
-			}
-		}
-		if m.opt.SessionName != "" {
-			err := os.Remove(m.opt.SessionName)
-			m.loggers[DBUG].Printf("%q removed with: %v", m.opt.SessionName, err)
-		}
-	}
 
 	err = cmp.Or(of.Sync(), of.Close(), os.Rename(of.Name(), outputName))
 	if err != nil {
 		return withStack(err)
 	}
 	m.loggers[DBUG].Printf("%q renamed to %q", of, outputName)
+
+	if m.opt.SessionName != "" {
+		m.loggers[DBUG].Printf("removing: %q", m.opt.SessionName)
+		return os.Remove(m.opt.SessionName)
+	}
 
 	return nil
 }
@@ -821,18 +811,42 @@ func (m Cmd) getTimeout() time.Duration {
 }
 
 func concatenate(session *Session, progress *progress, logger *log.Logger) error {
-	bar, err := progress.addConcatBar(len(session.Parts), session.ContentLength)
+	if !session.isResumable() {
+		return errors.New("attempt to concat unresumable session")
+	}
+	bar, err := progress.addConcatBar(len(session.Parts))
 	if err != nil {
 		return err
 	}
-	defer bar.Abort(false)
 
 	parts := make([]*outFile, 0, len(session.Parts))
 	for _, p := range session.Parts {
 		parts = append(parts, p.output)
 	}
 
-	return cat(logger, bar, parts)
+	err = cat(logger, bar, parts)
+	if err != nil {
+		bar.Abort(false)
+		return err
+	}
+
+	stat, err := session.Parts[0].output.Stat()
+	if err != nil {
+		bar.Abort(false)
+		return err
+	}
+
+	if session.ContentLength != stat.Size() {
+		bar.Abort(false)
+		return ContentMismatchError[int64]{
+			kind: "Length",
+			old:  session.ContentLength,
+			new:  stat.Size(),
+		}
+	}
+
+	bar.Increment()
+	return nil
 }
 
 // https://go.dev/play/p/Q25_gze66yB
@@ -874,7 +888,6 @@ func cat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 			if err != nil {
 				return err
 			}
-
 			logger.Printf("%d bytes copied: dst=%q src=%q", n, dst, src)
 
 			return cmp.Or(src.Close(), os.Remove(src.Name()))

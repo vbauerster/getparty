@@ -63,17 +63,17 @@ func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount i
 	}
 }
 
-func (p *progress) addConcatBar(partCount int, length int64) (*mpb.Bar, error) {
-	return p.Add(int64(partCount-1), barBuilder.Build(),
+func (p *progress) addConcatBar(partCount int) (*mpb.Bar, error) {
+	return p.Add(int64(partCount), barBuilder.Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+2),
 		mpb.PrependDecorators(
-			decor.Name("Concatenating", decor.WCSyncWidthR),
+			decor.CountersNoUnit("Merge(%d/%d)", decor.WCSyncWidthR),
 			decor.NewPercentage("%d", decor.WCSyncSpace),
 		),
 		mpb.AppendDecorators(
-			decor.OnCompleteOrOnAbort(decor.AverageETA(decor.ET_STYLE_MMSS, decor.WCSyncWidth), "size:"),
-			decor.OnCompleteOrOnAbort(decor.Name("", decor.WCSyncWidthR), fmt.Sprintf(" %.1f", decor.SizeB1024(length))),
+			decor.Name("", decor.WCSyncWidth),
+			decor.Name("", decor.WCSyncWidth),
 		),
 	)
 }
