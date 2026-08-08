@@ -46,7 +46,8 @@ func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount i
 				decor.ET_STYLE_MMSS,
 				start,
 				nil,
-				decor.WCSyncWidth), "avrg:"),
+				decor.WCSyncWidth,
+			), "avrg:"),
 			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
 		),
 	)
