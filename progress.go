@@ -82,7 +82,7 @@ func newProgress(ctx context.Context, session *Session, out, err io.Writer) *pro
 	var total chan int
 	qlen := len(session.Parts) + 1 // +1 for topBar
 	for _, p := range session.Parts {
-		if p.Written != 0 && p.isDone() {
+		if p.isContentDownloaded() {
 			qlen--
 		}
 	}

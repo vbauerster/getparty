@@ -308,8 +308,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		if err := p.init(i+1, session); err != nil {
 			return err
 		}
-		// p.Written=0 should be processed regardless of p.isDone() output
-		if p.Written != 0 && p.isDone() {
+		if p.isContentDownloaded() {
 			doneCount.Add(1)
 			continue
 		}
@@ -337,7 +336,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					}
 					return
 				}
-				if !p.single && p.isDone() {
+				if p.isContentDownloaded() {
 					doneCount.Add(1)
 				}
 			}()

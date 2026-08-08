@@ -417,6 +417,10 @@ func (p Part) isDone() bool {
 	return p.Written == p.len()
 }
 
+func (p Part) isContentDownloaded() bool {
+	return p.Written != 0 && p.isDone()
+}
+
 type limitTimer struct {
 	timer *time.Timer
 }
