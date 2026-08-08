@@ -366,9 +366,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 			_ = eg.Wait()
 			for _, p := range session.Parts {
-				if p.output != nil {
-					_ = p.output.Close()
-				}
+				_ = p.output.Close()
 			}
 			panic(fmt.Errorf(
 				"restored session is expected to get status %d but got status %d instead",
@@ -398,10 +396,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		var of *outFile
 		for _, p := range session.Parts {
-			if p.output != nil {
-				of = p.output
-				m.loggers[DBUG].Printf("%q closed with: %v", of, of.Close())
-			}
+			of = p.output
+			m.loggers[DBUG].Printf("%q closed with: %v", of, of.Close())
 		}
 		if session.Single && !session.isResumable() && of != nil {
 			err := os.Rename(of.Name(), outputName)
