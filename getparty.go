@@ -411,14 +411,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
-	if !session.Single {
-		err := concatenate(session, progress, m.loggers[DBUG])
-		if err != nil {
-			return withStack(err)
-		}
+	of, err := session.concatenate(progress, m.loggers[DBUG])
+	if err != nil {
+		return withStack(err)
 	}
-
-	of := session.Parts[0].output
 
 	err = cmp.Or(of.Sync(), of.Close(), os.Rename(of.Name(), outputName))
 	if err != nil {
@@ -810,47 +806,8 @@ func (m Cmd) getTimeout() time.Duration {
 	return time.Duration(timeout) * time.Second
 }
 
-func concatenate(session *Session, progress *progress, logger *log.Logger) error {
-	if !session.isResumable() {
-		return errors.New("attempt to concat unresumable session")
-	}
-	bar, err := progress.addConcatBar(len(session.Parts))
-	if err != nil {
-		return err
-	}
-
-	parts := make([]*outFile, 0, len(session.Parts))
-	for _, p := range session.Parts {
-		parts = append(parts, p.output)
-	}
-
-	err = cat(logger, bar, parts)
-	if err != nil {
-		bar.Abort(false)
-		return err
-	}
-
-	stat, err := session.Parts[0].output.Stat()
-	if err != nil {
-		bar.Abort(false)
-		return err
-	}
-
-	if session.ContentLength != stat.Size() {
-		bar.Abort(false)
-		return ContentMismatchError[int64]{
-			kind: "Length",
-			old:  session.ContentLength,
-			new:  stat.Size(),
-		}
-	}
-
-	bar.Increment()
-	return nil
-}
-
 // https://go.dev/play/p/Q25_gze66yB
-func cat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
+func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 	if len(parts) < 2 {
 		return nil
 	}
@@ -910,7 +867,7 @@ func cat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 		}
 	}
 
-	return cat(logger, bar, parts[:i])
+	return concat(logger, bar, parts[:i])
 }
 
 func parseContentDisposition(input string) (output string) {

@@ -3,6 +3,7 @@ package getparty
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -44,6 +45,49 @@ func (s *Session) dumpState(name string) error {
 		return err
 	}
 	return cmp.Or(json.NewEncoder(f).Encode(s), f.Close())
+}
+
+func (s Session) concatenate(progress *progress, logger *log.Logger) (*outFile, error) {
+	if s.Single {
+		return s.Parts[0].output, nil
+	}
+	if !s.isResumable() {
+		return nil, errors.New("attempt to concat unresumable session")
+	}
+	bar, err := progress.addConcatBar(len(s.Parts))
+	if err != nil {
+		return nil, err
+	}
+
+	parts := make([]*outFile, 0, len(s.Parts))
+	for _, p := range s.Parts {
+		parts = append(parts, p.output)
+	}
+
+	err = concat(logger, bar, parts)
+	if err != nil {
+		bar.Abort(false)
+		return nil, err
+	}
+
+	stat, err := parts[0].Stat()
+	if err != nil {
+		bar.Abort(false)
+		return nil, err
+	}
+
+	if s.ContentLength != stat.Size() {
+		err := ContentMismatchError[int64]{
+			kind: "Length",
+			old:  s.ContentLength,
+			new:  stat.Size(),
+		}
+		bar.Abort(false)
+		return nil, err
+	}
+
+	bar.Increment()
+	return parts[0], nil
 }
 
 func (s Session) isResumable() bool {
