@@ -1,7 +1,6 @@
 package getparty
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"sync/atomic"
@@ -76,32 +75,4 @@ func (p *progress) addMergeBar(partCount int) (*mpb.Bar, error) {
 			decor.Name("", decor.WCSyncWidth),
 		),
 	)
-}
-
-func newProgress(ctx context.Context, session *Session, out, err io.Writer) *progress {
-	var total chan int
-	qlen := len(session.Parts) + 1 // +1 for topBar
-	for _, p := range session.Parts {
-		if p.isContentDownloaded() {
-			qlen--
-		}
-	}
-	if !session.Single {
-		total = make(chan int, qlen)
-		qlen += 2 // +2 for total and concat bars
-	}
-	p := mpb.NewWithContext(ctx,
-		mpb.WithOutput(out),
-		mpb.WithDebugOutput(err),
-		mpb.WithRefreshRate(refreshRate*time.Millisecond),
-		mpb.WithWidth(64),
-		mpb.WithQueueLen(qlen),
-	)
-	return &progress{
-		Progress: p,
-		topBar:   p.New(0, nil),
-		total:    total,
-		current:  session.totalWritten(),
-		out:      out,
-	}
 }

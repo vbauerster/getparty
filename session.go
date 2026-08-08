@@ -2,19 +2,24 @@ package getparty
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
 // Session represents download session state
 type Session struct {
+	dir           string
+	location      string
 	URL           string
 	OutputName    string
 	AcceptRanges  string
@@ -25,10 +30,7 @@ type Session struct {
 	Headers       map[string]string
 	Parts         []*Part
 	Single        bool
-
-	restored bool
-	location string
-	dir      string
+	restored      bool
 }
 
 func (s *Session) loadState(name string) error {
@@ -145,5 +147,31 @@ func (s Session) makeStateQuery() func(error) (int64, sessionState) {
 			return tw, sessionCompletedWithError
 		}
 		return tw, sessionCompleted
+	}
+}
+
+func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
+	var total chan int
+	blen := len(s.Parts)
+	for _, p := range s.Parts {
+		if p.isContentDownloaded() {
+			blen--
+		}
+	}
+	if !s.Single {
+		total = make(chan int, blen)
+	}
+	p := mpb.NewWithContext(ctx,
+		mpb.WithOutput(out),
+		mpb.WithDebugOutput(err),
+		mpb.WithRefreshRate(refreshRate*time.Millisecond),
+		mpb.WithWidth(64),
+	)
+	return &progress{
+		Progress: p,
+		topBar:   p.New(0, nil),
+		total:    total,
+		current:  s.totalWritten(),
+		out:      out,
 	}
 }

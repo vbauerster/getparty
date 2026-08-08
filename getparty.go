@@ -260,7 +260,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	var recovered bool
 	outputName := filepath.Join(session.dir, session.OutputName)
-	progress := newProgress(m.Ctx, session, m.Out, m.Err)
+	progress := session.newProgress(m.Ctx, m.Out, m.Err)
 	stateQuery := session.makeStateQuery()
 	defer func() {
 		tw, state := stateQuery(err)
