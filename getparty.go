@@ -67,7 +67,6 @@ const (
 	cmdName     = "getparty"
 	projectHome = "https://github.com/vbauerster/getparty"
 
-	umask               = 0644
 	maxTimeout          = 90
 	minFragment         = 512
 	refreshRate         = 200

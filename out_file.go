@@ -2,6 +2,8 @@ package getparty
 
 import "os"
 
+const umask = 0644
+
 type outFile struct {
 	file *os.File
 	name string
