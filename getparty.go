@@ -320,7 +320,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		// p := p // NOTE: uncomment for Go < 1.22, see /doc/faq#closures_and_goroutines
 		eg.Go(func() (err error) {
 			defer func() {
-				if v := recover(); v != nil {
+				if x := recover(); x != nil {
 					recoverHandler.Do(func() {
 						for _, p := range session.Parts {
 							if p.cancel != nil {
@@ -329,10 +329,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 						}
 						recovered = true
 					})
-					if e, ok := v.(error); ok {
+					if e, ok := x.(error); ok {
 						err = fmt.Errorf("%s recovered: %w", p.name, e)
 					} else {
-						err = fmt.Errorf("%s recovered: %v", p.name, v)
+						err = fmt.Errorf("%s recovered: %v", p.name, x)
 					}
 					return
 				}
