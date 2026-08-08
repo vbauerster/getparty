@@ -264,7 +264,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	stateQuery := session.makeStateQuery()
 	defer func() {
 		tw, state := stateQuery(err)
-		m.loggers[DBUG].Println(state)
+		m.loggers[DBUG].Println(state, tw)
 		switch state {
 		case sessionUncompletedWithAdvance, sessionCompletedWithError:
 			var ext string
