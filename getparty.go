@@ -264,20 +264,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	progress := newProgress(m.Ctx, session, m.Out, m.Err)
 	stateQuery := makeStateQuery(session, progress.current)
 	defer func() {
-		var dump, completed bool
 		tw, state := stateQuery(err)
 		m.loggers[DBUG].Println(state)
 		switch state {
 		case sessionUncompletedWithAdvance, sessionCompletedWithError:
-			dump = true
-		case sessionCompleted:
-			completed = true
-			fallthrough
-		case sessionUncompleted:
-			progress.Wait()
-		}
-		switch {
-		case dump:
 			var ext string
 			if recovered {
 				ext = ".recovered"
@@ -291,8 +281,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			progress.Wait()
 			m.loggers[INFO].Println("Session state saved, run following to resume")
 			m.loggers[INFO].Printf("%s --session %q", cmdName, dumpName)
-		case completed:
+		case sessionCompleted:
+			progress.Wait()
 			m.loggers[INFO].Printf("%q saved [%d/%d]", outputName, session.ContentLength, tw)
+		default:
+			progress.Wait()
 		}
 	}()
 
