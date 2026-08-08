@@ -261,7 +261,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var recovered bool
 	outputName := filepath.Join(session.dir, session.OutputName)
 	progress := newProgress(m.Ctx, session, m.Out, m.Err)
-	stateQuery := makeStateQuery(session, progress.current)
+	stateQuery := session.makeStateQuery()
 	defer func() {
 		tw, state := stateQuery(err)
 		m.loggers[DBUG].Println(state)
@@ -896,31 +896,6 @@ func isRedirect(status int) bool {
 
 func isServerError(status int) bool {
 	return status > 499 && status < 600
-}
-
-func makeStateQuery(session *Session, initialWritten int64) func(error) (int64, sessionState) {
-	if !session.isResumable() {
-		return func(err error) (int64, sessionState) {
-			tw := session.totalWritten()
-			if err != nil {
-				return tw, sessionUncompleted
-			}
-			return tw, sessionCompleted
-		}
-	}
-	return func(err error) (int64, sessionState) {
-		tw := session.totalWritten()
-		if tw != session.ContentLength {
-			if tw != initialWritten { // if some bytes were written
-				return tw, sessionUncompletedWithAdvance
-			}
-			return tw, sessionUncompleted
-		}
-		if err != nil {
-			return tw, sessionCompletedWithError
-		}
-		return tw, sessionCompleted
-	}
 }
 
 func makeParts(n uint, length int64) ([]*Part, error) {
