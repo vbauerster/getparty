@@ -75,14 +75,17 @@ func (b *flashBar) Abort(drop bool) {
 }
 
 func (p Part) newBar() (*flashBar, error) {
-	total := p.len()
+	total, signal := p.len(), make(chan struct{}, 1)
 	p.logger.Println("Setting bar total:", total)
-	msg, ch := fmt.Sprintf("%s %s", p.name, timeoutMsg), make(chan struct{}, 1)
 	bar, err := p.progress.Add(total, barBuilder.Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(p.id),
 		mpb.PrependDecorators(
-			newFlashDecorator(newMainDecorator(p.curTry, p.name, "%s %.1f", decor.WCSyncWidthR), msg, ch),
+			newFlashDecorator(
+				newMainDecorator(p.curTry, p.name, "%s %.1f", decor.WCSyncWidthR),
+				fmt.Sprintf("%s %s", p.name, timeoutMsg),
+				signal,
+			),
 			decor.Conditional(total > 0,
 				decor.OnComplete(decor.NewPercentage("%.2f", decor.WCSyncSpace), "100%"),
 				decor.OnComplete(decor.Spinner([]string{`-`, `\`, `|`, `/`}, decor.WC{C: decor.DextraSpace}), "100%"),
@@ -109,7 +112,7 @@ func (p Part) newBar() (*flashBar, error) {
 		bar.SetCurrent(p.Written)
 		bar.SetRefillCurrent()
 	}
-	return &flashBar{bar, ch}, nil
+	return &flashBar{bar, signal}, nil
 }
 
 func (p *Part) init(id int, session *Session) error {
