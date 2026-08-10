@@ -114,6 +114,8 @@ func (p Part) newBar() (*flashBar, error) {
 
 func (p *Part) init(id int, session *Session) error {
 	p.id = id
+	p.curTry = new(atomic.Uint32)
+	p.name = fmt.Sprintf("P%02d", id)
 	p.output = &outFile{
 		name: filepath.Join(session.dir, fmt.Sprintf("%s.%02d", session.OutputName, id)),
 	}
@@ -122,13 +124,12 @@ func (p *Part) init(id int, session *Session) error {
 		if err != nil {
 			return withStack(err)
 		}
-		if size := stat.Size(); size != p.Written {
-			err := fmt.Errorf("%q size mismatch: expected %d got %d", stat.Name(), p.Written, size)
+		size := stat.Size()
+		if size != p.Written {
+			err := fmt.Errorf("%q size mismatch: expected %d got %d", p.output, p.Written, size)
 			return withStack(err)
 		}
 	}
-	p.curTry = new(atomic.Uint32)
-	p.name = fmt.Sprintf("P%02d", id)
 	return nil
 }
 
