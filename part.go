@@ -277,11 +277,10 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 				select {
 				case p.firstResp.id <- p.id:
 					p.firstResp.cancel(errContextFallback)
-					p.single = true
-					p.Start, p.Stop = 0, resp.ContentLength-1
 					if p.Written != 0 {
 						panic(fmt.Errorf("unexpected written %d on first %s", p.Written, resp.Status))
 					}
+					p.reset(resp.ContentLength)
 					err := p.output.Open(os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
 					if err != nil {
 						return false, withStack(err)
@@ -381,7 +380,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 			}
 
 			if p.len() <= 0 && errors.Is(err, io.EOF) {
-				p.Stop = p.Written - 1 // make sure next p.len() result is never negative
+				p.reset(p.Written)
 				bar.EnableTriggerComplete()
 			}
 
@@ -396,6 +395,11 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 			// err is never nil here
 			return true, err
 		})
+}
+
+func (p *Part) reset(contentLength int64) {
+	p.single = true
+	p.Start, p.Stop = 0, contentLength-1
 }
 
 func (p Part) getRange() string {
