@@ -1,9 +1,12 @@
 package getparty
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -286,5 +289,121 @@ func TestParseOutputName(t *testing.T) {
 				t.Errorf("expected %q got %q", test.expected, output)
 			}
 		})
+	}
+}
+
+func TestDumpProgress(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	progressFile := filepath.Join(dir, "test-output.json")
+
+	session := &Session{
+		URL:           "https://example.com/file.iso",
+		OutputName:    "file.iso",
+		AcceptRanges:  "bytes",
+		ContentType:   "application/octet-stream",
+		ContentLength: 10000,
+		Parts: []*Part{
+			{Start: 0, Stop: 4999, Written: 2500},
+			{Start: 5000, Stop: 9999, Written: 1500},
+		},
+	}
+
+	if err := session.dumpProgress(progressFile); err != nil {
+		t.Fatalf("dumpProgress failed: %v", err)
+	}
+
+	data, err := os.ReadFile(progressFile)
+	if err != nil {
+		t.Fatalf("failed to read progress file: %v", err)
+	}
+
+	var loaded Session
+	if err := json.Unmarshal(data, &loaded); err != nil {
+		t.Fatalf("failed to unmarshal progress file: %v", err)
+	}
+
+	if loaded.TotalWritten != 4000 {
+		t.Errorf("expected TotalWritten=4000, got %d", loaded.TotalWritten)
+	}
+	if loaded.ContentLength != 10000 {
+		t.Errorf("expected ContentLength=10000, got %d", loaded.ContentLength)
+	}
+	if len(loaded.Parts) != 2 {
+		t.Fatalf("expected 2 parts, got %d", len(loaded.Parts))
+	}
+	if loaded.Parts[0].Written != 2500 {
+		t.Errorf("expected Part[0].Written=2500, got %d", loaded.Parts[0].Written)
+	}
+	if loaded.Parts[1].Written != 1500 {
+		t.Errorf("expected Part[1].Written=1500, got %d", loaded.Parts[1].Written)
+	}
+}
+
+func TestDumpProgressAtomicWrite(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	progressFile := filepath.Join(dir, "test-output.json")
+
+	session := &Session{
+		URL:           "https://example.com/file.iso",
+		OutputName:    "file.iso",
+		ContentLength: 5000,
+		Parts:         []*Part{{Start: 0, Stop: 4999, Written: 1000}},
+	}
+
+	if err := session.dumpProgress(progressFile); err != nil {
+		t.Fatalf("dumpProgress failed: %v", err)
+	}
+
+	// Verify no temp files left behind
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("failed to read dir: %v", err)
+	}
+	for _, e := range entries {
+		if e.Name() != "test-output.json" {
+			t.Errorf("unexpected file in dir: %s", e.Name())
+		}
+	}
+
+	// Update and write again — should overwrite atomically
+	session.Parts[0].Written = 3000
+	if err := session.dumpProgress(progressFile); err != nil {
+		t.Fatalf("dumpProgress (update) failed: %v", err)
+	}
+
+	var loaded Session
+	data, _ := os.ReadFile(progressFile)
+	json.Unmarshal(data, &loaded)
+	if loaded.TotalWritten != 3000 {
+		t.Errorf("expected TotalWritten=3000 after update, got %d", loaded.TotalWritten)
+	}
+}
+
+func TestDumpStateIncludesTotalWritten(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	stateFile := filepath.Join(dir, "test-output.json")
+
+	session := &Session{
+		URL:           "https://example.com/file.iso",
+		OutputName:    "file.iso",
+		ContentLength: 8000,
+		Parts: []*Part{
+			{Start: 0, Stop: 3999, Written: 4000},
+			{Start: 4000, Stop: 7999, Written: 4000},
+		},
+	}
+
+	if err := session.dumpState(stateFile); err != nil {
+		t.Fatalf("dumpState failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(stateFile)
+	var loaded Session
+	json.Unmarshal(data, &loaded)
+	if loaded.TotalWritten != 8000 {
+		t.Errorf("expected TotalWritten=8000 from dumpState, got %d", loaded.TotalWritten)
 	}
 }

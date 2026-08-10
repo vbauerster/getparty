@@ -96,6 +96,7 @@ type options struct {
 	Timeout     uint              `short:"t" long:"timeout" value-name:"sec" default:"10" description:"initial timeout to fill a buffer"`
 	BufferSize  uint              `short:"b" long:"buf-size" value-name:"KiB" choice:"2" choice:"4" choice:"8" choice:"16" default:"8" description:"buffer size, prefer smaller for slow connection"`
 	SpeedLimit  uint              `short:"l" long:"speed-limit" choice:"1" choice:"2" choice:"3" choice:"4" choice:"5" description:"speed limit (default: 0 = no limit; 5 = max limit)"`
+	Progress    uint              `long:"progress" value-name:"SEC" default:"0" description:"write progress JSON to <output>.progress.json every SEC seconds, 0 to disable"`
 	SessionName string            `short:"s" long:"session" value-name:"FILE" description:"auto saved json file of previous incomplete download session"`
 	UserAgent   string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" description:"User-Agent header (default: getparty/ver)"`
 	AuthUser    string            `long:"username" description:"basic http auth username"`
@@ -350,6 +351,52 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	start := time.Now()
 	cause := context.Cause(firstResp.ctx)
 	m.loggers[DBUG].Printf("%T: %[1]v", cause)
+
+	// Start progress file writer goroutine if enabled. The progress file path
+	// is always derived from the output name (<OutputName>.progress.json) so
+	// callers get a stable, predictable location to poll. It is kept distinct
+	// from the session state file (<OutputName>.json) so resume semantics and
+	// progress reporting never share a path.
+	if m.opt.Progress > 0 {
+		progressFile := session.OutputName + ".progress.json"
+		progressDone := make(chan struct{})
+		tickerExited := make(chan struct{})
+		// Defer signals the ticker to stop, waits for it to actually exit, then
+		// removes the progress file. Running on a defer covers every exit path
+		// (normal return AND panic from the modeFallback branch below). Waiting
+		// on tickerExited guarantees no concurrent dumpProgress can resurrect
+		// the file after os.Remove, and also gates the deferred dumpState block
+		// above from racing the ticker on session struct fields.
+		defer func() {
+			close(progressDone)
+			<-tickerExited
+			m.loggers[DBUG].Printf("%q removed with: %v", progressFile, os.Remove(progressFile))
+		}()
+		interval := time.Duration(m.opt.Progress) * time.Second
+		go func() {
+			defer close(tickerExited)
+			write := func() {
+				if err := session.dumpProgress(progressFile); err != nil {
+					m.loggers[DBUG].Printf("Progress file write error: %v", err)
+				}
+			}
+			// Publish once up front: a ticker does not fire until +interval, so
+			// without this the file is absent for the whole first interval and
+			// consumers polling from t=0 cannot distinguish "not started yet"
+			// from "no progress support".
+			write()
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					write()
+				case <-progressDone:
+					return
+				}
+			}
+		}()
+	}
 
 	switch {
 	case errors.Is(cause, errContextFallback):
