@@ -152,11 +152,10 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 
 	opt.patcher.patch(req)
 
+	var buffer [bufMax]byte
 	var dtt int // decrement timeout threshold
 	var partial bool
-	var buffer [bufMax]byte
 
-	bufLen := int(min(bufMax, opt.bufSize*1024))
 	consecutiveResetOk := 32 / int(opt.bufSize)
 	timeout := opt.timeout
 	trace := &httptrace.ClientTrace{
@@ -164,8 +163,6 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
 		},
 	}
-
-	p.logger.Println("ReadFull buf len:", bufLen)
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, backoffReset func()) (retry bool, err error) {
@@ -326,12 +323,13 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 			var limit func(limitTimer, context.Context) bool
 			isUnexpectedEOF := makeUnexpectedEOFFuser(p.logger)
 
+			buf := buffer[:min(bufMax, opt.bufSize*1024)]
 			// io.ReadFull returns io.ErrUnexpectedEOF if an io.EOF happens after reading
 			// some but not all the bytes therefore to force io.ReadFull to return io.EOF
 			// loop is entered one more time on first io.ErrUnexpectedEOF encounter
-			for n := bufLen; timer.Reset(timeout+opt.sleep) && n == bufLen || isUnexpectedEOF(err); {
+			for n := len(buf); timer.Reset(timeout+opt.sleep) && n == len(buf) || isUnexpectedEOF(err); {
 				start := time.Now()
-				n, err = io.ReadFull(resp.Body, buffer[:bufLen])
+				n, err = io.ReadFull(resp.Body, buf)
 				rDur := time.Since(start)
 				if n == 0 {
 					// n is zero either on context timeout or on io.EOF
@@ -348,7 +346,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 					limit = limitTimer.nop
 				}
 
-				if _, err := p.output.Write(buffer[:n]); err != nil {
+				if _, err := p.output.Write(buf[:n]); err != nil {
 					timer.stop()
 					return false, withStack(cmp.Or(p.output.Truncate(p.Written), err))
 				}
