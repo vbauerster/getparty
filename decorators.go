@@ -11,6 +11,8 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
+const flashTimes = 15
+
 var (
 	_ decor.Decorator = (*mainDecorator)(nil)
 	_ decor.Decorator = (*flashDecorator)(nil)
@@ -19,17 +21,12 @@ var (
 )
 
 func newFlashDecorator(decorator decor.Decorator, msg string, signal <-chan struct{}) decor.Decorator {
-	return newFlashDecoratorWithLimit(decorator, msg, signal, 0)
-}
-
-func newFlashDecoratorWithLimit(decorator decor.Decorator, msg string, signal <-chan struct{}, limit uint) decor.Decorator {
 	if decorator == nil {
 		return nil
 	}
 	d := &flashDecorator{
 		Decorator: decorator,
 		signal:    signal,
-		limit:     cmp.Or(limit, 15),
 		msg:       msg,
 	}
 	return d
@@ -38,9 +35,8 @@ func newFlashDecoratorWithLimit(decorator decor.Decorator, msg string, signal <-
 type flashDecorator struct {
 	decor.Decorator
 	signal <-chan struct{}
-	limit  uint
-	count  uint
 	msg    string
+	count  uint
 }
 
 func (d *flashDecorator) Unwrap() decor.Decorator {
@@ -51,7 +47,7 @@ func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 	if d.count == 0 {
 		select {
 		case <-d.signal:
-			d.count = d.limit
+			d.count = flashTimes
 		default:
 			return d.Decorator.Decor(stat)
 		}
