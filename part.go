@@ -256,13 +256,11 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 				select {
 				case p.firstResp.id <- p.id:
 					p.firstResp.cancel(errContextPartial)
-					partial = true
 				default:
 					if !partial && errors.Is(context.Cause(p.firstResp.ctx), errContextFallback) {
 						// some other part got http.StatusOK first
 						panic(UnexpectedHttpStatusError(http.StatusPartialContent))
 					}
-					partial = true
 				}
 				if p.output.file == nil {
 					err := p.output.Open(os.O_WRONLY | os.O_CREATE | os.O_APPEND)
@@ -273,6 +271,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 					if err != nil {
 						return false, withStack(err)
 					}
+					partial = true
 				}
 			case http.StatusOK: // no partial content, fallback to single part mode
 				select {
