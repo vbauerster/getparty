@@ -67,7 +67,7 @@ func withStack(err error) error {
 		stack = append(stack, e.stack...)
 	}
 	return &debugError{
-		err,
-		stack,
+		error: err,
+		stack: stack,
 	}
 }
