@@ -738,7 +738,6 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 					OutputName:    m.opt.Output.Name,
 					AcceptRanges:  resp.Header.Get(hAcceptRanges),
 					ContentType:   resp.Header.Get(hContentType),
-					StatusCode:    resp.StatusCode,
 					ContentLength: resp.ContentLength,
 					Headers:       m.opt.Headers,
 					location:      location,

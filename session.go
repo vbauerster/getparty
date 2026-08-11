@@ -24,7 +24,6 @@ type Session struct {
 	OutputName    string
 	AcceptRanges  string
 	ContentType   string
-	StatusCode    int
 	ContentLength int64
 	Elapsed       time.Duration
 	Headers       map[string]string
