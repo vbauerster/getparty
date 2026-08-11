@@ -392,6 +392,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				case <-ticker.C:
 					write()
 				case <-progressDone:
+					// Final snapshot: the last tick can be up to interval old, so
+					// without this the file never reflects the completed state.
+					write()
 					return
 				}
 			}
