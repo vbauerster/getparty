@@ -283,7 +283,6 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 					if p.Written != 0 {
 						panic(fmt.Errorf("unexpected written %d on first %s", p.Written, resp.Status))
 					}
-					p.reset(resp.ContentLength)
 					err := p.output.Open(os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
 					if err != nil {
 						return false, withStack(err)
@@ -292,6 +291,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 					if err != nil {
 						return false, withStack(err)
 					}
+					p.reset(resp.ContentLength)
 				default:
 					if !p.single || partial {
 						if errors.Is(context.Cause(p.firstResp.ctx), errContextPartial) {
