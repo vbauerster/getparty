@@ -267,13 +267,12 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		m.loggers[DBUG].Println(state, tw)
 		switch state {
 		case sessionUncompletedWithAdvance, sessionCompletedWithError:
-			var ext string
+			dumpName := outputName
 			if recovered {
-				ext = ".recovered"
+				dumpName += ".recovered"
 			} else {
-				ext = ".json"
+				dumpName += ".json"
 			}
-			dumpName := filepath.Join(session.dir, session.OutputName+ext)
 			if err := session.dumpState(dumpName); err != nil {
 				panic(err)
 			}
