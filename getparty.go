@@ -560,6 +560,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if !session.isResumable() && m.opt.Parts != 0 {
 				m.opt.Parts = 1
 			}
+			session.Single = m.opt.Parts == 1
 			session.Parts, err = makeParts(m.opt.Parts, session.ContentLength)
 			if err != nil {
 				return session, withStack(err)
@@ -568,7 +569,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if err != nil {
 				return nil, withStack(err)
 			}
-			session.Single = m.opt.Parts == 1
 			if !exist {
 				return session, nil
 			}
