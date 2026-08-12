@@ -733,13 +733,13 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 				}
 
 				session = &Session{
+					location:      location,
 					URL:           rawURL,
 					OutputName:    m.opt.Output.Name,
 					AcceptRanges:  resp.Header.Get(hAcceptRanges),
 					ContentType:   resp.Header.Get(hContentType),
 					ContentLength: resp.ContentLength,
 					Headers:       m.opt.Headers,
-					location:      location,
 				}
 				return false, withStack(resp.Body.Close())
 			}
