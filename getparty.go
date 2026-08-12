@@ -572,12 +572,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if !exist {
 				return session, nil
 			}
-			if m.opt.Output.Overwrite {
-				err := os.Remove(session.OutputName)
-				m.loggers[DBUG].Printf("%q removed with: %v", session.OutputName, err)
-				return session, withStack(err)
-			}
-			return session, withStack(m.confirmFileOverwrite(session.OutputName))
+			return session, withStack(m.outputOverwrite(session.OutputName))
 		default:
 			return nil, new(flags.Error)
 		}
@@ -751,7 +746,11 @@ func (m Cmd) readPassword() (string, error) {
 	return string(pass), context.Cause(m.Ctx)
 }
 
-func (m Cmd) confirmFileOverwrite(name string) error {
+func (m Cmd) outputOverwrite(name string) error {
+	if m.opt.Output.Overwrite {
+		m.loggers[DBUG].Printf("OutputOverwrite forced: %q", name)
+		return os.Remove(name)
+	}
 	if m.opt.Quiet {
 		return ErrInteractionRequired
 	}
@@ -770,9 +769,8 @@ func (m Cmd) confirmFileOverwrite(name string) error {
 	}
 	switch b[0] {
 	case 'y', 'Y', '\r':
-		err := os.Remove(name)
-		m.loggers[DBUG].Printf("%q removed with: %v", name, err)
-		return err
+		m.loggers[DBUG].Printf("OutputOverwrite confirmed: %q", name)
+		return os.Remove(name)
 	default:
 		return ErrCanceledByUser
 	}
