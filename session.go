@@ -151,13 +151,13 @@ func (s Session) makeStateQuery() func(error) (int64, sessionState) {
 
 func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
 	var total chan int
-	blen := len(s.Parts)
-	for _, p := range s.Parts {
-		if p.isContentDownloaded() {
-			blen--
-		}
-	}
 	if !s.Single {
+		blen := len(s.Parts)
+		for _, p := range s.Parts {
+			if p.isContentDownloaded() {
+				blen--
+			}
+		}
 		total = make(chan int, blen)
 	}
 	p := mpb.NewWithContext(ctx,
