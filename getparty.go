@@ -166,10 +166,9 @@ func (p *requestPatcher) setUserAgent(agent string) {
 
 // Cmd type used to manage download session
 type Cmd struct {
-	Ctx context.Context
-	Out io.Writer
-	Err io.Writer
-
+	Ctx     context.Context
+	Out     io.Writer
+	Err     io.Writer
 	opt     *options
 	loggers [lEVELS]*log.Logger
 }
