@@ -224,9 +224,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		err = withMessage(err, "run")
 	}()
 
-	m.init()
-	parser := flags.NewParser(m.opt, flags.Default)
-	_, err = parser.ParseArgs(args)
+	err = m.init(args)
 	if err != nil {
 		return err
 	}
@@ -423,7 +421,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	return nil
 }
 
-func (m *Cmd) init() {
+func (m *Cmd) init(args []string) error {
 	if m.Ctx == nil {
 		m.Ctx = context.Background()
 	}
@@ -434,6 +432,8 @@ func (m *Cmd) init() {
 		m.Err = os.Stderr
 	}
 	m.opt = new(options)
+	_, err := flags.NewParser(m.opt, flags.Default).ParseArgs(args)
+	return err
 }
 
 func (m *Cmd) newRequestPatcher() (*requestPatcher, error) {
