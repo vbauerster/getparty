@@ -179,6 +179,10 @@ func (m *Cmd) Exit(err error) (status int) {
 		return 0
 	}
 
+	if m.loggers[DBUG] == nil {
+		m.initLoggers()
+	}
+
 	defer func() {
 		switch status {
 		case 0, 2, 4:
@@ -232,13 +236,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	userAgents[""] = fmt.Sprintf("%s/%s", cmdName, version)
 
 	if m.opt.Version {
-		_, e1 := fmt.Fprintf(m.Out, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
-		_, e2 := fmt.Fprintf(m.Out, "Project home: %s\n", projectHome)
-		err := cmp.Or(e1, e2)
-		if err != nil {
-			m.initLoggers()
-		}
-		return err
+		_, e1 := fmt.Fprintf(os.Stdout, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
+		_, e2 := fmt.Fprintf(os.Stdout, "Project home: %s\n", projectHome)
+		return cmp.Or(e1, e2)
 	}
 
 	m.initLoggers()
