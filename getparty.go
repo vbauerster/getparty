@@ -639,7 +639,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 				cancel()
 			}()
 			template := fmt.Sprintf(template, attempt)
-			for i := uint(0); i <= maxRedirect; i++ {
+			for range maxRedirect {
 				m.loggers[INFO].Printf(template, location)
 				m.loggers[DBUG].Printf(template, location)
 
