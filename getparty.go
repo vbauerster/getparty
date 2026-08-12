@@ -704,38 +704,24 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 
 				m.loggers[INFO].Println("Response Status:", resp.Status)
 
-				for i := 2; m.opt.Output.Name == "" && i >= 0; i-- {
-					if i == 0 {
-						m.opt.Output.Name = "unknown"
-						continue
-					}
-					if m.opt.Output.PathFirst {
-						path := location
-						nURL, err := url.Parse(location)
-						switch {
-						case err == nil && nURL.Path != "":
-							path = nURL.Path
-						case err == nil && nURL.Opaque != "":
-							path = nURL.Opaque
-							fallthrough
-						default:
-							unescaped, err := url.QueryUnescape(path)
-							if err == nil {
-								path = unescaped
-							}
+				if m.opt.Output.Name == "" {
+					for _, pf := range []bool{m.opt.Output.PathFirst, !m.opt.Output.PathFirst} {
+						name, err := parseOutputName(location, resp.Header, pf)
+						if err != nil {
+							return false, withStack(err)
 						}
-						m.opt.Output.Name = filepath.Base(path)
-						m.opt.Output.PathFirst = false
-					} else {
-						m.opt.Output.Name = parseContentDisposition(resp.Header.Get(hContentDisposition))
-						m.opt.Output.PathFirst = true
+						m.loggers[DBUG].Printf("PathFirst: %t; OutputName: %q", pf, name)
+						if name != "" {
+							m.opt.Output.Name = name
+							break
+						}
 					}
 				}
 
 				session = &Session{
 					location:      location,
 					URL:           rawURL,
-					OutputName:    m.opt.Output.Name,
+					OutputName:    cmp.Or(m.opt.Output.Name, "unknown"),
 					AcceptRanges:  resp.Header.Get(hAcceptRanges),
 					ContentType:   resp.Header.Get(hContentType),
 					ContentLength: resp.ContentLength,
@@ -861,18 +847,37 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 	return concat(logger, bar, parts[:i])
 }
 
-func parseContentDisposition(input string) (output string) {
-	defer func() {
-		if output != "" {
-			unescaped, err := url.QueryUnescape(output)
-			if err == nil {
-				output = unescaped
-			}
+func parseOutputName(location string, header http.Header, pathFirst bool) (string, error) {
+	if pathFirst {
+		nURL, err := url.Parse(location)
+		if err != nil {
+			return "", err
 		}
-	}()
+		var name string
+		switch {
+		case nURL.Path != "":
+			name = nURL.Path
+		case nURL.Opaque != "":
+			name = nURL.Opaque
+			fallthrough
+		default:
+			unescaped, err := url.QueryUnescape(name)
+			if err != nil {
+				return "", err
+			}
+			name = unescaped
+		}
+		if name != "" {
+			return filepath.Base(name), nil
+		}
+	}
+	return url.QueryUnescape(parseContentDisposition(header.Get(hContentDisposition)))
+}
+
+func parseContentDisposition(input string) string {
 	group := reContentDisposition.FindStringSubmatch(input)
 	if len(group) != 3 {
-		return
+		return ""
 	}
 	if group[2] != "" {
 		return group[2]
@@ -884,7 +889,7 @@ func parseContentDisposition(input string) (output string) {
 	if b != `""` {
 		return b
 	}
-	return
+	return ""
 }
 
 func isRedirect(status int) bool {

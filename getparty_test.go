@@ -2,6 +2,8 @@ package getparty
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
 	"testing"
 )
 
@@ -195,10 +197,6 @@ func TestParseContentDisposition(t *testing.T) {
 			input:  "attachment; filename*=UTF-8''content.txt",
 			output: "content.txt",
 		},
-		{
-			input:  "attachment; filename*=utf-8''%e2%82%ac%20rates",
-			output: "€ rates",
-		},
 	}
 
 	for _, test := range tests {
@@ -207,6 +205,85 @@ func TestParseContentDisposition(t *testing.T) {
 			output := parseContentDisposition(test.input)
 			if output != test.output {
 				t.Errorf("expected %q got %q", test.output, output)
+			}
+		})
+	}
+}
+
+func TestParseOutputName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		location  string
+		header    string
+		expected  string
+		pathFirst bool
+	}{
+		{
+			location:  "",
+			expected:  "",
+			pathFirst: false,
+		},
+		{
+			location:  "",
+			expected:  "",
+			pathFirst: true,
+		},
+		{
+			location:  "http://exmaple.org",
+			expected:  "",
+			pathFirst: false,
+		},
+		{
+			location:  "http://exmaple.org",
+			expected:  "",
+			pathFirst: true,
+		},
+		{
+			location:  "http://exmaple.org/abc",
+			expected:  "",
+			pathFirst: false,
+		},
+		{
+			location:  "http://exmaple.org/abc",
+			expected:  "abc",
+			pathFirst: true,
+		},
+		{
+			location:  "http://exmaple.org/abc%20d",
+			expected:  "",
+			pathFirst: false,
+		},
+		{
+			location:  "http://exmaple.org/abc%20d",
+			expected:  "abc d",
+			pathFirst: true,
+		},
+		{
+			location:  "http://exmaple.org/abc",
+			header:    "attachment; filename*=utf-8''%e2%82%ac%20rates",
+			expected:  "€ rates",
+			pathFirst: false,
+		},
+		{
+			location:  "http://exmaple.org/abc",
+			header:    "attachment; filename*=utf-8''%e2%82%ac%20rates",
+			expected:  "abc",
+			pathFirst: true,
+		},
+	}
+
+	for _, test := range tests {
+		name := fmt.Sprintf("PathFirst:%t;Location:%q", test.pathFirst, test.location)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := make(http.Header)
+			h.Add(hContentDisposition, test.header)
+			output, err := parseOutputName(test.location, h, test.pathFirst)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if output != test.expected {
+				t.Errorf("expected %q got %q", test.expected, output)
 			}
 		})
 	}
