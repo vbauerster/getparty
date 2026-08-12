@@ -626,7 +626,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 	location := rawURL
 	timeout := m.getTimeout()
 	template := "GET:R%02d %%s"
-	maxRedirect := cmp.Or(m.opt.MaxRedirect, math.MaxUint)
+	maxRedirect := cmp.Or(m.opt.MaxRedirect, math.MaxUint-1) + 1
 
 	err = backoff.RetryWithContext(m.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (bool, error) {
