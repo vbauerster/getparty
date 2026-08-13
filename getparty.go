@@ -287,7 +287,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var doneCount atomic.Uint32
 	var eg errgroup.Group
 	var recoverHandler sync.Once
-	firstResp := &firstHttpResponseContext{id: make(chan int, 1)}
+	firstResp := &firstHttpResponseContext{id: make(chan uint, 1)}
 	firstResp.ctx, firstResp.cancel = context.WithCancelCause(m.Ctx)
 	options := downloadOptions{
 		bufSize: m.opt.BufferSize,
@@ -300,8 +300,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	session.summary(m.loggers)
 	m.loggers[INFO].Printf("Saving to: %q", outputName)
 
-	for i, p := range session.Parts {
-		if err := p.init(i+1, session); err != nil {
+	for _, p := range session.Parts {
+		if err := p.init(session); err != nil {
 			return err
 		}
 		if p.isContentDownloaded() {
@@ -372,6 +372,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		err = eg.Wait()
 		if !session.Single {
 			id := <-firstResp.id
+			if id == 0 {
+				panic(errors.New("unexpected firstResp id: 0"))
+			}
 			session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
 			session.Single = true
 		}
@@ -910,8 +913,9 @@ func makeParts(n uint, length int64) ([]*Part, error) {
 	parts := make([]*Part, 0, n)
 
 	var offset int64
-	for range n {
+	for i := range n {
 		p := &Part{
+			Id:    i + 1,
 			Start: offset,
 			Stop:  offset + fragment - 1,
 		}

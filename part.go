@@ -29,13 +29,13 @@ var globTry atomic.Uint32
 
 // Part represents state of each download part
 type Part struct {
+	Id      uint
 	Start   int64
 	Stop    int64
 	Written int64
 
 	ctx       context.Context
 	cancel    context.CancelFunc
-	id        int
 	curTry    *atomic.Uint32
 	progress  *progress                 // shared among parts
 	firstResp *firstHttpResponseContext // shared among parts
@@ -48,7 +48,7 @@ type Part struct {
 type firstHttpResponseContext struct {
 	ctx    context.Context
 	cancel context.CancelCauseFunc
-	id     chan int
+	id     chan uint
 }
 
 type downloadOptions struct {
@@ -79,7 +79,7 @@ func (p Part) newBar() (*flashBar, error) {
 	p.logger.Println("Setting bar total:", total)
 	bar, err := p.progress.Add(total, barBuilder.Build(),
 		mpb.BarFillerTrim(),
-		mpb.BarPriority(p.id),
+		mpb.BarPriority(int(p.Id)),
 		mpb.PrependDecorators(
 			newFlashDecorator(
 				newMainDecorator(p.curTry, p.name, "%s %.1f", decor.WCSyncWidthR),
@@ -115,12 +115,11 @@ func (p Part) newBar() (*flashBar, error) {
 	return &flashBar{bar, signal}, nil
 }
 
-func (p *Part) init(id int, session *Session) error {
-	p.id = id
+func (p *Part) init(session *Session) error {
 	p.curTry = new(atomic.Uint32)
-	p.name = fmt.Sprintf("P%02d", id)
+	p.name = fmt.Sprintf("P%02d", p.Id)
 	p.output = &outFile{
-		name: filepath.Join(session.dir, fmt.Sprintf("%s.%02d", session.OutputName, id)),
+		name: filepath.Join(session.dir, fmt.Sprintf("%s.%02d", session.OutputName, p.Id)),
 	}
 	if session.restored && p.Written != 0 {
 		stat, err := p.output.Stat()
@@ -257,7 +256,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 			switch resp.StatusCode {
 			case http.StatusPartialContent:
 				select {
-				case p.firstResp.id <- p.id:
+				case p.firstResp.id <- p.Id:
 					p.firstResp.cancel(errContextPartial)
 				default:
 					if !partial && errors.Is(context.Cause(p.firstResp.ctx), errContextFallback) {
@@ -278,7 +277,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 				}
 			case http.StatusOK: // no partial content, fallback to single part mode
 				select {
-				case p.firstResp.id <- p.id:
+				case p.firstResp.id <- p.Id:
 					p.firstResp.cancel(errContextFallback)
 					if p.Written != 0 {
 						panic(fmt.Errorf("unexpected written %d on first %s", p.Written, resp.Status))
