@@ -103,6 +103,16 @@ func (s Session) totalWritten() int64 {
 	return total
 }
 
+func (s Session) activePartsCount() int {
+	count := len(s.Parts)
+	for _, p := range s.Parts {
+		if p.isContentDownloaded() {
+			count--
+		}
+	}
+	return count
+}
+
 func (s Session) summary(loggers [lEVELS]*log.Logger) {
 	format := fmt.Sprintf("Length: %%s [%s]", s.ContentType)
 	switch {
@@ -152,13 +162,7 @@ func (s Session) makeStateQuery() func(error) (int64, sessionState) {
 func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
 	var total chan int
 	if !s.Single {
-		blen := len(s.Parts)
-		for _, p := range s.Parts {
-			if p.isContentDownloaded() {
-				blen--
-			}
-		}
-		total = make(chan int, blen)
+		total = make(chan int, s.activePartsCount()+1)
 	}
 	p := mpb.NewWithContext(ctx,
 		mpb.WithOutput(out),
