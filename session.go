@@ -30,6 +30,7 @@ type Session struct {
 	Parts         []*Part
 	Single        bool
 	restored      bool
+	canceled      bool
 }
 
 func (s *Session) loadState(name string) error {
@@ -46,6 +47,15 @@ func (s *Session) dumpState(name string) error {
 		return err
 	}
 	return cmp.Or(json.NewEncoder(f).Encode(s), f.Close())
+}
+
+func (s *Session) cancel() {
+	for _, p := range s.Parts {
+		if p.cancel != nil {
+			p.cancel()
+		}
+	}
+	s.canceled = true
 }
 
 func (s Session) concatenate(progress *progress, logger *log.Logger) (*outFile, error) {

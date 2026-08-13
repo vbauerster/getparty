@@ -255,7 +255,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
-	var recovered bool
 	outputName := filepath.Join(session.dir, session.OutputName)
 	progress := session.newProgress(m.Ctx, m.Out, m.Err)
 	stateQuery := session.makeStateQuery()
@@ -265,7 +264,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		switch state {
 		case sessionUncompletedWithAdvance, sessionCompletedWithError:
 			dumpName := outputName
-			if recovered {
+			if session.canceled {
 				dumpName += ".recovered"
 			} else {
 				dumpName += ".json"
@@ -317,14 +316,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		eg.Go(func() (err error) {
 			defer func() {
 				if x := recover(); x != nil {
-					recoverHandler.Do(func() {
-						for _, p := range session.Parts {
-							if p.cancel != nil {
-								p.cancel()
-							}
-						}
-						recovered = true
-					})
+					recoverHandler.Do(session.cancel)
 					if e, ok := x.(error); ok {
 						err = fmt.Errorf("%s recovered: %w", p.name, e)
 					} else {
