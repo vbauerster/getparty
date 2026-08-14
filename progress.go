@@ -49,6 +49,8 @@ func (p *progress) Wait() {
 	_, _ = fmt.Fprintln(p.out)
 }
 
+// incrTotal invariant: runTotalBar must be called once before calling
+// this one otherwise incrTotal will block after totalUpd chan is full.
 func (p *progress) incrTotal(n int) {
 	p.totalUpd <- n
 }
