@@ -346,11 +346,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	switch {
 	case errors.Is(cause, errContextFallback):
 		if session.restored {
-			for _, p := range session.Parts {
-				if p.cancel != nil {
-					p.cancel()
-				}
-			}
+			recoverHandler.Do(session.cancel)
 			_ = eg.Wait()
 			for _, p := range session.Parts {
 				_ = p.output.Close()
@@ -365,6 +361,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		if !session.Single {
 			id := <-firstResp.id
 			if id == 0 {
+				recoverHandler.Do(session.cancel)
+				for _, p := range session.Parts {
+					_ = p.output.Close()
+				}
 				panic(errors.New("unexpected firstResp id: 0"))
 			}
 			session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
