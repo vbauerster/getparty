@@ -15,7 +15,7 @@ import (
 
 type progress struct {
 	*mpb.Progress
-	topBar   *mpb.Bar
+	nopBar   *mpb.Bar
 	totalBar *mpb.Bar
 	totalWg  *sync.WaitGroup
 	totalUpd chan int
@@ -33,7 +33,7 @@ func newProgress(ctx context.Context, out, err io.Writer, totalUpd chan int) *pr
 	)
 	return &progress{
 		Progress: p,
-		topBar:   p.New(0, nil),
+		nopBar:   p.New(0, nil),
 		totalWg:  totalWg,
 		totalUpd: totalUpd,
 		out:      out,
@@ -44,7 +44,7 @@ func (p *progress) Wait() {
 	if p.totalBar != nil {
 		p.totalBar.Abort(false)
 	}
-	p.topBar.EnableTriggerComplete()
+	p.nopBar.EnableTriggerComplete()
 	p.Progress.Wait()
 	_, _ = fmt.Fprintln(p.out)
 }
