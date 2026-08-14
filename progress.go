@@ -58,10 +58,6 @@ func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount i
 		panic(errors.New("runTotalBar must be called once"))
 	}
 
-	if p.totalUpd == nil {
-		panic(errors.New("totalUpd must be initialized before runTotalBar"))
-	}
-
 	bar := p.New(contentLength, barBuilder,
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+1),

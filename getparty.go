@@ -255,14 +255,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
-	var progress *progress
-	if session.Single {
-		progress = newProgress(m.Ctx, m.Out, m.Err, nil)
-	} else {
-		totalUpd := make(chan int, min(session.activePartsCount(), 12))
-		progress = newProgress(m.Ctx, m.Out, m.Err, totalUpd)
-		defer close(totalUpd)
-	}
+	progress := newProgress(m.Ctx, m.Out, m.Err, make(chan int, min(session.activePartsCount(), 12)))
 	current := session.totalWritten()
 	stateQuery := makeStateQuery(current, session.ContentLength, session.isResumable())
 	outputName := filepath.Join(session.dir, session.OutputName)
@@ -381,6 +374,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	case errors.Is(cause, errContextPartial):
 		if !session.Single {
+			defer close(progress.totalUpd)
 			progress.runTotalBar(
 				start.Add(-session.Elapsed),
 				session.ContentLength,
