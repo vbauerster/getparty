@@ -359,6 +359,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		err = eg.Wait()
 		if !session.Single {
+			session.Single = true
 			id := <-firstResp.id
 			if id == 0 {
 				recoverHandler.Do(session.cancel)
@@ -368,7 +369,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				panic(errors.New("unexpected firstResp id: 0"))
 			}
 			session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
-			session.Single = true
 		}
 	case errors.Is(cause, errContextPartial) && !session.Single:
 		progress.runTotalBar(
