@@ -93,7 +93,7 @@ func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount i
 
 func (p *progress) setCurrent(current int64) {
 	if p.totalBar == nil {
-		panic(errors.New("runTotalBar must be called before setCurrent"))
+		panic(errors.New("setCurrent is called before runTotalBar"))
 	}
 	if current <= 0 {
 		return
