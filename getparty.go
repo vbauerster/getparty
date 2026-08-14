@@ -256,7 +256,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	var progress *progress
-	current := session.totalWritten()
 	if session.Single {
 		progress = newProgress(m.Ctx, m.Out, m.Err, nil)
 	} else {
@@ -264,10 +263,12 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		progress = newProgress(m.Ctx, m.Out, m.Err, totalUpd)
 		defer close(totalUpd)
 	}
-	stateQuery := session.makeStateQuery()
+	current := session.totalWritten()
+	stateQuery := makeStateQuery(current, session.ContentLength, session.isResumable())
 	outputName := filepath.Join(session.dir, session.OutputName)
 	defer func() {
-		tw, state := stateQuery(err)
+		tw := session.totalWritten()
+		state := stateQuery(tw, err)
 		m.loggers[DBUG].Println(state, tw)
 		switch state {
 		case sessionUncompletedWithAdvance, sessionCompletedWithError:
@@ -964,4 +965,28 @@ func checkContentMismatch(old, new *Session) error {
 		}
 	}
 	return nil
+}
+
+func makeStateQuery(current, contentLength int64, resumable bool) func(int64, error) sessionState {
+	if !resumable {
+		return func(_ int64, err error) sessionState {
+			if err != nil {
+				return sessionUncompleted
+			}
+			return sessionCompleted
+		}
+	}
+	return func(newCurrent int64, err error) sessionState {
+		if newCurrent != contentLength {
+			if newCurrent != current {
+				// if some bytes were written
+				return sessionUncompletedWithAdvance
+			}
+			return sessionUncompleted
+		}
+		if err != nil {
+			return sessionCompletedWithError
+		}
+		return sessionCompleted
+	}
 }

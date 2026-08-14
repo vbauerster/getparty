@@ -139,29 +139,3 @@ func (s Session) summary(loggers [lEVELS]*log.Logger) {
 		loggers[DBUG].Println(message)
 	}
 }
-
-func (s Session) makeStateQuery() func(error) (int64, sessionState) {
-	if !s.isResumable() {
-		return func(err error) (int64, sessionState) {
-			tw := s.totalWritten()
-			if err != nil {
-				return tw, sessionUncompleted
-			}
-			return tw, sessionCompleted
-		}
-	}
-	initialWritten := s.totalWritten()
-	return func(err error) (int64, sessionState) {
-		tw := s.totalWritten()
-		if tw != s.ContentLength {
-			if tw != initialWritten { // if some bytes were written
-				return tw, sessionUncompletedWithAdvance
-			}
-			return tw, sessionUncompleted
-		}
-		if err != nil {
-			return tw, sessionCompletedWithError
-		}
-		return tw, sessionCompleted
-	}
-}
