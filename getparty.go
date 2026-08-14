@@ -370,15 +370,15 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 			session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
 		}
-	case errors.Is(cause, errContextPartial) && !session.Single:
-		progress.runTotalBar(
-			start.Add(-session.Elapsed),
-			session.ContentLength,
-			len(session.Parts),
-			&doneCount,
-		)
-		fallthrough
-	default:
+	case errors.Is(cause, errContextPartial):
+		if !session.Single {
+			progress.runTotalBar(
+				start.Add(-session.Elapsed),
+				session.ContentLength,
+				len(session.Parts),
+				&doneCount,
+			)
+		}
 		err = eg.Wait()
 		session.Elapsed += time.Since(start)
 	}
