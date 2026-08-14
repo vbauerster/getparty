@@ -172,7 +172,7 @@ func (s Session) makeStateQuery() func(error) (int64, sessionState) {
 func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
 	var total chan int
 	if !s.Single {
-		total = make(chan int, s.activePartsCount()+1)
+		total = make(chan int, min(s.activePartsCount(), 12))
 	}
 	p := mpb.NewWithContext(ctx,
 		mpb.WithOutput(out),

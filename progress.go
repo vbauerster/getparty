@@ -51,12 +51,15 @@ func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount i
 			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
 		),
 	)
-	go func() {
-		defer bar.Abort(false)
-		for n := range p.total {
-			bar.IncrBy(n)
-		}
-	}()
+	blen := cap(p.total)
+	for range max(blen/3, 1) {
+		go func() {
+			defer bar.Abort(false)
+			for n := range p.total {
+				bar.IncrBy(n)
+			}
+		}()
+	}
 	if p.current != 0 {
 		bar.SetCurrent(p.current)
 		bar.SetRefillCurrent()
