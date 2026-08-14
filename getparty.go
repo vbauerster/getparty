@@ -255,9 +255,17 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
-	outputName := filepath.Join(session.dir, session.OutputName)
-	progress := session.newProgress(m.Ctx, m.Out, m.Err)
+	var progress *progress
+	current := session.totalWritten()
+	if session.Single {
+		progress = newProgress(m.Ctx, m.Out, m.Err, nil)
+	} else {
+		totalUpd := make(chan int, min(session.activePartsCount(), 12))
+		progress = newProgress(m.Ctx, m.Out, m.Err, totalUpd)
+		defer close(totalUpd)
+	}
 	stateQuery := session.makeStateQuery()
+	outputName := filepath.Join(session.dir, session.OutputName)
 	defer func() {
 		tw, state := stateQuery(err)
 		m.loggers[DBUG].Println(state, tw)
@@ -378,6 +386,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				len(session.Parts),
 				&doneCount,
 			)
+			progress.setCurrent(current)
 		}
 		fallthrough
 	default:

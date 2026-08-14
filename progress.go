@@ -1,8 +1,11 @@
 package getparty
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -12,15 +15,34 @@ import (
 
 type progress struct {
 	*mpb.Progress
-	topBar  *mpb.Bar
-	total   chan int
-	current int64
-	out     io.Writer
+	topBar   *mpb.Bar
+	totalBar *mpb.Bar
+	totalWg  *sync.WaitGroup
+	totalUpd chan int
+	out      io.Writer
+}
+
+func newProgress(ctx context.Context, out, err io.Writer, totalUpd chan int) *progress {
+	totalWg := new(sync.WaitGroup)
+	p := mpb.NewWithContext(ctx,
+		mpb.WithOutput(out),
+		mpb.WithDebugOutput(err),
+		mpb.WithRefreshRate(refreshRate*time.Millisecond),
+		mpb.WithWidth(64),
+		mpb.WithWaitGroup(totalWg),
+	)
+	return &progress{
+		Progress: p,
+		topBar:   p.New(0, nil),
+		totalWg:  totalWg,
+		totalUpd: totalUpd,
+		out:      out,
+	}
 }
 
 func (p *progress) Wait() {
-	if p.total != nil {
-		close(p.total)
+	if p.totalBar != nil {
+		p.totalBar.Abort(false)
 	}
 	p.topBar.EnableTriggerComplete()
 	p.Progress.Wait()
@@ -28,10 +50,18 @@ func (p *progress) Wait() {
 }
 
 func (p *progress) incrTotal(n int) {
-	p.total <- n
+	p.totalUpd <- n
 }
 
 func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount int, doneCount *atomic.Uint32) {
+	if p.totalBar != nil {
+		panic(errors.New("runTotalBar must be called once"))
+	}
+
+	if p.totalUpd == nil {
+		panic(errors.New("totalUpd must be initialized before runTotalBar"))
+	}
+
 	bar := p.New(contentLength, barBuilder,
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+1),
@@ -51,19 +81,27 @@ func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount i
 			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
 		),
 	)
-	blen := cap(p.total)
-	for range max(blen/3, 1) {
-		go func() {
-			defer bar.Abort(false)
-			for n := range p.total {
+
+	for range max(cap(p.totalUpd)/3, 1) {
+		p.totalWg.Go(func() {
+			for n := range p.totalUpd {
 				bar.IncrBy(n)
 			}
-		}()
+		})
 	}
-	if p.current != 0 {
-		bar.SetCurrent(p.current)
-		bar.SetRefillCurrent()
+
+	p.totalBar = bar
+}
+
+func (p *progress) setCurrent(current int64) {
+	if p.totalBar == nil {
+		panic(errors.New("runTotalBar must be called before setCurrent"))
 	}
+	if current <= 0 {
+		return
+	}
+	p.totalBar.SetCurrent(current)
+	p.totalBar.SetRefillCurrent()
 }
 
 func (p *progress) addMergeBar(partCount int) (*mpb.Bar, error) {

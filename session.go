@@ -2,17 +2,14 @@ package getparty
 
 import (
 	"cmp"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
@@ -166,25 +163,5 @@ func (s Session) makeStateQuery() func(error) (int64, sessionState) {
 			return tw, sessionCompletedWithError
 		}
 		return tw, sessionCompleted
-	}
-}
-
-func (s Session) newProgress(ctx context.Context, out, err io.Writer) *progress {
-	var total chan int
-	if !s.Single {
-		total = make(chan int, min(s.activePartsCount(), 12))
-	}
-	p := mpb.NewWithContext(ctx,
-		mpb.WithOutput(out),
-		mpb.WithDebugOutput(err),
-		mpb.WithRefreshRate(refreshRate*time.Millisecond),
-		mpb.WithWidth(64),
-	)
-	return &progress{
-		Progress: p,
-		topBar:   p.New(0, nil),
-		total:    total,
-		current:  s.totalWritten(),
-		out:      out,
 	}
 }
