@@ -352,7 +352,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				_ = p.output.Close()
 			}
 			panic(fmt.Errorf(
-				"restored session is expected to have status %d but it is %d instead",
+				"restored session is expected to get status %d but it is %d instead",
 				http.StatusPartialContent,
 				http.StatusOK,
 			))
