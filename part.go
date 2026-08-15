@@ -400,8 +400,8 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 			}
 
 			if p.isDone() {
-				p.logger.Println("Part is done:", err)
 				if errors.Is(err, io.EOF) {
+					p.logger.Println("Part is done")
 					return false, nil
 				}
 				panic(fmt.Errorf("expected EOF, got: %w", err))
