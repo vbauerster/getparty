@@ -5,8 +5,8 @@ import "os"
 const umask = 0644
 
 type outFile struct {
-	file *os.File
 	name string
+	file *os.File
 }
 
 func (s *outFile) Open(flag int) error {
