@@ -386,8 +386,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		fallthrough
 	default:
 		err = eg.Wait()
-		session.Elapsed += time.Since(start)
 	}
+
+	session.Elapsed += time.Since(start)
 
 	if err != nil {
 		var of *outFile
