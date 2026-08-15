@@ -288,8 +288,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var doneCount atomic.Uint32
 	var eg errgroup.Group
 	var recoverHandler sync.Once
-	firstResp := &firstHttpResponseContext{id: make(chan uint, 1)}
-	firstResp.ctx, firstResp.cancel = context.WithCancelCause(m.Ctx)
+	firstResp := newFirstHttpResponseContext(m.Ctx)
 	options := downloadOptions{
 		bufSize: m.opt.BufferSize,
 		maxTry:  m.opt.MaxRetry,

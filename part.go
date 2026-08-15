@@ -51,6 +51,16 @@ type firstHttpResponseContext struct {
 	id     chan uint
 }
 
+// newFirstHttpResponseContext invariant: id must not be depleted until all parts done.
+func newFirstHttpResponseContext(parent context.Context) *firstHttpResponseContext {
+	ctx, cancel := context.WithCancelCause(parent)
+	return &firstHttpResponseContext{
+		ctx:    ctx,
+		cancel: cancel,
+		id:     make(chan uint, 1),
+	}
+}
+
 type downloadOptions struct {
 	bufSize uint
 	maxTry  uint
