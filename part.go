@@ -34,6 +34,8 @@ type Part struct {
 	Stop    int64
 	Written int64
 
+	name      string
+	patcher   httpRequestPatcher
 	ctx       context.Context
 	cancel    context.CancelFunc
 	curTry    *atomic.Uint32
@@ -41,7 +43,6 @@ type Part struct {
 	firstResp *firstHttpResponseContext // shared among parts
 	logger    *log.Logger
 	output    *outFile
-	name      string
 	single    bool
 }
 
@@ -66,7 +67,6 @@ type downloadOptions struct {
 	maxTry  uint
 	timeout time.Duration
 	sleep   time.Duration
-	patcher httpRequestPatcher
 }
 
 type flashBar struct {
@@ -163,7 +163,9 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 		return withStack(err)
 	}
 
-	opt.patcher.patch(req)
+	if p.patcher != nil {
+		p.patcher.patch(req)
+	}
 
 	var buffer [bufMax]byte
 	var dtt int // decrement timeout threshold

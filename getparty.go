@@ -294,7 +294,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		maxTry:  m.opt.MaxRetry,
 		timeout: m.getTimeout(),
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
-		patcher: patcher,
 	}
 
 	session.summary(m.loggers)
@@ -309,6 +308,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			continue
 		}
 		p.ctx, p.cancel = context.WithCancel(m.Ctx)
+		p.patcher = patcher
 		p.firstResp = firstResp
 		p.progress = progress
 		p.single = session.Single
@@ -441,23 +441,6 @@ func (m *Cmd) init(args []string) error {
 	return err
 }
 
-func (m *Cmd) newRequestPatcher() (*requestPatcher, error) {
-	patcher := new(requestPatcher)
-	if m.opt.AuthUser != "" {
-		if m.opt.AuthPass == "" {
-			pass, err := m.readPassword()
-			if err != nil {
-				return nil, withStack(err)
-			}
-			m.opt.AuthPass = pass
-		}
-		patcher.userinfo = url.UserPassword(m.opt.AuthUser, m.opt.AuthPass)
-		m.opt.AuthUser = ""
-		m.opt.AuthPass = ""
-	}
-	return patcher, nil
-}
-
 func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 	var client *http.Client
 	defer func() {
@@ -583,6 +566,23 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			return nil, new(flags.Error)
 		}
 	}
+}
+
+func (m Cmd) newRequestPatcher() (*requestPatcher, error) {
+	patcher := new(requestPatcher)
+	if m.opt.AuthUser != "" {
+		if m.opt.AuthPass == "" {
+			pass, err := m.readPassword()
+			if err != nil {
+				return nil, withStack(err)
+			}
+			m.opt.AuthPass = pass
+		}
+		patcher.userinfo = url.UserPassword(m.opt.AuthUser, m.opt.AuthPass)
+		m.opt.AuthUser = ""
+		m.opt.AuthPass = ""
+	}
+	return patcher, nil
 }
 
 func (m Cmd) getTLSConfig() (config *tls.Config, err error) {
