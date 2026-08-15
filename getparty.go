@@ -255,7 +255,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
-	progress := newProgress(m.Ctx, m.Out, m.Err, make(chan int, min(session.activePartsCount(), 12)))
+	progress := newProgress(m.Ctx, m.Out, m.Err, session.activePartsCount())
 	current := session.totalWritten()
 	stateQuery := makeStateQuery(current, session.ContentLength, session.isResumable())
 	outputName := filepath.Join(session.dir, session.OutputName)

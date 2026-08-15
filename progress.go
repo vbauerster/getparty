@@ -22,7 +22,7 @@ type progress struct {
 	out      io.Writer
 }
 
-func newProgress(ctx context.Context, out, err io.Writer, totalUpd chan int) *progress {
+func newProgress(ctx context.Context, out, err io.Writer, plen int) *progress {
 	totalWg := new(sync.WaitGroup)
 	p := mpb.NewWithContext(ctx,
 		mpb.WithOutput(out),
@@ -30,12 +30,13 @@ func newProgress(ctx context.Context, out, err io.Writer, totalUpd chan int) *pr
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 		mpb.WithWaitGroup(totalWg),
+		mpb.WithQueueLen(plen+1), // +1 to account nopBar
 	)
 	return &progress{
 		Progress: p,
 		nopBar:   p.New(0, nil),
 		totalWg:  totalWg,
-		totalUpd: totalUpd,
+		totalUpd: make(chan int, min(plen, 12)),
 		out:      out,
 	}
 }
