@@ -58,12 +58,11 @@ func (s *Session) makeParts(n uint) error {
 	}
 
 	if offset != s.ContentLength {
-		last := parts[len(parts)-1]
-		last.Stop = s.ContentLength - 1
+		parts[n-1].Stop = s.ContentLength - 1
 	}
 
 	s.Parts = parts
-	s.Single = len(parts) == 1
+	s.Single = n == 1
 	return nil
 }
 
