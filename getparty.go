@@ -560,7 +560,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if !exist {
 				return session, nil
 			}
-			return session, withStack(m.outputOverwrite(session.OutputName))
+			return session, withStack(m.replaceOutput(session.OutputName))
 		default:
 			return nil, new(flags.Error)
 		}
@@ -751,9 +751,9 @@ func (m Cmd) readPassword() (string, error) {
 	return string(pass), context.Cause(m.Ctx)
 }
 
-func (m Cmd) outputOverwrite(name string) error {
+func (m Cmd) replaceOutput(name string) error {
 	if m.opt.Output.Overwrite {
-		m.loggers[DBUG].Printf("OutputOverwrite forced: %q", name)
+		m.loggers[DBUG].Printf("Replace output forced: %q", name)
 		return os.Remove(name)
 	}
 	if m.opt.Quiet {
@@ -774,7 +774,7 @@ func (m Cmd) outputOverwrite(name string) error {
 	}
 	switch b[0] {
 	case 'y', 'Y', '\r':
-		m.loggers[DBUG].Printf("OutputOverwrite confirmed: %q", name)
+		m.loggers[DBUG].Printf("Replace output confirmed: %q", name)
 		return os.Remove(name)
 	default:
 		return ErrCanceledByUser
