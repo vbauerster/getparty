@@ -301,6 +301,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	for _, p := range session.Parts {
 		if err := p.init(session); err != nil {
+			recoverHandler.Do(session.cancel)
 			return err
 		}
 		if p.isContentDownloaded() {
