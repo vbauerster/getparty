@@ -30,6 +30,43 @@ type Session struct {
 	canceled      bool
 }
 
+func (s *Session) makeParts(n uint) error {
+	if n == 0 {
+		return ErrZeroParts
+	}
+
+	if !s.isResumable() {
+		n = 1
+	}
+
+	fragment := s.ContentLength / int64(n)
+	if n != 1 && fragment < minFragment {
+		return ErrTooFragmented
+	}
+
+	parts := make([]*Part, 0, n)
+
+	var offset int64
+	for i := range n {
+		p := &Part{
+			Id:    i + 1,
+			Start: offset,
+			Stop:  offset + fragment - 1,
+		}
+		offset += p.len()
+		parts = append(parts, p)
+	}
+
+	if offset != s.ContentLength {
+		last := parts[len(parts)-1]
+		last.Stop = s.ContentLength - 1
+	}
+
+	s.Parts = parts
+	s.Single = len(parts) == 1
+	return nil
+}
+
 func (s *Session) loadState(name string) error {
 	f, err := os.Open(name)
 	if err != nil {

@@ -545,11 +545,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				m.opt.SessionName = state
 				break // goto case m.opt.SessionName != "":
 			}
-			if !session.isResumable() && m.opt.Parts != 0 {
-				m.opt.Parts = 1
-			}
-			session.Single = m.opt.Parts == 1
-			session.Parts, err = makeParts(m.opt.Parts, session.ContentLength)
+			err = session.makeParts(m.opt.Parts)
 			if err != nil {
 				return session, withStack(err)
 			}
@@ -901,36 +897,6 @@ func isRedirect(status int) bool {
 
 func isServerError(status int) bool {
 	return status > 499 && status < 600
-}
-
-func makeParts(n uint, length int64) ([]*Part, error) {
-	if n == 0 {
-		return nil, ErrZeroParts
-	}
-	fragment := length / int64(n)
-	if n != 1 && fragment < minFragment {
-		return nil, ErrTooFragmented
-	}
-
-	parts := make([]*Part, 0, n)
-
-	var offset int64
-	for i := range n {
-		p := &Part{
-			Id:    i + 1,
-			Start: offset,
-			Stop:  offset + fragment - 1,
-		}
-		offset += p.len()
-		parts = append(parts, p)
-	}
-
-	if offset != length {
-		last := parts[len(parts)-1]
-		last.Stop = length - 1
-	}
-
-	return parts, nil
 }
 
 func isFileExist(name string) (bool, error) {

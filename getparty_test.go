@@ -121,7 +121,11 @@ func TestMakeParts(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			parts, err := makeParts(uint(len(test.parts)), test.length)
+			session := &Session{
+				AcceptRanges:  "bytes",
+				ContentLength: test.length,
+			}
+			err := session.makeParts(uint(len(test.parts)))
 			if test.err != nil {
 				if !errors.Is(err, test.err) {
 					t.Errorf("expected error %q got %q", test.err, err)
@@ -130,10 +134,10 @@ func TestMakeParts(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %q", err)
 				}
-				if len(parts) != len(test.parts) {
-					t.Errorf("expected len(parts)=%d got len(parts)=%d", len(test.parts), len(parts))
+				if len(session.Parts) != len(test.parts) {
+					t.Errorf("expected len(parts)=%d got len(parts)=%d", len(test.parts), len(session.Parts))
 				}
-				for i, p := range parts {
+				for i, p := range session.Parts {
 					x := test.parts[i]
 					if start := x[0]; p.Start != start {
 						t.Errorf("[%d] expected start %d got %d", i, start, p.Start)
