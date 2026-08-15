@@ -30,7 +30,7 @@ func newProgress(ctx context.Context, out, err io.Writer, plen int) *progress {
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
 		mpb.WithWaitGroup(totalWg),
-		mpb.WithQueueLen(plen+1), // +1 to account nopBar
+		mpb.WithQueueLen(plen+3), // +3 to account nopBar totalBar and mergeBar
 	)
 	return &progress{
 		Progress: p,
