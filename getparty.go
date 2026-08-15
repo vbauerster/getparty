@@ -311,7 +311,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		p.patcher = patcher
 		p.firstResp = firstResp
 		p.progress = progress
-		p.single = session.Single
 		p.logger = log.New(m.Err, fmt.Sprintf(prefixFormat, p.name, 0), log.LstdFlags)
 		// p := p // NOTE: uncomment for Go < 1.22, see /doc/faq#closures_and_goroutines
 		eg.Go(func() (err error) {
