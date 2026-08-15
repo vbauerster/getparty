@@ -363,14 +363,19 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		if !session.Single {
 			session.Single = true
 			id := <-firstResp.id
-			if id == 0 {
-				recoverHandler.Do(session.cancel)
-				for _, p := range session.Parts {
+			var part *Part
+			for _, p := range session.Parts {
+				if p.Id == id {
+					part = p
+				} else {
 					_ = p.output.Close()
 				}
-				panic(errors.New("unexpected firstResp id: 0"))
 			}
-			session.Parts[0], session.Parts = session.Parts[id-1], session.Parts[:1]
+			if part == nil {
+				recoverHandler.Do(session.cancel)
+				panic(fmt.Errorf("unexpected firstResp id: %d", id))
+			}
+			session.Parts[0], session.Parts = part, session.Parts[:1]
 		}
 	case errors.Is(cause, errContextPartial):
 		if !session.Single {
