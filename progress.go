@@ -2,7 +2,6 @@ package getparty
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -16,7 +15,6 @@ import (
 type progress struct {
 	*mpb.Progress
 	nopBar   *mpb.Bar
-	totalBar *mpb.Bar
 	totalWg  *sync.WaitGroup
 	totalUpd chan int
 	out      io.Writer
@@ -42,9 +40,6 @@ func newProgress(ctx context.Context, out, err io.Writer, plen int) *progress {
 }
 
 func (p *progress) Wait() {
-	if p.totalBar != nil {
-		p.totalBar.Abort(false)
-	}
 	p.nopBar.EnableTriggerComplete()
 	p.Progress.Wait()
 	_, _ = fmt.Fprintln(p.out)
@@ -56,12 +51,8 @@ func (p *progress) incrTotal(n int) {
 	p.totalUpd <- n
 }
 
-func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount int, doneCount *atomic.Uint32) {
-	if p.totalBar != nil {
-		panic(errors.New("runTotalBar must be called once"))
-	}
-
-	bar := p.New(contentLength, barBuilder,
+func (p *progress) addTotalBar(start time.Time, contentLength int64, partCount int, doneCount *atomic.Uint32) (*mpb.Bar, error) {
+	bar, err := p.Add(contentLength, barBuilder.Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+1),
 		mpb.PrependDecorators(
@@ -80,27 +71,24 @@ func (p *progress) runTotalBar(start time.Time, contentLength int64, partCount i
 			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
 		),
 	)
+	if err != nil {
+		return nil, err
+	}
 
-	for range max(cap(p.totalUpd)/3, 1) {
+	for i := range max(cap(p.totalUpd)/3, 1) {
 		p.totalWg.Go(func() {
+			defer func() {
+				if i == 0 {
+					bar.Abort(false)
+				}
+			}()
 			for n := range p.totalUpd {
 				bar.IncrBy(n)
 			}
 		})
 	}
 
-	p.totalBar = bar
-}
-
-func (p *progress) setCurrent(current int64) {
-	if p.totalBar == nil {
-		panic(errors.New("setCurrent is called before runTotalBar"))
-	}
-	if current <= 0 {
-		return
-	}
-	p.totalBar.SetCurrent(current)
-	p.totalBar.SetRefillCurrent()
+	return bar, nil
 }
 
 func (p *progress) addMergeBar(partCount int) (*mpb.Bar, error) {

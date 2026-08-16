@@ -377,14 +377,21 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	case errors.Is(cause, errContextPartial):
 		if !session.Single {
-			defer close(progress.totalUpd)
-			progress.runTotalBar(
+			bar, err := progress.addTotalBar(
 				start.Add(-session.Elapsed),
 				session.ContentLength,
 				len(session.Parts),
 				&doneCount,
 			)
-			progress.setCurrent(current)
+			if err != nil {
+				return withStack(err)
+			}
+			if current != 0 {
+				m.loggers[DBUG].Println("Setting total current:", current)
+				bar.SetCurrent(current)
+				bar.SetRefillCurrent()
+			}
+			defer close(progress.totalUpd)
 		}
 		fallthrough
 	default:
