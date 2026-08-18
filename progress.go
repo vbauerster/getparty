@@ -75,13 +75,8 @@ func (p *progress) addTotalBar(start time.Time, contentLength int64, partCount i
 		return nil, err
 	}
 
-	for i := range max(cap(p.totalUpd)/3, 1) {
+	for range max(cap(p.totalUpd)/3, 1) {
 		p.totalWg.Go(func() {
-			defer func() {
-				if i == 0 {
-					bar.Abort(false)
-				}
-			}()
 			for n := range p.totalUpd {
 				bar.IncrBy(n)
 			}

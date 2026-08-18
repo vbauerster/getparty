@@ -385,12 +385,15 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			if err != nil {
 				return withStack(err)
 			}
+			defer func() {
+				close(progress.totalUpd)
+				bar.Abort(false)
+			}()
 			if current != 0 {
 				m.loggers[DBUG].Println("Setting total current:", current)
 				bar.SetCurrent(current)
 				bar.SetRefillCurrent()
 			}
-			defer close(progress.totalUpd)
 		}
 		fallthrough
 	default:
