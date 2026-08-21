@@ -16,7 +16,7 @@ type progress struct {
 	*mpb.Progress
 	nopBar   *mpb.Bar
 	totalWg  *sync.WaitGroup
-	totalUpd chan int
+	totalUpd chan int64
 	out      io.Writer
 }
 
@@ -34,7 +34,7 @@ func newProgress(ctx context.Context, out, err io.Writer, plen int) *progress {
 		Progress: p,
 		nopBar:   p.New(0, nil),
 		totalWg:  totalWg,
-		totalUpd: make(chan int, min(plen, 12)),
+		totalUpd: make(chan int64, min(plen, 12)),
 		out:      out,
 	}
 }
@@ -47,7 +47,7 @@ func (p *progress) Wait() {
 
 // incrTotal invariant: runTotalBar must be called once before calling
 // this one otherwise incrTotal will block after totalUpd chan is full.
-func (p *progress) incrTotal(n int) {
+func (p *progress) incrTotal(n int64) {
 	p.totalUpd <- n
 }
 
@@ -78,7 +78,7 @@ func (p *progress) addTotalBar(start time.Time, contentLength int64, partCount i
 	for range max(cap(p.totalUpd)/3, 1) {
 		p.totalWg.Go(func() {
 			for n := range p.totalUpd {
-				bar.IncrBy(n)
+				bar.IncrInt64(n)
 			}
 		})
 	}

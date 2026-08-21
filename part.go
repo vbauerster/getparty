@@ -360,7 +360,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 				}
 
 				if !p.single {
-					p.progress.incrTotal(int(nw))
+					p.progress.incrTotal(nw)
 				} else if p.len() <= 0 {
 					bar.SetTotal(p.Written, false)
 				}
