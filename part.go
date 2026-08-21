@@ -20,7 +20,6 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
-const bufMax = 16 * 1024
 const timeoutMsg = "Timeout..."
 const prefixFormat = "[%s:R%02d] "
 const ewmaAge = 31
@@ -65,7 +64,6 @@ func newFirstHttpResponseContext(parent context.Context) *firstHttpResponseConte
 }
 
 type downloadOptions struct {
-	bufSize uint
 	maxTry  uint
 	timeout time.Duration
 	sleep   time.Duration
@@ -148,7 +146,7 @@ func (p *Part) init(session *Session) error {
 	return nil
 }
 
-func (p *Part) download(location string, opt downloadOptions) (err error) {
+func (p *Part) download(location string, opt downloadOptions, buf []byte) (err error) {
 	var bar *flashBar
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
@@ -170,17 +168,18 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 		p.patcher.patch(req)
 	}
 
-	var buffer [bufMax]byte
 	var dtt int // decrement timeout threshold
 	var partial bool
 
-	consecutiveResetOk := 32 / int(opt.bufSize)
+	consecutiveResetOk := (32 * 1024) / len(buf)
 	timeout := opt.timeout
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
 		},
 	}
+
+	p.logger.Println("BUF size:", len(buf))
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, backoffReset func()) (retry bool, err error) {
@@ -338,7 +337,6 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 			}
 
 			var limit func(limitTimer, context.Context) bool
-			buf := buffer[:min(bufMax, opt.bufSize*1024)]
 			for nw := int64(0); timer.Reset(timeout + opt.sleep); {
 				start := time.Now()
 				// passing p.output instead of p.output.file is a

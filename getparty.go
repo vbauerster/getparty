@@ -255,8 +255,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
-	progress := newProgress(m.Ctx, m.Out, m.Err, session.activePartsCount())
-	current := session.totalWritten()
+	pcount, current := session.activePartsCount(), session.totalWritten()
+	progress := newProgress(m.Ctx, m.Out, m.Err, pcount)
 	stateQuery := makeStateQuery(current, session.ContentLength, session.isResumable())
 	outputName := filepath.Join(session.dir, session.OutputName)
 	defer func() {
@@ -290,7 +290,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var recoverHandler sync.Once
 	firstResp := newFirstHttpResponseContext(m.Ctx)
 	options := downloadOptions{
-		bufSize: m.opt.BufferSize,
 		maxTry:  m.opt.MaxRetry,
 		timeout: m.getTimeout(),
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
@@ -299,6 +298,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	session.summary(m.loggers)
 	m.loggers[INFO].Printf("Saving to: %q", outputName)
 
+	i, chunks := 0, makeBuffer(m.opt.BufferSize*1024, uint(pcount))
 	for _, p := range session.Parts {
 		if err := p.init(session); err != nil {
 			recoverHandler.Do(session.cancel)
@@ -313,6 +313,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		p.firstResp = firstResp
 		p.progress = progress
 		p.logger = log.New(m.Err, fmt.Sprintf(prefixFormat, p.name, 0), log.LstdFlags)
+		buf := chunks[i]
+		i++
 		eg.Go(func() (err error) {
 			defer func() {
 				if x := recover(); x != nil {
@@ -328,7 +330,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					doneCount.Add(1)
 				}
 			}()
-			return p.download(session.location, options)
+			return p.download(session.location, options, buf)
 		})
 	}
 
@@ -962,4 +964,14 @@ func makeStateQuery(current, contentLength int64, resumable bool) func(int64, er
 		}
 		return sessionCompleted
 	}
+}
+
+func makeBuffer(size, pcount uint) (chunks [][]byte) {
+	var start uint
+	row := make([]byte, size*pcount)
+	for range pcount {
+		chunks = append(chunks, slices.Clip(row[start:start+size]))
+		start += size
+	}
+	return chunks
 }
