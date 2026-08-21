@@ -335,44 +335,45 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 			}
 
 			var limit func(limitTimer, context.Context) bool
-			isUnexpectedEOF := makeUnexpectedEOFFuser(p.logger)
-
 			buf := buffer[:min(bufMax, opt.bufSize*1024)]
-			// io.ReadFull returns io.ErrUnexpectedEOF if an io.EOF happens after reading
-			// some but not all the bytes therefore to force io.ReadFull to return io.EOF
-			// loop is entered one more time on first io.ErrUnexpectedEOF encounter
-			for n := len(buf); timer.Reset(timeout+opt.sleep) && n == len(buf) || isUnexpectedEOF(err); {
+			for nw := int64(0); timer.Reset(timeout + opt.sleep); {
 				start := time.Now()
-				n, err = io.ReadFull(resp.Body, buf)
-				rDur := time.Since(start)
-				if n == 0 {
-					// n is zero either on context timeout or on io.EOF
-					// accumulating zero dur for ewma decorators
-					bar.EwmaIncrBy(n, rDur)
-					continue
+				// passing p.output instead of p.output.file is a
+				// guarantee that buf will be used to perform the copy
+				nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, int64(len(buf))), buf)
+				ewmaDur := time.Since(start)
+
+				if nw == 0 && errors.Is(p.ctx.Err(), context.Canceled) {
+					// parent ctx canceled, most probably by ^C or recoverHandler
+					p.logger.Println("Break loop:", nw, err.Error())
+					return false, err
 				}
 
-				var timer limitTimer
+				p.Written += nw
+
+				var lt limitTimer
 				if opt.sleep != 0 {
-					timer.timer = time.NewTimer(opt.sleep)
+					lt.timer = time.NewTimer(opt.sleep)
 					limit = limitTimer.wait
 				} else {
 					limit = limitTimer.nop
 				}
 
-				if _, err := p.output.Write(buf[:n]); err != nil {
-					timer.stop()
-					return false, withStack(cmp.Or(p.output.Truncate(p.Written), err))
-				}
-
-				p.Written += int64(n)
-
 				if !p.single {
-					p.progress.incrTotal(n)
+					p.progress.incrTotal(int(nw))
 				} else if p.len() <= 0 {
 					bar.SetTotal(p.Written, false)
 				}
 
+				bar.EwmaIncrInt64(nw, ewmaDur)
+
+				if nw < int64(len(buf)) && err == nil {
+					// src stopped early; must have been EOF.
+					err = io.EOF
+					lt.stop()
+					p.logger.Println("Break loop:", nw, err.Error())
+					break
+				}
 				if timeout != opt.timeout {
 					switch dtt {
 					case 0:
@@ -385,12 +386,9 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 						dtt--
 					}
 				}
-
-				bar.EwmaIncrBy(n, rDur)
-
-				if limit(timer, ctx) {
+				if limit(lt, ctx) {
 					idle += opt.sleep
-					bar.EwmaIncrBy(0, opt.sleep)
+					bar.EwmaIncrInt64(0, opt.sleep)
 				}
 			}
 
@@ -461,15 +459,4 @@ func (t limitTimer) wait(ctx context.Context) bool {
 
 func (limitTimer) nop(context.Context) bool {
 	return false
-}
-
-func makeUnexpectedEOFFuser(logger *log.Logger) func(error) bool {
-	var fused bool
-	return func(err error) (unexpectedEOF bool) {
-		defer func() {
-			fused = cmp.Or(fused, unexpectedEOF)
-			logger.Printf("IsUnexpectedEOF: %t", unexpectedEOF)
-		}()
-		return errors.Is(err, io.ErrUnexpectedEOF) && !fused
-	}
 }
