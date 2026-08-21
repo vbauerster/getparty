@@ -168,9 +168,8 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 		p.patcher.patch(req)
 	}
 
-	var dtt int // decrement timeout threshold
 	var partial bool
-
+	var dtt int // decrement timeout threshold
 	consecutiveResetOk := (32 * 1024) / len(buf)
 	timeout := opt.timeout
 	trace := &httptrace.ClientTrace{
