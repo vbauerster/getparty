@@ -27,6 +27,8 @@ const ewmaAge = 31
 
 var globTry atomic.Uint32
 
+var errTimeout = fmt.Errorf("%s %s", timeoutMsg, context.Canceled.Error())
+
 // Part represents state of each download part
 type Part struct {
 	Id      uint
@@ -182,10 +184,10 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, backoffReset func()) (retry bool, err error) {
-			ctx, cancel := context.WithCancel(p.ctx)
+			timedCtx, cancel := context.WithCancelCause(p.ctx)
 			timer := time.AfterFunc(timeout, func() {
-				cancel()
-				p.logger.Println("Timer has expired")
+				cancel(errTimeout)
+				p.logger.Println(errTimeout.Error())
 			})
 			var idle time.Duration
 			start := time.Now()
@@ -194,8 +196,9 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 					timeout += 5 * time.Second
 					timeout = min(timeout, maxTimeout*time.Second)
 					dtt += consecutiveResetOk
+				} else {
+					cancel(nil)
 				}
-				cancel()
 				elapsed := time.Since(start)
 				totalElapsed += elapsed
 				totalIdle += idle
@@ -220,11 +223,11 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 					return
 				}
 				go func(prefix string, isBarOk, partial bool) {
-					if errors.Is(ctx.Err(), context.Canceled) {
+					if errors.Is(context.Cause(timedCtx), errTimeout) {
 						if isBarOk {
 							bar.flashTimeout()
 						}
-						_, _ = fmt.Fprintln(p.progress, prefix+timeoutMsg, context.Canceled.Error())
+						_, _ = fmt.Fprintln(p.progress, prefix+errTimeout.Error())
 					} else {
 						_, _ = fmt.Fprintln(p.progress, prefix+unwrapOrErr(err).Error())
 					}
@@ -244,7 +247,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 				p.logger.Printf("Request Header: %s: %v", k, v)
 			}
 
-			resp, err := httpClient.Do(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
+			resp, err := httpClient.Do(req.WithContext(httptrace.WithClientTrace(timedCtx, trace)))
 			if err != nil {
 				return true, withStack(err)
 			}
@@ -343,7 +346,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 				nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, int64(len(buf))), buf)
 				ewmaDur := time.Since(start)
 
-				if nw == 0 && errors.Is(p.ctx.Err(), context.Canceled) {
+				if nw == 0 && err != nil && !errors.Is(context.Cause(timedCtx), errTimeout) {
 					// parent ctx canceled, most probably by ^C or recoverHandler
 					p.logger.Println("Break loop:", nw, err.Error())
 					return false, err
@@ -386,7 +389,7 @@ func (p *Part) download(location string, opt downloadOptions) (err error) {
 						dtt--
 					}
 				}
-				if limit(lt, ctx) {
+				if limit(lt, timedCtx) {
 					idle += opt.sleep
 					bar.EwmaIncrInt64(0, opt.sleep)
 				}
