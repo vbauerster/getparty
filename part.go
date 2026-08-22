@@ -169,6 +169,10 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 		p.patcher.patch(req)
 	}
 
+	if opt.expose && p.Written != 0 {
+		expProgress.Add(p.name, p.Written)
+	}
+
 	var partial bool
 	var dtt int // decrement timeout threshold
 	consecutiveResetOk := (32 * 1024) / len(buf)
