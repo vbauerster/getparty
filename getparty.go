@@ -416,6 +416,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				session.ContentLength,
 				len(session.Parts),
 				&doneCount,
+				options.expose,
 			)
 			if err != nil {
 				return withStack(err)
