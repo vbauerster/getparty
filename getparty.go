@@ -285,6 +285,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}()
 
+	session.summary(m.loggers)
+	m.loggers[INFO].Printf("Saving to: %q", outputName)
+
 	var doneCount atomic.Uint32
 	var eg errgroup.Group
 	var recoverHandler sync.Once
@@ -294,9 +297,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		timeout: m.getTimeout(),
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
 	}
-
-	session.summary(m.loggers)
-	m.loggers[INFO].Printf("Saving to: %q", outputName)
 
 	i, chunks := 0, makeBuffer(m.opt.BufferSize*1024, uint(pcount))
 	for _, p := range session.Parts {
