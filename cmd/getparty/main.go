@@ -9,7 +9,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 
 	"github.com/vbauerster/getparty"
@@ -21,7 +20,6 @@ var (
 )
 
 func main() {
-	runtime.MemProfileRate = 0
 	var status int
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer func() {
