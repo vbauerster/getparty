@@ -67,6 +67,7 @@ type downloadOptions struct {
 	maxTry  uint
 	timeout time.Duration
 	sleep   time.Duration
+	expose  bool
 }
 
 type flashBar struct {
@@ -350,6 +351,10 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				}
 
 				p.Written += nw
+
+				if opt.expose {
+					expProgress.Add(p.name, nw)
+				}
 
 				var lt limitTimer
 				if opt.sleep != 0 {

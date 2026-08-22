@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -21,6 +22,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -80,12 +82,19 @@ const (
 )
 
 var httpClient *http.Client
-var reContentDisposition = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`) // https://regex101.com/r/N4AovD/3
-var userAgents = map[string]string{
-	"chrome":  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
-	"edge":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
-	"firefox": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
-	"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
+var expProgress *expvar.Map
+var reContentDisposition *regexp.Regexp
+var userAgents map[string]string
+
+func init() {
+	expProgress = expvar.NewMap("progress")
+	reContentDisposition = regexp.MustCompile(`filename[^;\n=]*=(['"](.*?)['"]|[^;\n]*)`) // https://regex101.com/r/N4AovD/3
+	userAgents = map[string]string{
+		"chrome":  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+		"edge":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.37",
+		"firefox": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
+		"safari":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
+	}
 }
 
 // options struct, represents cmd line options
@@ -120,6 +129,10 @@ type options struct {
 		TopN    uint   `long:"top" value-name:"n" default:"1" description:"list top n mirrors, download condition n=1"`
 		Pass    uint   `long:"pass" value-name:"n" default:"1" description:"query each mirror n times to get average result"`
 	} `group:"Best-mirror Options" namespace:"mirror"`
+	Expose struct {
+		Host string `long:"host" value-name:"host" description:"host (optional)"`
+		Port uint   `long:"port" value-name:"port" description:"port (required)"`
+	} `group:"Expose progress (host:port/debug/vars)" namespace:"expose"`
 	Positional struct {
 		Location string `positional-arg-name:"<url>" description:"http location"`
 	} `positional-args:"yes"`
@@ -296,6 +309,26 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		maxTry:  m.opt.MaxRetry,
 		timeout: m.getTimeout(),
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
+		expose:  m.opt.Expose.Port != 0,
+	}
+
+	if options.expose {
+		expProgress = expProgress.Init()
+		expProgress.Add("total", session.ContentLength)
+		expProgress.Add("current", current)
+		addr := m.opt.Expose.Host + ":" + strconv.FormatUint(uint64(m.opt.Expose.Port), 10)
+		m.loggers[DBUG].Printf("Exposing progress at %s/debug/vars", addr)
+		srv := &http.Server{Addr: addr}
+		defer func() {
+			err := srv.Shutdown(m.Ctx)
+			m.loggers[DBUG].Printf("Expvar server shutdown: %v", err)
+		}()
+		go func() {
+			err := srv.ListenAndServe()
+			if !errors.Is(err, http.ErrServerClosed) {
+				panic(err)
+			}
+		}()
 	}
 
 	i, chunks := 0, makeBuffer(m.opt.BufferSize*1024, uint(pcount))
@@ -383,6 +416,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				session.ContentLength,
 				len(session.Parts),
 				&doneCount,
+				options.expose,
 			)
 			if err != nil {
 				return withStack(err)

@@ -51,7 +51,13 @@ func (p *progress) incrTotal(n int64) {
 	p.totalUpd <- n
 }
 
-func (p *progress) addTotalBar(start time.Time, contentLength int64, partCount int, doneCount *atomic.Uint32) (*mpb.Bar, error) {
+func (p *progress) addTotalBar(
+	start time.Time,
+	contentLength int64,
+	partCount int,
+	doneCount *atomic.Uint32,
+	expose bool,
+) (*mpb.Bar, error) {
 	bar, err := p.Add(contentLength, barBuilder.Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+1),
@@ -78,6 +84,9 @@ func (p *progress) addTotalBar(start time.Time, contentLength int64, partCount i
 	for range max(cap(p.totalUpd)/3, 1) {
 		p.totalWg.Go(func() {
 			for n := range p.totalUpd {
+				if expose {
+					expProgress.Add("current", n)
+				}
 				bar.IncrInt64(n)
 			}
 		})
