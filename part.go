@@ -337,11 +337,11 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			}
 
 			var limit func(limitTimer, context.Context) bool
-			for nw := int64(0); timer.Reset(timeout + opt.sleep); {
+			for nw, blen := int64(0), int64(len(buf)); timer.Reset(timeout + opt.sleep); {
 				start := time.Now()
 				// passing p.output instead of p.output.file is a
 				// guarantee that buf will be used to perform the copy
-				nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, int64(len(buf))), buf)
+				nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, blen), buf)
 				ewmaDur := time.Since(start)
 
 				if nw == 0 && err != nil && !errors.Is(context.Cause(timedCtx), errTimeout) {
@@ -368,7 +368,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 				bar.EwmaIncrInt64(nw, ewmaDur)
 
-				if nw < int64(len(buf)) && err == nil {
+				if nw < blen && err == nil {
 					// src stopped early; must have been EOF.
 					err = io.EOF
 					lt.stop()
