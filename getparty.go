@@ -330,7 +330,18 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}()
 	}
 
-	i, chunks := 0, makeBuffer(m.opt.BufferSize*1024, uint(pcount))
+	var i uint
+	var chunks [][]byte
+	{
+		size := m.opt.BufferSize * 1024
+		row := make([]byte, size*uint(pcount))
+		for range pcount {
+			chunks = append(chunks, slices.Clip(row[i:i+size]))
+			i += size
+		}
+		i = 0
+	}
+
 	for _, p := range session.Parts {
 		if err := p.init(session); err != nil {
 			recoverHandler.Do(session.cancel)
@@ -996,14 +1007,4 @@ func makeStateQuery(current, contentLength int64, resumable bool) func(int64, er
 		}
 		return sessionCompleted
 	}
-}
-
-func makeBuffer(size, pcount uint) (chunks [][]byte) {
-	var start uint
-	row := make([]byte, size*pcount)
-	for range pcount {
-		chunks = append(chunks, slices.Clip(row[start:start+size]))
-		start += size
-	}
-	return chunks
 }
