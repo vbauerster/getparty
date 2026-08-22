@@ -352,10 +352,6 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 				p.Written += nw
 
-				if opt.expose {
-					expProgress.Add(p.name, nw)
-				}
-
 				var lt limitTimer
 				if opt.sleep != 0 {
 					lt.timer = time.NewTimer(opt.sleep)
@@ -368,6 +364,10 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					p.progress.incrTotal(nw)
 				} else if p.len() <= 0 {
 					bar.SetTotal(p.Written, false)
+				}
+
+				if opt.expose {
+					expProgress.Add(p.name, nw)
 				}
 
 				bar.EwmaIncrInt64(nw, ewmaDur)
