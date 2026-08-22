@@ -309,10 +309,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		maxTry:  m.opt.MaxRetry,
 		timeout: m.getTimeout(),
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
-		expose:  m.opt.Expose.Port != 0,
 	}
 
-	if options.expose {
+	if m.opt.Expose.Port != 0 {
 		expProgress = expProgress.Init()
 		expProgress.Add("total", session.ContentLength)
 		expProgress.Add("current", current)
@@ -416,7 +415,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				session.ContentLength,
 				len(session.Parts),
 				&doneCount,
-				options.expose,
 			)
 			if err != nil {
 				return withStack(err)

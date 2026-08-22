@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -67,7 +68,6 @@ type downloadOptions struct {
 	maxTry  uint
 	timeout time.Duration
 	sleep   time.Duration
-	expose  bool
 }
 
 type flashBar struct {
@@ -167,10 +167,6 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 	if p.patcher != nil {
 		p.patcher.patch(req)
-	}
-
-	if opt.expose && p.Written != 0 {
-		expProgress.Add(p.name, p.Written)
 	}
 
 	var partial bool
@@ -327,6 +323,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 						}
 						p.Written = 0
 						bar.SetCurrent(0)
+						expProgress.Set("current", expvar.Func(func() any { return 0 }))
 					}
 				}
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
@@ -364,14 +361,14 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					limit = limitTimer.nop
 				}
 
-				if !p.single {
+				switch {
+				case p.single:
+					if p.len() <= 0 {
+						bar.SetTotal(p.Written, false)
+					}
+					expProgress.Add("current", nw)
+				default:
 					p.progress.incrTotal(nw)
-				} else if p.len() <= 0 {
-					bar.SetTotal(p.Written, false)
-				}
-
-				if opt.expose {
-					expProgress.Add(p.name, nw)
 				}
 
 				bar.EwmaIncrInt64(nw, ewmaDur)

@@ -56,7 +56,6 @@ func (p *progress) addTotalBar(
 	contentLength int64,
 	partCount int,
 	doneCount *atomic.Uint32,
-	expose bool,
 ) (*mpb.Bar, error) {
 	bar, err := p.Add(contentLength, barBuilder.Build(),
 		mpb.BarFillerTrim(),
@@ -84,9 +83,7 @@ func (p *progress) addTotalBar(
 	for range max(cap(p.totalUpd)/3, 1) {
 		p.totalWg.Go(func() {
 			for n := range p.totalUpd {
-				if expose {
-					expProgress.Add("current", n)
-				}
+				expProgress.Add("current", n)
 				bar.IncrInt64(n)
 			}
 		})
