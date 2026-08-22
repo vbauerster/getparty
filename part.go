@@ -372,6 +372,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 				if opt.expose {
 					expProgress.Add(p.name, nw)
+					expProgress.Add("current", nw)
 				}
 
 				bar.EwmaIncrInt64(nw, ewmaDur)
