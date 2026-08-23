@@ -14,9 +14,6 @@ type (
 		old  T
 		new  T
 	}
-	BadProxyUrlError struct {
-		error
-	}
 )
 
 func (e ExpectedError) Error() string {
@@ -29,10 +26,6 @@ func (e UnexpectedHttpStatusError) Error() string {
 
 func (e ContentMismatchError[T]) Error() string {
 	return fmt.Sprintf("Content%s mismatch: expected %v got %v", e.kind, e.old, e.new)
-}
-
-func (e BadProxyUrlError) Unwrap() error {
-	return e.error
 }
 
 type debugError struct {

@@ -507,7 +507,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 	if m.opt.Proxy != "" {
 		fixedURL, err := url.Parse(m.opt.Proxy)
 		if err != nil {
-			return nil, withStack(BadProxyUrlError{err})
+			return nil, withStack(err)
 		}
 		rtBuilder = rtBuilder.proxy(fixedURL)
 	}
