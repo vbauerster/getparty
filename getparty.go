@@ -450,8 +450,17 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if err != nil {
 		var of *outFile
 		for _, p := range session.Parts {
-			of = p.output
-			m.loggers[DBUG].Printf("%q closed with: %v", of, of.Close())
+			if p.Written == 0 {
+				stat, err := p.output.Stat()
+				if err == nil && stat.Size() == 0 {
+					err = cmp.Or(p.output.Close(), os.Remove(p.output.Name()))
+					m.loggers[DBUG].Printf("%q closed,removed with: %v", p.output, err)
+				}
+			} else {
+				err := p.output.Close()
+				m.loggers[DBUG].Printf("%q closed with: %v", p.output, err)
+				of = p.output
+			}
 		}
 		if session.Single && !session.isResumable() && of != nil {
 			err := os.Rename(of.Name(), outputName)
