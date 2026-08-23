@@ -81,7 +81,7 @@ const (
 	hHost               = "Host"
 )
 
-var httpClient *http.Client
+var httpClient *http.Client // gets initialized at (*Cmd).getState
 var expProgress *expvar.Map
 var reContentDisposition *regexp.Regexp
 var userAgents map[string]string
