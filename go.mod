@@ -7,8 +7,8 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/vbauerster/backoff v0.2.0
-	github.com/vbauerster/mpb/v8 v8.15.2
-	golang.org/x/net v0.57.0
+	github.com/vbauerster/mpb/v8 v8.16.0
+	golang.org/x/net v0.58.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/term v0.45.0
 )
@@ -16,7 +16,7 @@ require (
 require (
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/mattn/go-runewidth v0.0.27 // indirect
+	github.com/mattn/go-runewidth v0.0.28 // indirect
 	github.com/vbauerster/cupwriter v0.0.4 // indirect
 	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
