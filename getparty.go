@@ -312,9 +312,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	_ = expProgress.Init()
+	expProgress.Add("total", session.ContentLength)
+	expProgress.Add("current", current)
 	if m.opt.Expose.Port != 0 {
-		expProgress.Add("total", session.ContentLength)
-		expProgress.Add("current", current)
 		addr := m.opt.Expose.Host + ":" + strconv.FormatUint(uint64(m.opt.Expose.Port), 10)
 		m.loggers[DBUG].Printf("Exposing progress at %s/debug/vars", addr)
 		srv := &http.Server{Addr: addr}
