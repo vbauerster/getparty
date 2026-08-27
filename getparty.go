@@ -298,6 +298,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}()
 
+	if ok, shutdown := m.expListenAndServe(session.ContentLength, current); ok {
+		defer shutdown()
+	}
+
 	session.summary(m.loggers)
 	m.loggers[INFO].Printf("Saving to: %q", outputName)
 
@@ -309,25 +313,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		maxTry:  m.opt.MaxRetry,
 		timeout: m.getTimeout(),
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
-	}
-
-	_ = expProgress.Init()
-	expProgress.Add("total", session.ContentLength)
-	expProgress.Add("current", current)
-	if m.opt.Expose.Port != 0 {
-		addr := m.opt.Expose.Host + ":" + strconv.FormatUint(uint64(m.opt.Expose.Port), 10)
-		m.loggers[DBUG].Printf("Exposing progress at %s/debug/vars", addr)
-		srv := &http.Server{Addr: addr}
-		defer func() {
-			err := srv.Shutdown(m.Ctx)
-			m.loggers[DBUG].Printf("Expvar server shutdown: %v", err)
-		}()
-		go func() {
-			err := srv.ListenAndServe()
-			if !errors.Is(err, http.ErrServerClosed) {
-				panic(err)
-			}
-		}()
 	}
 
 	var i uint
@@ -843,6 +828,28 @@ func (m Cmd) replaceOutput(name string) error {
 func (m Cmd) getTimeout() time.Duration {
 	timeout := min(cmp.Or(m.opt.Timeout, maxTimeout), maxTimeout)
 	return time.Duration(timeout) * time.Second
+}
+
+func (m Cmd) expListenAndServe(total, current int64) (bool, func()) {
+	_ = expProgress.Init()
+	expProgress.Add("total", total)
+	expProgress.Add("current", current)
+	if m.opt.Expose.Port == 0 {
+		return false, nil
+	}
+	addr := m.opt.Expose.Host + ":" + strconv.FormatUint(uint64(m.opt.Expose.Port), 10)
+	m.loggers[DBUG].Printf("Exposing progress at %s/debug/vars", addr)
+	srv := &http.Server{Addr: addr}
+	go func() {
+		err := srv.ListenAndServe()
+		if !errors.Is(err, http.ErrServerClosed) {
+			panic(err)
+		}
+	}()
+	return true, func() {
+		err := srv.Shutdown(m.Ctx)
+		m.loggers[DBUG].Printf("Expvar server shutdown: %v", err)
+	}
 }
 
 // https://go.dev/play/p/Q25_gze66yB
