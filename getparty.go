@@ -305,17 +305,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	session.summary(m.loggers)
 	m.loggers[INFO].Printf("Saving to: %q", outputName)
 
+	var i uint
 	var doneCount atomic.Uint32
 	var eg errgroup.Group
 	var recoverHandler sync.Once
-	firstResp := newFirstHttpResponseContext(m.Ctx)
-	options := downloadOptions{
-		maxTry:  m.opt.MaxRetry,
-		timeout: m.getTimeout(),
-		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
-	}
-
-	var i uint
 	var chunks [][]byte
 	{
 		size := m.opt.BufferSize * 1024
@@ -325,6 +318,13 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			i += size
 		}
 		i = 0
+	}
+
+	firstResp := newFirstHttpResponseContext(m.Ctx)
+	options := downloadOptions{
+		maxTry:  m.opt.MaxRetry,
+		timeout: m.getTimeout(),
+		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
 	}
 
 	for _, p := range session.Parts {
