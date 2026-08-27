@@ -301,6 +301,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	_ = expProgress.Init()
 	expProgress.Add("total", session.ContentLength)
 	expProgress.Add("current", current)
+	expProgress.Set("error", nil)
 	if ok, shutdown := m.expListenAndServe(); ok {
 		defer shutdown()
 	}
@@ -454,6 +455,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			err := os.Rename(of.Name(), outputName)
 			m.loggers[DBUG].Printf("%q renamed to %q with: %v", of, outputName, err)
 		}
+		expProgress.Set("error", expvar.Func(func() any { return err.Error() }))
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
