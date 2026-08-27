@@ -298,7 +298,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	}()
 
-	if ok, shutdown := m.expListenAndServe(session.ContentLength, current); ok {
+	_ = expProgress.Init()
+	expProgress.Add("total", session.ContentLength)
+	expProgress.Add("current", current)
+	if ok, shutdown := m.expListenAndServe(); ok {
 		defer shutdown()
 	}
 
@@ -830,10 +833,7 @@ func (m Cmd) getTimeout() time.Duration {
 	return time.Duration(timeout) * time.Second
 }
 
-func (m Cmd) expListenAndServe(total, current int64) (bool, func()) {
-	_ = expProgress.Init()
-	expProgress.Add("total", total)
-	expProgress.Add("current", current)
+func (m Cmd) expListenAndServe() (bool, func()) {
 	if m.opt.Expose.Port == 0 {
 		return false, nil
 	}
