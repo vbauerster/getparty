@@ -110,7 +110,7 @@ type options struct {
 	AuthUser    string            `long:"username" description:"basic http auth username"`
 	AuthPass    string            `long:"password" description:"basic http auth password"`
 	Headers     map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
-	Proxy       string            `short:"x" long:"proxy" value-name:"<[scheme://]host[:port]>" description:"use the specified proxy, if scheme is empty http is assumed"`
+	Proxy       string            `short:"x" long:"proxy" value-name:"<[scheme://]host[:port]>" description:"proxy to use, if scheme is empty http is assumed"`
 	Quiet       bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
 	Debug       bool              `short:"d" long:"debug" description:"enable debug to stderr"`
 	Version     bool              `short:"v" long:"version" description:"show version"`
