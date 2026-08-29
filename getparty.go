@@ -112,7 +112,7 @@ type options struct {
 	Headers     map[string]string `short:"H" long:"header" value-name:"key:value" description:"http header, can be specified more than once"`
 	Proxy       string            `short:"x" long:"proxy" value-name:"<[scheme://]host[:port]>" description:"proxy to use, if scheme is empty http is assumed"`
 	Quiet       bool              `short:"q" long:"quiet" description:"quiet mode, no progress bars"`
-	Debug       bool              `short:"d" long:"debug" description:"enable debug to stderr"`
+	Debug       bool              `short:"d" long:"debug" description:"debug mode, output debug info to stderr"`
 	Version     bool              `short:"v" long:"version" description:"show version"`
 	Https       struct {
 		CertsFileName      string `short:"c" long:"certs-file" value-name:"certs.crt" description:"root certificates to use when verifying server certificates"`
