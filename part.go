@@ -192,8 +192,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			start := time.Now()
 			defer func(written int64) {
 				if !timer.Stop() {
-					timeout += 5 * time.Second
-					timeout = min(timeout, maxTimeout*time.Second)
+					timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
 					dtt += consecutiveResetOk
 				} else {
 					cancel(nil)
@@ -383,8 +382,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				if timeout != opt.timeout {
 					switch dtt {
 					case 0:
-						timeout -= 5 * time.Second
-						timeout = max(timeout, opt.timeout)
+						timeout = max(timeout-5*time.Second, opt.timeout)
 						if timeout == opt.timeout {
 							backoffReset()
 						}
