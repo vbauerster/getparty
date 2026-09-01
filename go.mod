@@ -7,7 +7,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/vbauerster/backoff v0.2.0
-	github.com/vbauerster/mpb/v8 v8.16.0
+	github.com/vbauerster/mpb/v8 v8.16.1
 	golang.org/x/net v0.58.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/term v0.45.0
