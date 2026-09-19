@@ -204,7 +204,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				p.logger.Println("Written:", written)
 				p.logger.Println("Elapsed:", elapsed)
 				p.logger.Println("Idle:", idle)
-				if !retry || err == nil || errors.Is(p.ctx.Err(), context.Canceled) {
+				if !retry || err == nil || p.ctx.Err() != nil {
 					return
 				}
 				switch attempt {
