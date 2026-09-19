@@ -344,10 +344,10 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, blen), buf)
 				ewmaDur := time.Since(start)
 
-				if nw == 0 && err != nil && !errors.Is(context.Cause(timedCtx), errTimeout) {
-					// parent ctx canceled, most probably by ^C or recoverHandler
+				if nw == 0 && err != nil {
+					bar.EwmaIncrInt64(nw, ewmaDur)
 					p.logger.Println("Break loop:", nw, err.Error())
-					return false, err
+					return errors.Is(context.Cause(timedCtx), errTimeout) || !errors.Is(err, context.Canceled), err
 				}
 
 				p.Written += nw
