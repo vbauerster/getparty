@@ -23,7 +23,7 @@ func (m *Cmd) initLoggers() {
 		m.Err = io.Discard
 	}
 	m.loggers[DBUG] = log.New(m.Err, fmt.Sprintf("[%s] ", cmdName), log.LstdFlags)
-	m.loggers[INFO] = log.New(m.Out, "[INFO] ", log.LstdFlags)
-	m.loggers[WARN] = log.New(m.Out, "[WARN] ", log.LstdFlags)
-	m.loggers[ERRO] = log.New(m.Out, "[ERRO] ", log.LstdFlags)
+	m.loggers[INFO] = log.New(m.Out, "[INFO] ", log.Ltime)
+	m.loggers[WARN] = log.New(m.Out, "[WARN] ", log.Ltime)
+	m.loggers[ERRO] = log.New(m.Out, "[ERRO] ", log.Ltime)
 }
