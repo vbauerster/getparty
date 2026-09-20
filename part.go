@@ -212,22 +212,21 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					globTry.Add(1)
 				case opt.maxTry:
 					globTry.Add(^uint32(0)) // decrement
-					retry, err = false, withStack(ErrMaxRetry)
-					_, _ = fmt.Fprintf(p.progress, "%s%s (%.1f / %.1f)\n",
-						p.logger.Prefix(),
-						err.Error(),
+					log.New(p.progress, p.logger.Prefix(), log.Ltime).Printf("%s (%.1f / %.1f)",
+						ErrMaxRetry.Error(),
 						decor.SizeB1024(p.Written),
 						decor.SizeB1024(p.len()))
+					retry, err = false, withStack(ErrMaxRetry)
 					return
 				}
 				go func(prefix string, isBarOk, partial bool) {
-					if errors.Is(context.Cause(timedCtx), errTimeout) {
+					if logger := log.New(p.progress, prefix, log.Ltime); errors.Is(context.Cause(timedCtx), errTimeout) {
 						if isBarOk {
 							bar.flashTimeout()
 						}
-						_, _ = fmt.Fprintln(p.progress, prefix+errTimeout.Error())
+						logger.Println(errTimeout.Error())
 					} else {
-						_, _ = fmt.Fprintln(p.progress, prefix+unwrapOrErr(err).Error())
+						logger.Println(unwrapOrErr(err).Error())
 					}
 					if isBarOk && partial && written != 0 {
 						bar.SetRefillCurrent()
