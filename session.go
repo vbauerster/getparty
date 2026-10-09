@@ -95,6 +95,7 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (of *outFil
 	var stat os.FileInfo
 	parts := make([]*outFile, 0, len(s.Parts))
 	for _, p := range s.Parts {
+		p.output.written = p.Written
 		parts = append(parts, p.output)
 	}
 
@@ -136,6 +137,13 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (of *outFil
 			bar.Increment()
 		}
 	}()
+
+	for _, of := range parts {
+		err := of.checkWritten()
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return parts[0], concat(logger, bar, parts)
 }

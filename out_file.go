@@ -5,8 +5,9 @@ import "os"
 const umask = 0644
 
 type outFile struct {
-	name string
-	file *os.File
+	name    string
+	written int64
+	file    *os.File
 }
 
 func (s *outFile) Open(flag int) error {
@@ -56,4 +57,20 @@ func (s *outFile) Name() string {
 
 func (s *outFile) String() string {
 	return s.Name()
+}
+
+func (s *outFile) checkWritten() error {
+	stat, err := s.Stat()
+	if err != nil {
+		return err
+	}
+	if size := stat.Size(); s.written != size {
+		err := ContentMismatchError[int64]{
+			kind: "Length",
+			old:  s.written,
+			new:  size,
+		}
+		return withMessage(err, s.name)
+	}
+	return nil
 }
