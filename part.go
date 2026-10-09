@@ -408,8 +408,9 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				panic(fmt.Errorf("expected EOF, got: %w", err))
 			}
 
-			// err is never nil here
-			return true, err
+			// invariant: err is never nil here
+			// fallback to errTimeout when loop break reason is timer.Reset
+			return true, cmp.Or(err, errTimeout)
 		})
 }
 
