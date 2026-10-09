@@ -91,47 +91,53 @@ func (s *Session) cancel() {
 	s.canceled = true
 }
 
-func (s Session) concatenate(progress *progress, logger *log.Logger) (*outFile, error) {
-	if s.Single {
-		return s.Parts[0].output, nil
-	}
-	if !s.isResumable() {
-		return nil, errors.New("attempt to concat unresumable session")
-	}
-	bar, err := progress.addMergeBar(len(s.Parts))
-	if err != nil {
-		return nil, err
-	}
-
+func (s Session) concatenate(progress *progress, logger *log.Logger) (of *outFile, err error) {
+	var stat os.FileInfo
 	parts := make([]*outFile, 0, len(s.Parts))
 	for _, p := range s.Parts {
 		parts = append(parts, p.output)
 	}
 
-	err = concat(logger, bar, parts)
-	if err != nil {
-		bar.Abort(false)
-		return nil, err
-	}
-
-	stat, err := parts[0].Stat()
-	if err != nil {
-		bar.Abort(false)
-		return nil, err
-	}
-
-	if s.ContentLength != stat.Size() {
-		err := ContentMismatchError[int64]{
-			kind: "Length",
-			old:  s.ContentLength,
-			new:  stat.Size(),
+	defer func() {
+		if err != nil {
+			return
 		}
-		bar.Abort(false)
-		return nil, err
+		stat, err = of.Stat()
+		if err != nil {
+			return
+		}
+		if size := stat.Size(); s.ContentLength != size {
+			err = ContentMismatchError[int64]{
+				kind: "Length",
+				old:  s.ContentLength,
+				new:  size,
+			}
+		}
+	}()
+
+	if s.Single {
+		if !s.isResumable() {
+			s.ContentLength = parts[0].written
+		}
+		return parts[0], nil
+	}
+	if !s.isResumable() {
+		return nil, errors.New("attempt to concat unresumable session")
 	}
 
-	bar.Increment()
-	return parts[0], nil
+	bar, err := progress.addMergeBar(len(parts))
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			bar.Abort(false)
+		} else {
+			bar.Increment()
+		}
+	}()
+
+	return parts[0], concat(logger, bar, parts)
 }
 
 func (s Session) isResumable() bool {
