@@ -20,7 +20,9 @@ func (s *outFile) Open(flag int) error {
 
 func (s *outFile) Close() error {
 	if s != nil && s.file != nil {
-		return s.file.Close()
+		file := s.file
+		s.file = nil
+		return file.Close()
 	}
 	return nil
 }

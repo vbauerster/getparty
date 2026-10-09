@@ -434,6 +434,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	session.Elapsed += time.Since(start)
+	defer func() {
+		for _, p := range session.Parts {
+			err = errors.Join(err, p.output.Close())
+		}
+	}()
 
 	if err != nil {
 		var of *outFile
@@ -854,12 +859,20 @@ func (m Cmd) expListenAndServe() (bool, func()) {
 }
 
 // https://go.dev/play/p/Q25_gze66yB
-func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
+func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) (err error) {
 	if len(parts) < 2 {
 		return nil
 	}
 
 	var eg errgroup.Group
+	defer func() {
+		err = errors.Join(err, eg.Wait())
+		if err != nil {
+			for _, p := range parts {
+				err = errors.Join(err, p.Close())
+			}
+		}
+	}()
 	for c := range slices.Chunk(parts, 2) {
 		if len(c) != 2 {
 			break
@@ -898,11 +911,8 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 		})
 	}
 
-	err := eg.Wait()
+	err = eg.Wait()
 	if err != nil {
-		for _, p := range parts {
-			_ = p.Close()
-		}
 		return err
 	}
 

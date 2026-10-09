@@ -336,7 +336,9 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			}
 
 			var limit func(limitTimer, context.Context) bool
-			for nw, blen := int64(0), int64(len(buf)); timer.Reset(timeout + opt.sleep); {
+			for nw, blen := int64(0), int64(len(buf)); ; {
+				// Reset reports the timer's previous state, not whether copying can continue.
+				timer.Reset(timeout + opt.sleep)
 				start := time.Now()
 				// passing p.output instead of p.output.file is a
 				// guarantee that buf will be used to perform the copy
@@ -408,7 +410,9 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				panic(fmt.Errorf("expected EOF, got: %w", err))
 			}
 
-			// err is never nil here
+			if err == nil {
+				err = io.ErrUnexpectedEOF
+			}
 			return true, err
 		})
 }

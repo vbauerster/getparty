@@ -98,6 +98,13 @@ just list top 3 mirrors without any download:
 getparty -m mirrors.txt --mirror.top 3
 ```
 
+#### Interrupted multipart downloads
+
+Timed-out parts retry before merging. Multipart files are validated before a
+destructive merge, and all file handles are released before an error is returned,
+including when a merge source cannot be opened. Incomplete downloads retain their
+unmerged parts for resume.
+
 ## License
 
 [BSD 3-Clause](https://opensource.org/licenses/BSD-3-Clause)

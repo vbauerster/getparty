@@ -98,6 +98,29 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (*outFile, 
 	if !s.isResumable() {
 		return nil, errors.New("attempt to concat unresumable session")
 	}
+	var written int64
+	for _, p := range s.Parts {
+		if !p.isDone() {
+			return nil, fmt.Errorf("%q: %w", p.output, ContentMismatchError[int64]{
+				kind: "Length", old: p.len(), new: p.Written,
+			})
+		}
+		stat, err := p.output.Stat()
+		if err != nil {
+			return nil, err
+		}
+		if stat.Size() != p.Written {
+			return nil, fmt.Errorf("%q: %w", p.output, ContentMismatchError[int64]{
+				kind: "Length", old: p.Written, new: stat.Size(),
+			})
+		}
+		written += p.Written
+	}
+	if written != s.ContentLength {
+		return nil, ContentMismatchError[int64]{
+			kind: "Length", old: s.ContentLength, new: written,
+		}
+	}
 	bar, err := progress.addMergeBar(len(s.Parts))
 	if err != nil {
 		return nil, err
