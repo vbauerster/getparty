@@ -458,6 +458,14 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
+	if doneCount.Load() != uint32(len(session.Parts)) {
+		recoverHandler.Do(session.cancel)
+		for _, p := range session.Parts {
+			_ = p.output.Close()
+		}
+		panic(errors.New("done count != session parts"))
+	}
+
 	of, err := session.concatenate(progress, m.loggers[DBUG])
 	if err != nil {
 		return withStack(err)
