@@ -414,7 +414,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				recoverHandler.Do(session.cancel)
 				panic(fmt.Errorf("unexpected firstResp id: %d", id))
 			}
-			session.Parts[0], session.Parts = part, session.Parts[:1]
+			session.Parts[0] = part
+			session.Parts = slices.Clip(session.Parts[:1])
 		}
 	case errors.Is(cause, errContextPartial):
 		if !session.Single {
