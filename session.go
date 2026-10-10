@@ -82,6 +82,7 @@ func (s *Session) dumpState(name string) error {
 	return cmp.Or(json.NewEncoder(f).Encode(s), f.Close())
 }
 
+// invariant: this call is expected to be called by sync.Once
 func (s *Session) cancel() {
 	for _, p := range s.Parts {
 		if p.cancel != nil {
