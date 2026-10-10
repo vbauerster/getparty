@@ -383,7 +383,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					}
 					return
 				}
-				if p.isContentDownloaded() {
+				// p.isDone instead of p.isContentDownloaded to allow zero ContentLength to complete
+				if p.isDone() {
 					doneCount.Add(1)
 				}
 			}()
