@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -284,16 +285,27 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			} else {
 				dumpName += ".json"
 			}
+			defer func() {
+				if x := recover(); x != nil {
+					_ = json.NewEncoder(os.Stderr).Encode(session)
+					panic(x)
+				} else {
+					m.loggers[INFO].Printf("Session state saved; to resume run: %s --session %q", cmdName, dumpName)
+				}
+			}()
 			if err := session.dumpState(dumpName); err != nil {
-				panic(err)
+				// defer panic to fallthrough take place
+				defer panic(err)
+			}
+			fallthrough
+		case sessionUncompleted:
+			for _, p := range session.Parts {
+				m.loggers[DBUG].Printf("%s output close: %v", p.name, p.output.Close())
 			}
 			progress.Wait()
-			m.loggers[INFO].Printf("Session state saved; to resume run: %s --session %q", cmdName, dumpName)
 		case sessionCompleted:
 			progress.Wait()
 			m.loggers[INFO].Printf("%q saved [%d/%d]", outputName, session.ContentLength, tw)
-		default:
-			progress.Wait()
 		}
 	}()
 
@@ -380,9 +392,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		if session.restored {
 			recoverHandler.Do(session.cancel)
 			_ = eg.Wait()
-			for _, p := range session.Parts {
-				_ = p.output.Close()
-			}
 			panic(fmt.Errorf(
 				"restored session is expected to get status %d but it is %d instead",
 				http.StatusPartialContent,
@@ -398,7 +407,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				if p.Id == id {
 					part = p
 				} else {
-					_ = p.output.Close()
+					m.loggers[DBUG].Printf("%s output close: %v", p.name, p.output.Close())
 				}
 			}
 			if part == nil {
@@ -460,9 +469,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	if doneCount.Load() != uint32(len(session.Parts)) {
 		recoverHandler.Do(session.cancel)
-		for _, p := range session.Parts {
-			_ = p.output.Close()
-		}
 		panic(errors.New("done count != session parts"))
 	}
 
