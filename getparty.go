@@ -300,7 +300,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			fallthrough
 		case sessionUncompleted:
 			for _, p := range session.Parts {
-				m.loggers[DBUG].Printf("%s output close: %v", p.name, p.output.Close())
+				m.loggers[DBUG].Printf("%q close: %v", p.output, p.output.Close())
 			}
 			progress.Wait()
 		case sessionCompleted:
@@ -407,7 +407,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				if p.Id == id {
 					part = p
 				} else {
-					m.loggers[DBUG].Printf("%s output close: %v", p.name, p.output.Close())
+					m.loggers[DBUG].Printf("%q close: %v", p.output, p.output.Close())
 				}
 			}
 			if part == nil {
@@ -451,12 +451,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			if p.Written == 0 {
 				stat, err := p.output.Stat()
 				if err == nil && stat.Size() == 0 {
-					err = cmp.Or(p.output.Close(), os.Remove(p.output.Name()))
-					m.loggers[DBUG].Printf("%q closed,removed with: %v", p.output, err)
+					m.loggers[DBUG].Printf("%q close,remove: %v", p.output, cmp.Or(p.output.Close(), os.Remove(p.output.Name())))
 				}
 			} else {
-				err := p.output.Close()
-				m.loggers[DBUG].Printf("%q closed with: %v", p.output, err)
+				m.loggers[DBUG].Printf("%q close: %v", p.output, p.output.Close())
 				of = p.output
 			}
 		}
@@ -913,10 +911,9 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 		})
 	}
 
-	err := eg.Wait()
-	if err != nil {
+	if err := eg.Wait(); err != nil {
 		for _, p := range parts {
-			_ = p.Close()
+			logger.Printf("%q close: %v", p, p.Close())
 		}
 		return err
 	}
