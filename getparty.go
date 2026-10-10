@@ -318,6 +318,12 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 			progress.Wait()
 		case sessionCompleted:
+			of := session.Parts[0].output
+			err := cmp.Or(of.Sync(), of.Close(), os.Rename(of.Name(), outputName))
+			m.loggers[DBUG].Printf("%q sync,close,rename to %q: %v", of, outputName, err)
+			if m.opt.SessionName != "" {
+				m.loggers[DBUG].Printf("%q remove: %v", m.opt.SessionName, os.Remove(m.opt.SessionName))
+			}
 			progress.Wait()
 			m.loggers[INFO].Printf("%q saved [%d/%d]", outputName, session.ContentLength, tw)
 		}
@@ -471,23 +477,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		panic(errors.New("done count != session parts"))
 	}
 
-	of, err := session.concatenate(progress, m.loggers[DBUG])
-	if err != nil {
-		return withStack(err)
-	}
-
-	err = cmp.Or(of.Sync(), of.Close(), os.Rename(of.Name(), outputName))
-	if err != nil {
-		return withStack(err)
-	}
-	m.loggers[DBUG].Printf("%q renamed to %q", of, outputName)
-
-	if m.opt.SessionName != "" {
-		m.loggers[DBUG].Printf("removing: %q", m.opt.SessionName)
-		return os.Remove(m.opt.SessionName)
-	}
-
-	return nil
+	return withStack(session.concatenate(progress, m.loggers[DBUG]))
 }
 
 func (m *Cmd) init(args []string) error {

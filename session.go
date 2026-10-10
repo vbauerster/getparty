@@ -92,7 +92,7 @@ func (s *Session) cancel() {
 	s.canceled = true
 }
 
-func (s Session) concatenate(progress *progress, logger *log.Logger) (of *outFile, err error) {
+func (s Session) concatenate(progress *progress, logger *log.Logger) (err error) {
 	var stat os.FileInfo
 	parts := make([]*outFile, 0, len(s.Parts))
 	for _, p := range s.Parts {
@@ -104,8 +104,9 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (of *outFil
 		if err != nil {
 			return
 		}
-		stat, err = of.Stat()
+		stat, err = parts[0].Stat()
 		if err != nil {
+			logger.Printf("%q stat: %s", parts[0], err.Error())
 			return
 		}
 		if size := stat.Size(); s.ContentLength != size {
@@ -114,6 +115,7 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (of *outFil
 				old:  s.ContentLength,
 				new:  size,
 			}
+			err = withMessage(err, parts[0].Name())
 		}
 	}()
 
@@ -121,15 +123,15 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (of *outFil
 		if !s.isResumable() {
 			s.ContentLength = parts[0].written
 		}
-		return parts[0], nil
+		return nil
 	}
 	if !s.isResumable() {
-		return nil, errors.New("attempt to concat unresumable session")
+		return errors.New("attempt to concat unresumable session")
 	}
 
 	bar, err := progress.addMergeBar(len(parts))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() {
 		if err != nil {
@@ -142,11 +144,11 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (of *outFil
 	for _, of := range parts {
 		err := of.checkWritten()
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return parts[0], concat(logger, bar, parts)
+	return concat(logger, bar, parts)
 }
 
 func (s Session) isResumable() bool {
