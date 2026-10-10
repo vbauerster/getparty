@@ -138,10 +138,13 @@ func (p *Part) init(session *Session) error {
 		if err != nil {
 			return withStack(err)
 		}
-		size := stat.Size()
-		if size != p.Written {
-			err := fmt.Errorf("%q size mismatch: expected %d got %d", p.output, p.Written, size)
-			return withStack(err)
+		if size := stat.Size(); size != p.Written {
+			err := ContentMismatchError[int64]{
+				kind: "Length",
+				old:  p.Written,
+				new:  size,
+			}
+			return withStack(withMessage(err, p.output.Name()))
 		}
 	}
 	return nil
