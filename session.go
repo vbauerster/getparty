@@ -129,10 +129,18 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (err error)
 		return errors.New("attempt to concat unresumable session")
 	}
 
+	for _, of := range parts {
+		err := of.checkContentMismatch()
+		if err != nil {
+			return err
+		}
+	}
+
 	bar, err := progress.addMergeBar(len(parts))
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		if err != nil {
 			bar.Abort(false)
@@ -140,13 +148,6 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (err error)
 			bar.Increment()
 		}
 	}()
-
-	for _, of := range parts {
-		err := of.checkContentMismatch()
-		if err != nil {
-			return err
-		}
-	}
 
 	return concat(logger, bar, parts)
 }
