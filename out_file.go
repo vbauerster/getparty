@@ -59,7 +59,7 @@ func (s *outFile) String() string {
 	return s.Name()
 }
 
-func (s *outFile) checkWritten() error {
+func (s *outFile) checkContentMismatch() error {
 	stat, err := s.Stat()
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ func (s *outFile) checkWritten() error {
 			old:  s.written,
 			new:  size,
 		}
-		return withMessage(err, s.name)
+		return withMessage(err, s.Name())
 	}
 	return nil
 }

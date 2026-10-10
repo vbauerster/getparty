@@ -142,7 +142,7 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (err error)
 	}()
 
 	for _, of := range parts {
-		err := of.checkWritten()
+		err := of.checkContentMismatch()
 		if err != nil {
 			return err
 		}
