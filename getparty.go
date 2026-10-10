@@ -300,7 +300,21 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			fallthrough
 		case sessionUncompleted:
 			for _, p := range session.Parts {
-				m.loggers[DBUG].Printf("%q close: %v", p.output, p.output.Close())
+				if p.Written == 0 {
+					stat, err := p.output.Stat()
+					if err != nil {
+						m.loggers[DBUG].Printf("%q stat: %s", p.output, err.Error())
+						continue
+					}
+					if stat.Size() == 0 {
+						m.loggers[DBUG].Printf("%q is zero: close,remove: %v", p.output, cmp.Or(p.output.Close(), os.Remove(p.output.Name())))
+					}
+				} else {
+					m.loggers[DBUG].Printf("%q close: %v", p.output, p.output.Close())
+				}
+			}
+			if p := session.Parts[0]; session.Single && !session.isResumable() && p.output != nil {
+				m.loggers[DBUG].Printf("%q rename to %q: %v", p.output, outputName, os.Rename(p.output.Name(), outputName))
 			}
 			progress.Wait()
 		case sessionCompleted:
@@ -446,25 +460,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	session.Elapsed += time.Since(start)
 
-	if err != nil {
-		var of *outFile
-		for _, p := range session.Parts {
-			if p.Written == 0 {
-				stat, err := p.output.Stat()
-				if err == nil && stat.Size() == 0 {
-					m.loggers[DBUG].Printf("%q close,remove: %v", p.output, cmp.Or(p.output.Close(), os.Remove(p.output.Name())))
-				}
-			} else {
-				m.loggers[DBUG].Printf("%q close: %v", p.output, p.output.Close())
-				of = p.output
-			}
-		}
-		if session.Single && !session.isResumable() && of != nil {
-			err := os.Rename(of.Name(), outputName)
-			m.loggers[DBUG].Printf("%q renamed to %q with: %v", of, outputName, err)
-		}
+	if err := cmp.Or(err, context.Cause(m.Ctx)); err != nil {
 		expProgress.Set("error", expvar.Func(func() any { return err.Error() }))
-		return cmp.Or(context.Cause(m.Ctx), err)
+		return err
 	}
 
 	if doneCount.Load() != uint32(len(session.Parts)) {
