@@ -378,14 +378,15 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	go func() {
-		firstResp.cancel(eg.Wait())
+		_ = eg.Wait()
+		firstResp.cancel(nil)
 	}()
 
 	<-firstResp.ctx.Done()
 
 	start := time.Now()
 	cause := context.Cause(firstResp.ctx)
-	m.loggers[DBUG].Printf("%T: %[1]v", cause)
+	m.loggers[DBUG].Printf("%T: %v", firstResp, cause)
 
 	switch {
 	case errors.Is(cause, errContextFallback):
