@@ -433,7 +433,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 			}
 			if part == nil {
-				recoverHandler.Do(session.cancel)
+				session.canceled = true
 				panic(fmt.Errorf("unexpected firstResp id: %d", id))
 			}
 			session.Parts[0] = part
@@ -473,7 +473,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	if doneCount.Load() != uint32(len(session.Parts)) {
-		recoverHandler.Do(session.cancel)
+		session.canceled = true
 		panic(errors.New("done count != session parts"))
 	}
 
