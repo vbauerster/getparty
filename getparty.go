@@ -319,9 +319,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			progress.Wait()
 		case sessionCompleted:
 			of := session.Parts[0].output
-			err := cmp.Or(of.Sync(), of.Close(), os.Rename(of.Name(), outputName))
+			err = cmp.Or(of.Sync(), of.Close(), os.Rename(of.Name(), outputName))
 			m.loggers[DBUG].Printf("%q sync,close,rename to %q: %v", of, outputName, err)
-			if m.opt.SessionName != "" {
+			if m.opt.SessionName != "" && err == nil {
 				m.loggers[DBUG].Printf("%q remove: %v", m.opt.SessionName, os.Remove(m.opt.SessionName))
 			}
 			progress.Wait()
