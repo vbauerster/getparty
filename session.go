@@ -96,7 +96,6 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (err error)
 	var stat os.FileInfo
 	parts := make([]*outFile, 0, len(s.Parts))
 	for _, p := range s.Parts {
-		p.output.written = p.Written
 		parts = append(parts, p.output)
 	}
 
@@ -121,7 +120,7 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (err error)
 
 	if s.Single {
 		if !s.isResumable() {
-			s.ContentLength = parts[0].written
+			s.ContentLength = s.Parts[0].Written
 		}
 		return nil
 	}
@@ -129,8 +128,8 @@ func (s Session) concatenate(progress *progress, logger *log.Logger) (err error)
 		return errors.New("attempt to concat unresumable session")
 	}
 
-	for _, of := range parts {
-		err := of.checkContentMismatch()
+	for i, of := range parts {
+		err := of.checkContentMismatch(s.Parts[i].Written)
 		if err != nil {
 			return err
 		}
