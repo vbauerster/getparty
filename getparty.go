@@ -269,8 +269,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
-	pcount, current := session.activePartsCount(), session.totalWritten()
-	progress := newProgress(m.Ctx, m.Out, m.Err, pcount)
+	uncompletedParts, current := session.uncompletedPartsCount(), session.totalWritten()
+	progress := newProgress(m.Ctx, m.Out, m.Err, uncompletedParts)
 	stateQuery := makeStateQuery(current, session.ContentLength, session.isResumable())
 	outputName := filepath.Join(session.dir, session.OutputName)
 	defer func() {
@@ -347,8 +347,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var chunks [][]byte
 	{
 		size := m.opt.BufferSize * 1024
-		row := make([]byte, size*uint(pcount))
-		for range pcount {
+		row := make([]byte, size*uint(uncompletedParts))
+		for range uncompletedParts {
 			chunks = append(chunks, slices.Clip(row[i:i+size]))
 			i += size
 		}

@@ -163,7 +163,7 @@ func (s Session) totalWritten() int64 {
 	return total
 }
 
-func (s Session) activePartsCount() int {
+func (s Session) uncompletedPartsCount() int {
 	count := len(s.Parts)
 	for _, p := range s.Parts {
 		if p.isContentDownloaded() {
