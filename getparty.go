@@ -477,7 +477,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		panic(errors.New("done count != session parts"))
 	}
 
-	return withStack(session.concatenate(progress, m.loggers[DBUG]))
+	return withStack(session.merge(progress, m.loggers[DBUG]))
 }
 
 func (m *Cmd) init(args []string) error {

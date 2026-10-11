@@ -92,7 +92,7 @@ func (s *Session) cancel() {
 	s.canceled = true
 }
 
-func (s Session) concatenate(progress *progress, logger *log.Logger) (err error) {
+func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 	var stat os.FileInfo
 	parts := make([]*outFile, 0, len(s.Parts))
 	for _, p := range s.Parts {
