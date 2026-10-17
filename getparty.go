@@ -263,7 +263,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	session, err := m.getState(patcher)
 	if err != nil {
 		if session != nil && errors.Is(err, ErrZeroParts) {
-			session.summary(m.loggers)
+			session.summary("", m.loggers)
 		}
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
@@ -337,9 +337,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		defer shutdown()
 	}
 
-	session.summary(m.loggers)
-	m.loggers[INFO].Printf("Saving to: %q", outputName)
-
 	var i uint
 	var doneCount atomic.Uint32
 	var eg errgroup.Group
@@ -360,6 +357,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		timeout: m.getTimeout(),
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
 	}
+
+	session.summary(outputName, m.loggers)
 
 	for _, p := range session.Parts {
 		if err := p.init(session); err != nil {

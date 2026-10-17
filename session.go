@@ -171,7 +171,7 @@ func (s Session) uncompletedPartsCount() int {
 	return count
 }
 
-func (s Session) summary(loggers [lEVELS]*log.Logger) {
+func (s Session) summary(output string, loggers [lEVELS]*log.Logger) {
 	format := fmt.Sprintf("Length: %%s [%s]", s.ContentType)
 	switch {
 	case s.isResumable():
@@ -188,5 +188,8 @@ func (s Session) summary(loggers [lEVELS]*log.Logger) {
 		message := "Session is not resumable"
 		loggers[WARN].Println(message)
 		loggers[DBUG].Println(message)
+	}
+	if output != "" {
+		loggers[INFO].Printf("Saving to: %q", output)
 	}
 }
