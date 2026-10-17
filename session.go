@@ -27,7 +27,6 @@ type Session struct {
 	Parts         []*Part
 	Single        bool
 	restored      bool
-	canceled      bool
 }
 
 func (s *Session) makeParts(n uint) error {
@@ -82,14 +81,13 @@ func (s *Session) dumpState(name string) error {
 	return cmp.Or(json.NewEncoder(f).Encode(s), f.Close())
 }
 
-// invariant: this call is expected to be called by sync.Once
-func (s *Session) cancel() {
+// cancel is idempotent and concurrency safe
+func (s Session) cancel() {
 	for _, p := range s.Parts {
 		if p.cancel != nil {
 			p.cancel()
 		}
 	}
-	s.canceled = true
 }
 
 func (s Session) merge(progress *progress, logger *log.Logger) (err error) {

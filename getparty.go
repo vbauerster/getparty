@@ -25,7 +25,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -269,6 +268,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
+	var canceled atomic.Bool
 	uncompletedParts, current := session.uncompletedPartsCount(), session.totalWritten()
 	progress := newProgress(m.Ctx, m.Out, m.Err, uncompletedParts)
 	stateQuery := makeStateQuery(current, session.ContentLength, session.isResumable())
@@ -280,7 +280,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		switch state {
 		case sessionUncompletedWithAdvance, sessionCompletedWithError:
 			dumpName := outputName
-			if session.canceled {
+			if canceled.Load() {
 				dumpName += ".recovered"
 			} else {
 				dumpName += ".json"
@@ -343,7 +343,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var i uint
 	var doneCount atomic.Uint32
 	var eg errgroup.Group
-	var recoverHandler sync.Once
 	var chunks [][]byte
 	{
 		size := m.opt.BufferSize * 1024
@@ -364,7 +363,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	for _, p := range session.Parts {
 		if err := p.init(session); err != nil {
-			recoverHandler.Do(session.cancel)
+			session.cancel()
+			canceled.Store(true)
 			return err
 		}
 		if p.isContentDownloaded() {
@@ -381,7 +381,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		eg.Go(func() (err error) {
 			defer func() {
 				if x := recover(); x != nil {
-					recoverHandler.Do(session.cancel)
+					session.cancel()
+					canceled.Store(true)
 					if e, ok := x.(error); ok {
 						err = fmt.Errorf("%s recovered: %w", p.name, e)
 					} else {
@@ -412,7 +413,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	switch {
 	case errors.Is(cause, errContextFallback):
 		if session.restored {
-			recoverHandler.Do(session.cancel)
+			session.cancel()
+			canceled.Store(true)
 			_ = eg.Wait()
 			panic(fmt.Errorf(
 				"restored session is expected to have status %d but it is %d instead",
@@ -433,7 +435,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 			}
 			if part == nil {
-				session.canceled = true
+				canceled.Store(true)
 				panic(fmt.Errorf("unexpected firstResp id: %d", id))
 			}
 			session.Parts[0] = part
@@ -473,7 +475,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	if doneCount.Load() != uint32(len(session.Parts)) {
-		session.canceled = true
+		canceled.Store(true)
 		panic(errors.New("done count != session parts"))
 	}
 
