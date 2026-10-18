@@ -873,33 +873,31 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 		// dst.file can be nil when session is restored with some done part
 		if dst.file == nil {
 			err := dst.Open(os.O_WRONLY | os.O_APPEND)
+			logger.Printf("dst=%q reopen: %v", dst, err)
 			if err != nil {
 				return err
 			}
-			logger.Printf("%q dst reopen ok", dst)
 		}
 		// have to reopen src.file for reading
 		err := src.Open(os.O_RDONLY)
+		logger.Printf("src=%q reopen: %v", src, err)
 		if err != nil {
 			return err
 		}
-		logger.Printf("%q src reopen ok", src)
 
 		eg.Go(func() (err error) {
-			defer func() {
-				if err == nil {
-					bar.Increment()
-					src.file = nil
-				}
-			}()
-
 			n, err := io.Copy(dst.file, src.file)
+			logger.Printf("dst=%q <- src=%q %d: %v", dst, src, n, err)
 			if err != nil {
 				return err
 			}
-			logger.Printf("%d bytes copied: dst=%q src=%q", n, dst, src)
 
-			return cmp.Or(src.Close(), os.Remove(src.Name()))
+			bar.Increment()
+
+			err = cmp.Or(src.Close(), os.Remove(src.Name()))
+			logger.Printf("src=%q close,remove: %v", src, err)
+			src.file = nil
+			return err
 		})
 	}
 
