@@ -137,12 +137,9 @@ func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 	if err != nil {
 		return err
 	}
-
 	defer func() {
 		if err != nil {
 			bar.Abort(false)
-		} else {
-			bar.Increment()
 		}
 	}()
 

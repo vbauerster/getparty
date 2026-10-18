@@ -860,6 +860,7 @@ func (m Cmd) expListenAndServe() (bool, func()) {
 // https://go.dev/play/p/Q25_gze66yB
 func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 	if len(parts) < 2 {
+		bar.Increment()
 		return nil
 	}
 
