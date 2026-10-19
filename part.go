@@ -338,7 +338,15 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				return false, withStack(err)
 			}
 
+			var lt limitTimer
 			var limit func(limitTimer, context.Context) bool
+			var sleep bool
+			if opt.sleep == 0 {
+				limit = limitTimer.nop
+			} else {
+				limit = limitTimer.wait
+				sleep = true
+			}
 			for nw, blen := int64(0), int64(len(buf)); timer.Reset(timeout + opt.sleep); {
 				start := time.Now()
 				// p.output doesn't implement io.ReaderFrom which implies buf will be used to perform the copy
@@ -351,15 +359,11 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					return errors.Is(context.Cause(timedCtx), errTimeout) || !errors.Is(err, context.Canceled), err
 				}
 
-				p.Written += nw
-
-				var lt limitTimer
-				if opt.sleep != 0 {
+				if sleep {
 					lt.timer = time.NewTimer(opt.sleep)
-					limit = limitTimer.wait
-				} else {
-					limit = limitTimer.nop
 				}
+
+				p.Written += nw
 
 				switch {
 				case p.single:
@@ -374,9 +378,10 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				bar.EwmaIncrInt64(nw, ewmaDur)
 
 				if nw < blen && err == nil {
-					// src stopped early; must have been EOF.
-					err = io.EOF
-					lt.stop()
+					if lt.timer != nil {
+						lt.timer.Stop()
+					}
+					err = io.EOF // src stopped early; must have been EOF
 					p.logger.Println("Break loop:", nw, err.Error())
 					break
 				}
@@ -444,12 +449,6 @@ func (p Part) isContentDownloaded() bool {
 
 type limitTimer struct {
 	timer *time.Timer
-}
-
-func (t limitTimer) stop() {
-	if t.timer != nil {
-		t.timer.Stop()
-	}
 }
 
 // wait invariant: t.timer != nil
