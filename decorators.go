@@ -16,11 +16,11 @@ const flashTimes = 15
 var (
 	_ decor.Decorator = (*mainDecorator)(nil)
 	_ decor.Decorator = (*flashDecorator)(nil)
-	_ decor.Wrapper   = (*flashDecorator)(nil)
 	_ decor.Decorator = (*ewmaSpeedPeak)(nil)
+	_ decor.Wrapper   = (*ewmaSpeedPeak)(nil)
 )
 
-func newFlashDecorator(decorator decor.Decorator, msg string, signal <-chan struct{}) decor.Decorator {
+func newFlashDecorator(decorator *mainDecorator, msg string, signal <-chan struct{}) *flashDecorator {
 	if decorator == nil {
 		return nil
 	}
@@ -37,10 +37,6 @@ type flashDecorator struct {
 	signal <-chan struct{}
 	msg    string
 	count  uint
-}
-
-func (d *flashDecorator) Unwrap() decor.Decorator {
-	return d.Decorator
 }
 
 func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
@@ -64,7 +60,7 @@ type mainDecorator struct {
 	format string
 }
 
-func newMainDecorator(curTry *atomic.Uint32, name, format string, wc decor.WC) decor.Decorator {
+func newMainDecorator(curTry *atomic.Uint32, name, format string, wc decor.WC) *mainDecorator {
 	if curTry == nil {
 		panic(errors.New("expected non nil curTry"))
 	}
@@ -95,7 +91,7 @@ type ewmaSpeedPeak struct {
 	min    float64
 }
 
-func newEwmaSpeedPeak(format string, age float64, wc decor.WC) decor.Decorator {
+func newEwmaSpeedPeak(format string, age float64, wc decor.WC) *ewmaSpeedPeak {
 	mean := decor.NewThreadSafeMovingAverage(ewma.NewMovingAverage(age))
 	d := &ewmaSpeedPeak{
 		Decorator: decor.MovingAverageSpeed(decor.SizeB1024(0), format, mean, wc),
