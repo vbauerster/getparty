@@ -54,9 +54,9 @@ func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 
 type mainDecorator struct {
 	decor.WC
-	curTry *atomic.Uint32
 	name   string
 	format string
+	curTry *atomic.Uint32
 }
 
 func newMainDecorator(curTry *atomic.Uint32, name, format string, wc decor.WC) *mainDecorator {
@@ -65,9 +65,9 @@ func newMainDecorator(curTry *atomic.Uint32, name, format string, wc decor.WC) *
 	}
 	d := &mainDecorator{
 		WC:     wc.Init(),
-		curTry: curTry,
 		name:   name,
 		format: format,
+		curTry: curTry,
 	}
 	return d
 }
