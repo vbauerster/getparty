@@ -334,7 +334,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					globTry.Add(^uint32(0)) // decrement
 				}
 				err := UnexpectedHttpStatusError(resp.StatusCode)
-				_, _ = fmt.Fprintf(p.progress, "%s%s\n", p.logger.Prefix(), err.Error())
+				log.New(p.progress, p.logger.Prefix(), log.Ltime).Println(err.Error())
 				return false, withStack(err)
 			}
 
