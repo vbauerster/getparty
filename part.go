@@ -23,7 +23,7 @@ import (
 
 const timeoutMsg = "Timeout..."
 const prefixFormat = "[%s:R%02d] "
-const ewmaAge = 31
+const ewmaAge = 32
 
 var globTry atomic.Uint32
 
