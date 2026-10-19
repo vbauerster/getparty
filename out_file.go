@@ -4,6 +4,8 @@ import "os"
 
 const umask = 0644
 
+// outFile invariant:
+// must not implement io.ReaderFrom for correct buf usage by io.CopyBuffer
 type outFile struct {
 	name string
 	file *os.File

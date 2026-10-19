@@ -341,8 +341,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			var limit func(limitTimer, context.Context) bool
 			for nw, blen := int64(0), int64(len(buf)); timer.Reset(timeout + opt.sleep); {
 				start := time.Now()
-				// passing p.output instead of p.output.file is a
-				// guarantee that buf will be used to perform the copy
+				// p.output doesn't implement io.ReaderFrom which implies buf will be used to perform the copy
 				nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, blen), buf)
 				ewmaDur := time.Since(start)
 
