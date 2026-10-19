@@ -355,7 +355,6 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 				if nw == 0 && err != nil {
 					bar.EwmaIncrInt64(nw, ewmaDur)
-					p.logger.Println("Break loop:", nw, err.Error())
 					return errors.Is(context.Cause(timedCtx), errTimeout) || !errors.Is(err, context.Canceled), err
 				}
 
