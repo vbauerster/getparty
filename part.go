@@ -354,7 +354,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				ewmaDur := time.Since(start)
 
 				if nw == 0 && err != nil {
-					bar.EwmaIncrInt64(nw, ewmaDur)
+					bar.EwmaIncrInt64(0, ewmaDur)
 					return errors.Is(context.Cause(timedCtx), errTimeout) || !errors.Is(err, context.Canceled), err
 				}
 
