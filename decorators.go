@@ -11,7 +11,7 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
-const flashTimes = 15
+const flashTimes = 16
 
 var (
 	_ decor.Decorator = (*mainDecorator)(nil)
@@ -47,9 +47,8 @@ func (d *flashDecorator) Decor(stat decor.Statistics) (string, int) {
 		default:
 			return d.Decorator.Decor(stat)
 		}
-	} else {
-		d.count--
 	}
+	d.count--
 	return d.Format(d.msg)
 }
 
