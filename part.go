@@ -364,14 +364,14 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 				p.Written += nw
 
-				switch {
-				case p.single:
+				if !p.single {
+					p.progress.incrTotal(nw)
+				} else {
+					expProgress.Add("current", nw)
 					if p.len() <= 0 {
+						// bar.SetTotal should precede bar.EwmaIncrInt64
 						bar.SetTotal(p.Written, false)
 					}
-					expProgress.Add("current", nw)
-				default:
-					p.progress.incrTotal(nw)
 				}
 
 				bar.EwmaIncrInt64(nw, ewmaDur)
