@@ -324,7 +324,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 						}
 						p.Written = 0
 						bar.SetCurrent(0)
-						expProgress.Set("current", expvar.Func(func() any { return 0 }))
+						expProgress.Set(expCurrent, expvar.Func(func() any { return 0 }))
 					}
 				}
 			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
@@ -367,7 +367,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				if !p.single {
 					p.progress.incrTotal(nw)
 				} else {
-					expProgress.Add("current", nw)
+					expProgress.Add(expCurrent, nw)
 					if p.len() <= 0 {
 						// bar.SetTotal should precede bar.EwmaIncrInt64
 						bar.SetTotal(p.Written, false)

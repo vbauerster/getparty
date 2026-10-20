@@ -80,6 +80,9 @@ const (
 	hRange              = "Range"
 	hCookie             = "Cookie"
 	hHost               = "Host"
+	expCurrent          = "current"
+	expTotal            = "total"
+	expError            = "error"
 )
 
 var httpClient *http.Client // gets initialized at (*Cmd).getState
@@ -331,9 +334,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}()
 
 	_ = expProgress.Init()
-	expProgress.Add("total", session.ContentLength)
-	expProgress.Add("current", current)
-	expProgress.Set("error", nil)
+	expProgress.Add(expTotal, session.ContentLength)
+	expProgress.Add(expCurrent, current)
+	expProgress.Set(expError, nil)
 	if ok, shutdown := m.expListenAndServe(); ok {
 		defer shutdown()
 	}
@@ -464,7 +467,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				bar.Abort(false)
 			}()
 			incr := func(n int64) {
-				expProgress.Add("current", n)
+				expProgress.Add(expCurrent, n)
 				bar.IncrInt64(n)
 			}
 			for range max(cap(progress.totalCh)/3, 1) {
@@ -494,7 +497,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	session.Elapsed += time.Since(start)
 
 	if err := cmp.Or(err, context.Cause(m.Ctx)); err != nil {
-		expProgress.Set("error", expvar.Func(func() any { return err.Error() }))
+		expProgress.Set(expError, expvar.Func(func() any { return err.Error() }))
 		return err
 	}
 
