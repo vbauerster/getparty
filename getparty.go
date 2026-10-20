@@ -452,17 +452,17 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			if err != nil {
 				return withStack(err)
 			}
+			if current != 0 {
+				m.loggers[DBUG].Println("Setting total current:", current)
+				bar.SetCurrent(current)
+				bar.SetRefillCurrent()
+			}
 			var wg sync.WaitGroup
 			defer func() {
 				close(progress.totalCh)
 				wg.Wait()
 				bar.Abort(false)
 			}()
-			if current != 0 {
-				m.loggers[DBUG].Println("Setting total current:", current)
-				bar.SetCurrent(current)
-				bar.SetRefillCurrent()
-			}
 			incr := func(n int64) {
 				expProgress.Add("current", n)
 				bar.IncrInt64(n)
