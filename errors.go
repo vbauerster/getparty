@@ -1,3 +1,4 @@
+//go:generate go tool stringer -type=mismatchType -trimprefix=mismatch
 //go:generate go tool stringer -type=statusContextError -trimprefix=err
 
 package getparty
@@ -9,16 +10,22 @@ import (
 )
 
 const (
+	mismatchContentType mismatchType = iota
+	mismatchContentLength
+)
+
+const (
 	errContextPartial statusContextError = iota
 	errContextFallback
 )
 
 type (
+	mismatchType                int
 	statusContextError          int
 	UnexpectedHttpStatusError   int
 	ExpectedError               string
 	ContentMismatchError[T any] struct {
-		kind string
+		kind mismatchType
 		old  T
 		new  T
 	}
@@ -37,7 +44,7 @@ func (e UnexpectedHttpStatusError) Error() string {
 }
 
 func (e ContentMismatchError[T]) Error() string {
-	return fmt.Sprintf("Content%s mismatch: expected %v got %v", e.kind, e.old, e.new)
+	return fmt.Sprintf("%s mismatch: expected %v got %v", e.kind, e.old, e.new)
 }
 
 type debugError struct {

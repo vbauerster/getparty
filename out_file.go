@@ -67,7 +67,7 @@ func (s *outFile) checkContentMismatch(written int64) error {
 	}
 	if size := stat.Size(); written != size {
 		err := ContentMismatchError[int64]{
-			kind: "Length",
+			kind: mismatchContentLength,
 			old:  written,
 			new:  size,
 		}

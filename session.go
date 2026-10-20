@@ -108,7 +108,7 @@ func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 		}
 		if size := stat.Size(); s.ContentLength != size {
 			err = ContentMismatchError[int64]{
-				kind: "Length",
+				kind: mismatchContentLength,
 				old:  s.ContentLength,
 				new:  size,
 			}

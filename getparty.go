@@ -1009,14 +1009,14 @@ func isFileExist(name string) (bool, error) {
 func checkContentMismatch(old, new *Session) error {
 	if old.ContentType != new.ContentType {
 		return ContentMismatchError[string]{
-			kind: "Type",
+			kind: mismatchContentType,
 			old:  old.ContentType,
 			new:  new.ContentType,
 		}
 	}
 	if old.ContentLength != new.ContentLength {
 		return ContentMismatchError[int64]{
-			kind: "Length",
+			kind: mismatchContentLength,
 			old:  old.ContentLength,
 			new:  new.ContentLength,
 		}

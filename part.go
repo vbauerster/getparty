@@ -140,7 +140,7 @@ func (p *Part) init(session *Session) error {
 		}
 		if size := stat.Size(); size != p.Written {
 			err := ContentMismatchError[int64]{
-				kind: "Length",
+				kind: mismatchContentLength,
 				old:  p.Written,
 				new:  size,
 			}
