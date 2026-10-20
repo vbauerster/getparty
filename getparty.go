@@ -455,7 +455,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				return withStack(err)
 			}
 			defer func() {
-				close(progress.totalUpd)
+				close(progress.totalCh)
 				wg.Wait()
 				bar.Abort(false)
 			}()

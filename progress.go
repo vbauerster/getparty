@@ -14,9 +14,9 @@ import (
 
 type progress struct {
 	*mpb.Progress
-	nopBar   *mpb.Bar
-	totalUpd chan int64
-	out      io.Writer
+	nopBar  *mpb.Bar
+	totalCh chan int64
+	out     io.Writer
 }
 
 func newProgress(ctx context.Context, out, err io.Writer, plen int) *progress {
@@ -30,7 +30,7 @@ func newProgress(ctx context.Context, out, err io.Writer, plen int) *progress {
 	return &progress{
 		Progress: p,
 		nopBar:   p.New(0, nil),
-		totalUpd: make(chan int64, min(plen, 12)),
+		totalCh:  make(chan int64, min(plen, 12)),
 		out:      out,
 	}
 }
@@ -41,10 +41,10 @@ func (p *progress) Wait() {
 	_, _ = fmt.Fprintln(p.out)
 }
 
-// incrTotal invariant: runTotalBar must be called once before calling
-// this one otherwise incrTotal will block after totalUpd chan is full.
+// incrTotal invariant: addTotalBar must be called before calling this one
+// otherwise incrTotal will block after p.totalCh is full.
 func (p *progress) incrTotal(n int64) {
-	p.totalUpd <- n
+	p.totalCh <- n
 }
 
 func (p *progress) addTotalBar(
@@ -77,7 +77,7 @@ func (p *progress) addTotalBar(
 		return nil, err
 	}
 
-	for range max(cap(p.totalUpd)/3, 1) {
+	for range max(cap(p.totalCh)/3, 1) {
 		wg.Go(func() {
 			var sum int64
 			defer func() {
@@ -86,7 +86,7 @@ func (p *progress) addTotalBar(
 					bar.IncrInt64(sum)
 				}
 			}()
-			for n := range p.totalUpd {
+			for n := range p.totalCh {
 				if sum == 0 {
 					sum = n
 				} else {
