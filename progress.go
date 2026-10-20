@@ -15,25 +15,21 @@ import (
 type progress struct {
 	*mpb.Progress
 	nopBar   *mpb.Bar
-	totalWg  *sync.WaitGroup
 	totalUpd chan int64
 	out      io.Writer
 }
 
 func newProgress(ctx context.Context, out, err io.Writer, plen int) *progress {
-	totalWg := new(sync.WaitGroup)
 	p := mpb.NewWithContext(ctx,
 		mpb.WithOutput(out),
 		mpb.WithDebugOutput(err),
 		mpb.WithRefreshRate(refreshRate*time.Millisecond),
 		mpb.WithWidth(64),
-		mpb.WithWaitGroup(totalWg),
 		mpb.WithQueueLen(plen+3), // +3 to account nopBar totalBar and mergeBar
 	)
 	return &progress{
 		Progress: p,
 		nopBar:   p.New(0, nil),
-		totalWg:  totalWg,
 		totalUpd: make(chan int64, min(plen, 12)),
 		out:      out,
 	}
@@ -52,6 +48,7 @@ func (p *progress) incrTotal(n int64) {
 }
 
 func (p *progress) addTotalBar(
+	wg *sync.WaitGroup,
 	doneCount *atomic.Uint32,
 	partCount int,
 	contentLength int64,
@@ -81,7 +78,7 @@ func (p *progress) addTotalBar(
 	}
 
 	for range max(cap(p.totalUpd)/3, 1) {
-		p.totalWg.Go(func() {
+		wg.Go(func() {
 			var sum int64
 			defer func() {
 				if sum != 0 {

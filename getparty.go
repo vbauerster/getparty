@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -442,7 +443,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	case errors.Is(cause, errContextPartial):
 		if !session.Single {
+			var wg sync.WaitGroup
 			bar, err := progress.addTotalBar(
+				&wg,
 				&doneCount,
 				len(session.Parts),
 				session.ContentLength,
@@ -453,6 +456,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 			defer func() {
 				close(progress.totalUpd)
+				wg.Wait()
 				bar.Abort(false)
 			}()
 			if current != 0 {
