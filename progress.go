@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -48,13 +47,12 @@ func (p *progress) incrTotal(n int64) {
 }
 
 func (p *progress) addTotalBar(
-	wg *sync.WaitGroup,
 	doneCount *atomic.Uint32,
 	partCount int,
 	contentLength int64,
 	start time.Time,
 ) (*mpb.Bar, error) {
-	bar, err := p.Add(contentLength, barBuilder.Build(),
+	return p.Add(contentLength, barBuilder.Build(),
 		mpb.BarFillerTrim(),
 		mpb.BarPriority(partCount+1),
 		mpb.PrependDecorators(
@@ -73,33 +71,6 @@ func (p *progress) addTotalBar(
 			decor.NewAverageSpeed(decor.SizeB1024(0), "%.1f", start, decor.WCSyncSpace),
 		),
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	for range max(cap(p.totalCh)/3, 1) {
-		wg.Go(func() {
-			var sum int64
-			defer func() {
-				if sum != 0 {
-					expProgress.Add("current", sum)
-					bar.IncrInt64(sum)
-				}
-			}()
-			for n := range p.totalCh {
-				if sum == 0 {
-					sum = n
-				} else {
-					sum += n
-					expProgress.Add("current", sum)
-					bar.IncrInt64(sum)
-					sum = 0
-				}
-			}
-		})
-	}
-
-	return bar, nil
 }
 
 func (p *progress) addMergeBar(partCount int) (*mpb.Bar, error) {

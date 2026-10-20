@@ -443,9 +443,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 	case errors.Is(cause, errContextPartial):
 		if !session.Single {
-			var wg sync.WaitGroup
 			bar, err := progress.addTotalBar(
-				&wg,
 				&doneCount,
 				len(session.Parts),
 				session.ContentLength,
@@ -454,6 +452,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			if err != nil {
 				return withStack(err)
 			}
+			var wg sync.WaitGroup
 			defer func() {
 				close(progress.totalCh)
 				wg.Wait()
@@ -463,6 +462,27 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				m.loggers[DBUG].Println("Setting total current:", current)
 				bar.SetCurrent(current)
 				bar.SetRefillCurrent()
+			}
+			for range max(cap(progress.totalCh)/3, 1) {
+				wg.Go(func() {
+					var sum int64
+					defer func() {
+						if sum != 0 {
+							expProgress.Add("current", sum)
+							bar.IncrInt64(sum)
+						}
+					}()
+					for n := range progress.totalCh {
+						if sum == 0 {
+							sum = n
+						} else {
+							sum += n
+							expProgress.Add("current", sum)
+							bar.IncrInt64(sum)
+							sum = 0
+						}
+					}
+				})
 			}
 		}
 		fallthrough
