@@ -469,18 +469,18 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			}
 			for range max(cap(progress.totalCh)/3, 1) {
 				wg.Go(func() {
-					var sum int64
+					var stash int64
 					defer func() {
-						if sum != 0 {
-							incr(sum)
+						if stash != 0 {
+							incr(stash)
 						}
 					}()
 					for n := range progress.totalCh {
-						if sum == 0 {
-							sum = n
+						if stash == 0 {
+							stash = n
 						} else {
-							incr(sum + n)
-							sum = 0
+							incr(stash + n)
+							stash = 0
 						}
 					}
 				})
