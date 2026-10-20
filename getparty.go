@@ -463,22 +463,23 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				bar.SetCurrent(current)
 				bar.SetRefillCurrent()
 			}
+			incr := func(n int64) {
+				expProgress.Add("current", n)
+				bar.IncrInt64(n)
+			}
 			for range max(cap(progress.totalCh)/3, 1) {
 				wg.Go(func() {
 					var sum int64
 					defer func() {
 						if sum != 0 {
-							expProgress.Add("current", sum)
-							bar.IncrInt64(sum)
+							incr(sum)
 						}
 					}()
 					for n := range progress.totalCh {
 						if sum == 0 {
 							sum = n
 						} else {
-							sum += n
-							expProgress.Add("current", sum)
-							bar.IncrInt64(sum)
+							incr(sum + n)
 							sum = 0
 						}
 					}
