@@ -497,7 +497,11 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	session.Elapsed += time.Since(start)
 
 	if err := cmp.Or(err, context.Cause(m.Ctx)); err != nil {
-		expProgress.Set(expError, expvar.Func(func() any { return err.Error() }))
+		expProgress.Set(expError, expvar.Func(func() any {
+			// returning just err will result in empty object like '"error":{}'
+			// therefore call Error() instead to have some error string value
+			return err.Error()
+		}))
 		return err
 	}
 
