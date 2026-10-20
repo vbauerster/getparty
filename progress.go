@@ -47,10 +47,10 @@ func (p *progress) incrTotal(n int64) {
 }
 
 func (p *progress) addTotalBar(
-	doneCount *atomic.Uint32,
-	partCount int,
-	contentLength int64,
 	start time.Time,
+	contentLength int64,
+	partCount int,
+	doneCount *atomic.Uint32,
 ) (*mpb.Bar, error) {
 	return p.Add(contentLength, barBuilder.Build(),
 		mpb.BarFillerTrim(),

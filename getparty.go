@@ -444,10 +444,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	case errors.Is(cause, errContextPartial):
 		if !session.Single {
 			bar, err := progress.addTotalBar(
-				&doneCount,
-				len(session.Parts),
-				session.ContentLength,
 				start.Add(-session.Elapsed),
+				session.ContentLength,
+				len(session.Parts),
+				&doneCount,
 			)
 			if err != nil {
 				return withStack(err)
