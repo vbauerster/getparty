@@ -1,3 +1,5 @@
+//go:generate go tool stringer -type=statusContextError -trimprefix=err
+
 package getparty
 
 import (
@@ -6,7 +8,13 @@ import (
 	"runtime/debug"
 )
 
+const (
+	errContextPartial statusContextError = iota
+	errContextFallback
+)
+
 type (
+	statusContextError          int
 	UnexpectedHttpStatusError   int
 	ExpectedError               string
 	ContentMismatchError[T any] struct {
@@ -15,6 +23,10 @@ type (
 		new  T
 	}
 )
+
+func (s statusContextError) Error() string {
+	return s.String()
+}
 
 func (e ExpectedError) Error() string {
 	return string(e)

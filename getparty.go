@@ -1,4 +1,4 @@
-//go:generate go tool stringer -type=sessionState,statusContextError -trimprefix=err -output enums_string.go
+//go:generate go tool stringer -type=sessionState
 
 package getparty
 
@@ -39,22 +39,12 @@ import (
 )
 
 type sessionState int
-type statusContextError int
-
-func (s statusContextError) Error() string {
-	return s.String()
-}
 
 const (
 	sessionUncompleted sessionState = iota
 	sessionUncompletedWithAdvance
 	sessionCompletedWithError
 	sessionCompleted
-)
-
-const (
-	errContextPartial statusContextError = iota
-	errContextFallback
 )
 
 const (
