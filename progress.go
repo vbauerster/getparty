@@ -82,9 +82,22 @@ func (p *progress) addTotalBar(
 
 	for range max(cap(p.totalUpd)/3, 1) {
 		p.totalWg.Go(func() {
+			var sum int64
+			defer func() {
+				if sum != 0 {
+					expProgress.Add("current", sum)
+					bar.IncrInt64(sum)
+				}
+			}()
 			for n := range p.totalUpd {
-				expProgress.Add("current", n)
-				bar.IncrInt64(n)
+				if sum == 0 {
+					sum = n
+				} else {
+					sum += n
+					expProgress.Add("current", sum)
+					bar.IncrInt64(sum)
+					sum = 0
+				}
 			}
 		})
 	}
