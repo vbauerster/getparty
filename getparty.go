@@ -48,15 +48,6 @@ const (
 )
 
 const (
-	ErrCanceledByUser      = ExpectedError("Canceled by user")
-	ErrMaxRedirect         = ExpectedError("Max redirections")
-	ErrMaxRetry            = ExpectedError("Max retries")
-	ErrZeroParts           = ExpectedError("No parts no work")
-	ErrTooFragmented       = ExpectedError("Too fragmented, reduce number of parts maybe?")
-	ErrInteractionRequired = ExpectedError("Interaction required, run without --queit maybe?")
-)
-
-const (
 	cmdName     = "getparty"
 	projectHome = "https://github.com/vbauerster/getparty"
 
