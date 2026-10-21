@@ -508,12 +508,7 @@ func (m *Cmd) init(args []string) error {
 }
 
 func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
-	var client *http.Client
 	defer func() {
-		if err == nil && client != nil {
-			client.CheckRedirect = nil
-			httpClient = client
-		}
 		err = withMessage(err, "getState")
 	}()
 	rtBuilder := newRoundTripperBuilder(m.loggers[DBUG])
@@ -550,8 +545,8 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				// respect UserAgent explicitly set by user
 				patcher.setUserAgent(userAgents[m.opt.UserAgent])
 			}
-			if client == nil {
-				client = &http.Client{
+			if httpClient == nil {
+				httpClient = &http.Client{
 					Jar:       jar,
 					Transport: rtBuilder.pool(true).build(),
 				}
@@ -569,7 +564,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			// re-follow with patcher set to restored.HeaderMap and restored.URL
 			m.opt.Headers = restored.Headers
 			m.opt.Output.Name = restored.OutputName
-			session, err = m.follow(patcher, client, restored.URL)
+			session, err = m.follow(patcher, restored.URL)
 			if err != nil {
 				return nil, err
 			}
@@ -595,11 +590,11 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			m.opt.Positional.Location = top[0].url
 			fallthrough
 		case m.opt.Positional.Location != "":
-			client = &http.Client{
+			httpClient = &http.Client{
 				Jar:       jar,
 				Transport: rtBuilder.pool(true).build(),
 			}
-			session, err = m.follow(patcher, client, m.opt.Positional.Location)
+			session, err = m.follow(patcher, m.opt.Positional.Location)
 			if err != nil {
 				return nil, err
 			}
@@ -672,17 +667,18 @@ func (m Cmd) getTLSConfig() (config *tls.Config, err error) {
 	return config, nil
 }
 
-func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL string) (session *Session, err error) {
+// follow invariant: httpClient != nil
+func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session, err error) {
 	var redirected bool
 	defer func() {
 		if redirected {
-			client.CloseIdleConnections()
+			httpClient.CloseIdleConnections()
 		}
-		client.CheckRedirect = nil
+		httpClient.CheckRedirect = nil
 		err = withMessage(err, "follow")
 	}()
 
-	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 
@@ -716,7 +712,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 					m.loggers[DBUG].Printf("Request Header: %s: %v", k, v)
 				}
 
-				resp, err := client.Do(req.WithContext(ctx))
+				resp, err := httpClient.Do(req.WithContext(ctx))
 				if err != nil {
 					m.loggers[WARN].Println(unwrapOrErr(err).Error())
 					m.loggers[DBUG].Println(err.Error())
@@ -726,7 +722,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 					return true, withStack(err)
 				}
 
-				if jar := client.Jar; jar != nil {
+				if jar := httpClient.Jar; jar != nil {
 					for _, cookie := range jar.Cookies(req.URL) {
 						m.loggers[DBUG].Println("Cookie:", cookie) // *http.Cookie implements fmt.Stringer
 					}
