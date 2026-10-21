@@ -49,8 +49,7 @@ func (b roundTripperBuilder) pool(ok bool) roundTripperBuilder {
 	return b
 }
 
-func (b roundTripperBuilder) build() http.RoundTripper {
-	var transport *http.Transport
+func (b roundTripperBuilder) build() (transport *http.Transport) {
 	if b.cfg.pooled {
 		transport = cleanhttp.DefaultPooledTransport()
 	} else {
