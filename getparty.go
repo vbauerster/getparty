@@ -729,7 +729,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 
 				if jar := client.Jar; jar != nil {
 					for _, cookie := range jar.Cookies(req.URL) {
-						m.loggers[DBUG].Println("Cookie:", cookie) // cookie implements fmt.Stringer
+						m.loggers[DBUG].Println("Cookie:", cookie) // *http.Cookie implements fmt.Stringer
 					}
 				}
 
