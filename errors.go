@@ -26,6 +26,8 @@ const (
 	ErrZeroParts           = ExpectedError("No parts no work")
 	ErrTooFragmented       = ExpectedError("Too fragmented, reduce number of parts maybe?")
 	ErrInteractionRequired = ExpectedError("Interaction required, run without --queit maybe?")
+	ErrMirrorStop          = ExpectedError("Stop, more than one mirror requested")
+	ErrMirrorNone          = ExpectedError("None of the mirror responded with valid result")
 )
 
 type (

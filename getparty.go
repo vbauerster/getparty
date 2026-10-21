@@ -113,6 +113,7 @@ type options struct {
 		MaxGo   uint   `short:"g" long:"max" value-name:"n" description:"max concurrent http request (default: number of logical CPUs)"`
 		TopN    uint   `long:"top" value-name:"n" default:"1" description:"list top n mirrors, download condition n=1"`
 		Pass    uint   `long:"pass" value-name:"n" default:"1" description:"query each mirror n times to get average result"`
+		Timeout uint   `long:"timeout" value-name:"sec" default:"5" description:"query timeout"`
 	} `group:"Best-mirror Options" namespace:"mirror"`
 	Expose struct {
 		Host string `long:"host" value-name:"host" description:"host (optional)"`
@@ -211,6 +212,10 @@ func (m *Cmd) Exit(err error) (status int) {
 		if e == ErrInteractionRequired {
 			log.Default().Println(err.Error())
 			return 4
+		}
+		if e == ErrMirrorStop {
+			m.loggers[INFO].Println(err.Error())
+			return 0
 		}
 		m.loggers[ERRO].Println(err.Error())
 		return 1
@@ -575,17 +580,15 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			session.dir = filepath.Dir(m.opt.SessionName)
 			return session, withStack(checkContentMismatch(restored, session))
 		case m.opt.BestMirror.Mirrors != "":
-			top, err := m.bestMirror(patcher, &http.Client{
-				Transport: rtBuilder.pool(false).build(),
-			})
+			top, err := m.bestMirror(rtBuilder.pool(false).build(), patcher)
 			if err != nil {
 				return nil, withStack(err)
 			}
-			for _, mirror := range top[:cmp.Or(min(m.opt.BestMirror.TopN, uint(len(top))), uint(len(top)))] {
-				m.loggers[INFO].Println(mirror.avgDur.Truncate(time.Microsecond), mirror.url)
+			for _, mir := range top[:cmp.Or(min(m.opt.BestMirror.TopN, uint(len(top))), uint(len(top)))] {
+				m.loggers[INFO].Println(mir.dur.Truncate(time.Microsecond), mir.url)
 			}
 			if m.opt.BestMirror.TopN != 1 {
-				return nil, withStack(ErrCanceledByUser)
+				return nil, withStack(ErrMirrorStop)
 			}
 			m.opt.Positional.Location = top[0].url
 			fallthrough
@@ -841,6 +844,11 @@ func (m Cmd) replaceOutput(name string) error {
 
 func (m Cmd) getTimeout() time.Duration {
 	timeout := min(cmp.Or(m.opt.Timeout, 5), maxTimeout)
+	return time.Duration(timeout) * time.Second
+}
+
+func (m Cmd) getBestMirrorTimeout() time.Duration {
+	timeout := min(cmp.Or(m.opt.BestMirror.Timeout, 5), maxTimeout)
 	return time.Duration(timeout) * time.Second
 }
 

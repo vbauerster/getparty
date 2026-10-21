@@ -66,6 +66,7 @@ Best-mirror Options:
   -g, --mirror.max=n                               max concurrent http request (default: number of logical CPUs)
       --mirror.top=n                               list top n mirrors, download condition n=1 (default: 1)
       --mirror.pass=n                              query each mirror n times to get average result (default: 1)
+      --mirror.timeout=sec                         query timeout (default: 5)
 
 Expose progress (host:port/debug/vars):
       --expose.host=host                           host (optional)
