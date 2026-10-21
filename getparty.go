@@ -210,7 +210,10 @@ func (m *Cmd) Exit(err error) (status int) {
 
 	if e, ok := errors.AsType[ExpectedError](err); ok {
 		if e == ErrInteractionRequired {
-			log.Default().Println(err.Error())
+			_, err := fmt.Fprintln(os.Stderr, err.Error())
+			if err != nil {
+				panic(err)
+			}
 			return 4
 		}
 		if e == ErrMirrorStop {
