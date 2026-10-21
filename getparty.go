@@ -110,6 +110,7 @@ type options struct {
 	} `group:"Output Options" namespace:"output"`
 	BestMirror struct {
 		Mirrors string `short:"m" long:"list" value-name:"FILE|-" description:"mirror list input"`
+		Method  string `long:"method" choice:"HEAD" choice:"GET" default:"HEAD" description:"http method to use"`
 		MaxGo   uint   `short:"g" long:"max" value-name:"n" description:"max concurrent http request (default: number of logical CPUs)"`
 		TopN    uint   `long:"top" value-name:"n" default:"1" description:"list top n mirrors, download condition n=1"`
 		Pass    uint   `long:"pass" value-name:"n" default:"1" description:"query each mirror n times to get average result"`

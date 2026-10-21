@@ -63,6 +63,7 @@ Output Options:
 
 Best-mirror Options:
   -m, --mirror.list=FILE|-                         mirror list input
+      --mirror.method=[HEAD|GET]                   http method to use (default: HEAD)
   -g, --mirror.max=n                               max concurrent http request (default: number of logical CPUs)
       --mirror.top=n                               list top n mirrors, download condition n=1 (default: 1)
       --mirror.pass=n                              query each mirror n times to get average result (default: 1)

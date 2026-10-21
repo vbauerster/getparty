@@ -52,7 +52,7 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 	workers := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
 	pass := cmp.Or(m.opt.BestMirror.Pass, 1)
 	timeout := m.getBestMirrorTimeout()
-	m.loggers[DBUG].Printf("BestMirror: workers=%d pass=%d timeout=%s", workers, pass, timeout)
+	m.loggers[DBUG].Printf("BestMirror: method=%s workers=%d pass=%d timeout=%s", m.opt.BestMirror.Method, workers, pass, timeout)
 
 	ctx, cancel := context.WithCancelCause(m.Ctx)
 	defer cancel(nil)
@@ -84,7 +84,7 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 	for range workers {
 		wg.Go(func() {
 			for url := range src {
-				req, err := http.NewRequest(http.MethodHead, url, nil)
+				req, err := http.NewRequest(m.opt.BestMirror.Method, url, nil)
 				if err != nil {
 					err = withMessage(err, "NewRequest")
 					m.loggers[ERRO].Println(err.Error())
