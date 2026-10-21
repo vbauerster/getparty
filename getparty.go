@@ -696,8 +696,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, client *http.Client, rawURL stri
 			ctx, cancel := context.WithTimeout(m.Ctx, timeout)
 			defer func() {
 				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-					timeout += 5 * time.Second
-					timeout = min(timeout, maxTimeout*time.Second)
+					timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
 				}
 				cancel()
 			}()
@@ -845,7 +844,7 @@ func (m Cmd) replaceOutput(name string) error {
 }
 
 func (m Cmd) getTimeout() time.Duration {
-	timeout := min(cmp.Or(m.opt.Timeout, maxTimeout), maxTimeout)
+	timeout := min(cmp.Or(m.opt.Timeout, 5), maxTimeout)
 	return time.Duration(timeout) * time.Second
 }
 
