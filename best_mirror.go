@@ -16,6 +16,12 @@ import (
 	"unicode"
 )
 
+type discard struct{}
+
+func (discard) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
 type mirror struct {
 	url string
 	dur time.Duration
@@ -49,40 +55,57 @@ func (m Cmd) bestMirror(transport http.RoundTripper, patcher httpRequestPatcher)
 }
 
 func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input io.Reader) ([]*mirror, error) {
+	if m.opt.BestMirror.Doget != 0 {
+		m.opt.BestMirror.Method = http.MethodGet
+	}
 	workers := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
 	pass := cmp.Or(m.opt.BestMirror.Pass, 1)
 	timeout := m.getBestMirrorTimeout()
-	m.loggers[DBUG].Printf("BestMirror: method=%s workers=%d pass=%d timeout=%s", m.opt.BestMirror.Method, workers, pass, timeout)
+
+	m.loggers[DBUG].Printf(
+		"BestMirror: method=%s doget=%d workers=%d pass=%d timeout=%s",
+		m.opt.BestMirror.Method,
+		m.opt.BestMirror.Doget,
+		workers,
+		pass,
+		timeout,
+	)
 
 	ctx, cancel := context.WithCancelCause(m.Ctx)
 	defer cancel(nil)
 
-	query := func(req *http.Request) (dur time.Duration, err error) {
-		var resp *http.Response
+	// need to force io.CopyBuffer to use buf; passing io.Discard as dst
+	// will make buf nop because io.Discard implements io.ReaderFrom
+	// therefore discard without io.ReaderFrom ensures buf will be used
+	var dw io.Writer = discard{}
+	query := func(req *http.Request, buf []byte) (time.Duration, error) {
 		ctx, cancel := context.WithTimeout(ctx, timeout)
-		defer func() {
-			cancel()
-			if err != nil {
-				return
-			}
-			if resp.StatusCode != http.StatusOK {
-				err = UnexpectedHttpStatusError(resp.StatusCode)
-			}
-			if resp.Body != nil {
-				_ = resp.Body.Close()
-			}
-		}()
+		defer cancel()
 		start := time.Now()
-		resp, err = client.Do(req.WithContext(ctx))
-		return time.Since(start), err
+		resp, err := client.Do(req.WithContext(ctx))
+		if err != nil {
+			return 0, err
+		}
+		if resp.StatusCode != http.StatusOK {
+			return 0, UnexpectedHttpStatusError(resp.StatusCode)
+		}
+		if buf != nil {
+			_, err = io.CopyBuffer(dw, io.LimitReader(resp.Body, int64(len(buf))), buf)
+		}
+		return time.Since(start), cmp.Or(err, resp.Body.Close())
 	}
 
 	var wg sync.WaitGroup
+	downKiB := m.opt.BestMirror.Doget * 1024
 	src := readLines(ctx, cancel, input, m.loggers)
 	dst := make(chan *mirror, min(workers, 8))
 
 	for range workers {
 		wg.Go(func() {
+			var buf []byte
+			if downKiB != 0 {
+				buf = make([]byte, downKiB)
+			}
 			for url := range src {
 				req, err := http.NewRequest(m.opt.BestMirror.Method, url, nil)
 				if err != nil {
@@ -100,7 +123,7 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 				for range pass {
 					// it's safe to reuse *http.Request: https://github.com/golang/go/issues/19653#issuecomment-341540384
 					var dur time.Duration
-					dur, err = query(req)
+					dur, err = query(req, buf)
 					if err != nil {
 						if ctx.Err() != nil {
 							return
