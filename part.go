@@ -176,6 +176,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 	var dtt int // decrement timeout threshold
 	consecutiveResetOk := (32 * 1024) / len(buf)
 	timeout := opt.timeout
+	written := p.Written
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
@@ -193,7 +194,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			})
 			var idle time.Duration
 			start := time.Now()
-			defer func(written int64) {
+			defer func() {
 				if !timer.Stop() {
 					timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
 					dtt += consecutiveResetOk
@@ -203,8 +204,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				elapsed := time.Since(start)
 				totalElapsed += elapsed
 				totalIdle += idle
-				written = p.Written - written
-				p.logger.Println("Written:", written)
+				p.logger.Println("Written:", p.Written-written)
 				p.logger.Println("Elapsed:", elapsed)
 				p.logger.Println("Idle:", idle)
 				if !retry || err == nil || p.ctx.Err() != nil {
@@ -222,7 +222,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					retry, err = false, withStack(ErrMaxRetry)
 					return
 				}
-				go func(prefix string, isBarOk, partial bool) {
+				go func(prefix string, isBarOk bool) {
 					if logger := log.New(p.progress, prefix, log.Ltime); errors.Is(context.Cause(timedCtx), errTimeout) {
 						if isBarOk {
 							bar.flashTimeout()
@@ -231,14 +231,12 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					} else {
 						logger.Println(unwrapOrErr(err).Error())
 					}
-					if isBarOk && partial && written != 0 {
-						bar.SetRefillCurrent()
-					}
-				}(p.logger.Prefix(), bar != nil, partial)
+				}(p.logger.Prefix(), bar != nil)
 				p.logger.Println("Retry err:", err.Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
 				p.curTry.Store(uint32(attempt + 1))
-			}(p.Written)
+				written = p.Written
+			}()
 
 			p.logger.Printf("GET(timeout=%s,dtt=%d): %s", timeout, dtt, req.URL)
 
@@ -285,12 +283,15 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					if err != nil {
 						return false, withStack(err)
 					}
-					bar, err = p.newBar()
+				}
+				if bar == nil {
+					b, err := p.newBar()
 					if err != nil {
 						return false, withStack(err)
 					}
-					partial = true
+					bar = b
 				}
+				partial = true
 			case http.StatusOK: // no partial content, fallback to single part mode
 				select {
 				case p.firstResp.id <- p.Id:
@@ -302,10 +303,11 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					if err != nil {
 						return false, withStack(err)
 					}
-					bar, err = p.newBar()
+					b, err := p.newBar()
 					if err != nil {
 						return false, withStack(err)
 					}
+					bar = b
 					p.reset(resp.ContentLength)
 				default:
 					if !p.single || partial {
@@ -412,6 +414,10 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					return false, nil
 				}
 				panic(fmt.Errorf("expected EOF, got: %w", err))
+			}
+
+			if partial && p.Written-written != 0 && attempt != opt.maxTry {
+				bar.SetRefillCurrent()
 			}
 
 			// invariant: err is never nil here
