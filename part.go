@@ -172,7 +172,6 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 	var partial bool
 	var dtt int // decrement timeout threshold
-	consecutiveResetOk := (32 * 1024) / len(buf)
 	timeout := opt.timeout
 	written := p.Written
 	trace := &httptrace.ClientTrace{
@@ -195,7 +194,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			defer func() {
 				if !timer.Stop() {
 					timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
-					dtt += consecutiveResetOk
+					dtt += (32 * 1024) / len(buf)
 				} else {
 					cancel(nil)
 				}
