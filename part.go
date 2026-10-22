@@ -174,7 +174,6 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 	var dtt int // decrement timeout threshold
 	var progressLogger *log.Logger
 	timeout := opt.timeout
-	written := p.Written
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
@@ -192,7 +191,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			})
 			var idle time.Duration
 			start := time.Now()
-			defer func() {
+			defer func(written int64) {
 				if !timer.Stop() {
 					timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
 					dtt += (32 * 1024) / len(buf)
@@ -238,8 +237,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				p.logger.Println("Retry err:", err.Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
 				p.curTry.Store(uint32(attempt + 1))
-				written = p.Written
-			}()
+			}(p.Written)
 
 			p.logger.Printf("GET(timeout=%s,dtt=%d): %s", timeout, dtt, req.URL)
 
