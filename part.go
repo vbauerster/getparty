@@ -288,6 +288,8 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 						return false, withStack(err)
 					}
 					bar = b
+				} else {
+					bar.SetRefillCurrent()
 				}
 				partial = true
 			case http.StatusOK: // no partial content, fallback to single part mode
@@ -412,10 +414,6 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					return false, nil
 				}
 				panic(fmt.Errorf("expected EOF, got: %w", err))
-			}
-
-			if partial && p.Written-written != 0 && attempt != opt.maxTry {
-				bar.SetRefillCurrent()
 			}
 
 			// invariant: err is never nil here
