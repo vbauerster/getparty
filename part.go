@@ -172,6 +172,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 	var partial bool
 	var dtt int // decrement timeout threshold
+	var progressLogger *log.Logger
 	timeout := opt.timeout
 	written := p.Written
 	trace := &httptrace.ClientTrace{
@@ -207,28 +208,33 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				if !retry || err == nil || p.ctx.Err() != nil {
 					return
 				}
+				if prefix := p.logger.Prefix(); progressLogger == nil {
+					progressLogger = log.New(p.progress, prefix, log.Ltime)
+				} else {
+					progressLogger.SetPrefix(prefix)
+				}
 				switch attempt {
 				case 0:
 					globTry.Add(1)
 				case opt.maxTry:
 					globTry.Add(^uint32(0)) // decrement
-					log.New(p.progress, p.logger.Prefix(), log.Ltime).Printf("%s (%.1f / %.1f)",
+					progressLogger.Printf("%s (%.1f / %.1f)",
 						ErrMaxRetry.Error(),
 						decor.SizeB1024(p.Written),
 						decor.SizeB1024(p.len()))
 					retry, err = false, withStack(ErrMaxRetry)
 					return
 				}
-				go func(prefix string, isBarOk bool) {
-					if logger := log.New(p.progress, prefix, log.Ltime); errors.Is(context.Cause(timedCtx), errTimeout) {
-						if isBarOk {
+				go func(barNotNil bool) {
+					if errors.Is(context.Cause(timedCtx), errTimeout) {
+						if barNotNil {
 							bar.flashTimeout()
 						}
-						logger.Println(errTimeout.Error())
+						progressLogger.Println(errTimeout.Error())
 					} else {
-						logger.Println(unwrapOrErr(err).Error())
+						progressLogger.Println(unwrapOrErr(err).Error())
 					}
-				}(p.logger.Prefix(), bar != nil)
+				}(bar != nil)
 				p.logger.Println("Retry err:", err.Error())
 				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
 				p.curTry.Store(uint32(attempt + 1))
@@ -334,8 +340,13 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				if attempt != 0 {
 					globTry.Add(^uint32(0)) // decrement
 				}
+				if prefix := p.logger.Prefix(); progressLogger == nil {
+					progressLogger = log.New(p.progress, prefix, log.Ltime)
+				} else {
+					progressLogger.SetPrefix(prefix)
+				}
 				err := UnexpectedHttpStatusError(resp.StatusCode)
-				log.New(p.progress, p.logger.Prefix(), log.Ltime).Println(err.Error())
+				progressLogger.Println(err.Error())
 				return false, withStack(err)
 			}
 
