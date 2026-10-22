@@ -112,7 +112,7 @@ type options struct {
 		Method  string `long:"method" choice:"HEAD" choice:"GET" default:"HEAD" description:"http method to use"`
 		Doget   uint   `long:"doget" value-name:"KiB" description:"download first n KiB, implies method=GET"`
 		Workers uint   `short:"w" long:"workers" value-name:"n" description:"max concurrent workers (default: number of logical CPUs)"`
-		TopN    uint   `long:"top" value-name:"n" default:"1" description:"list top n mirrors, download condition n=1"`
+		TopN    uint   `long:"top" value-name:"n" default:"1" description:"list top n mirrors without downloading unless n=1"`
 		Pass    uint   `long:"pass" value-name:"n" default:"1" description:"query each mirror n times to get average result"`
 		Timeout uint   `long:"timeout" value-name:"sec" default:"5" description:"query timeout"`
 	} `group:"Best-mirror Options" namespace:"mirror"`
