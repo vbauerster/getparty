@@ -58,7 +58,7 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 	if m.opt.BestMirror.Doget != 0 {
 		m.opt.BestMirror.Method = http.MethodGet
 	}
-	workers := cmp.Or(m.opt.BestMirror.MaxGo, uint(runtime.GOMAXPROCS(0)), 1)
+	workers := cmp.Or(m.opt.BestMirror.Workers, uint(runtime.GOMAXPROCS(0)), 1)
 	pass := cmp.Or(m.opt.BestMirror.Pass, 1)
 	timeout := m.getBestMirrorTimeout()
 
