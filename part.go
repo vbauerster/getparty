@@ -39,7 +39,6 @@ type Part struct {
 	name      string
 	patcher   httpRequestPatcher
 	ctx       context.Context
-	cancel    context.CancelFunc
 	curTry    *atomic.Uint32
 	progress  *progress                 // shared among parts
 	firstResp *firstHttpResponseContext // shared among parts
@@ -154,7 +153,6 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 	var bar *flashBar
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
-		p.cancel()
 		bar.Abort(!p.single)
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)

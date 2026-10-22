@@ -30,6 +30,8 @@ const (
 	ErrMirrorNone          = ExpectedError("None of the mirror responded with valid result")
 )
 
+var errSessionCanceled = errors.New("Session canceled")
+
 type (
 	mismatchType                int
 	statusContextError          int

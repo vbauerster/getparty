@@ -34,7 +34,6 @@ import (
 	"github.com/vbauerster/backoff/exponential"
 	"github.com/vbauerster/mpb/v8"
 	"golang.org/x/net/publicsuffix"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 )
 
@@ -262,19 +261,20 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return cmp.Or(context.Cause(m.Ctx), err)
 	}
 
-	var canceled atomic.Bool
 	uncompletedParts, current := session.uncompletedPartsCount(), session.totalWritten()
 	progress := newProgress(m.Ctx, m.Out, m.Err, uncompletedParts)
 	stateQuery := makeStateQuery(current, session.ContentLength, session.isResumable())
 	outputName := filepath.Join(session.dir, session.OutputName)
+	ctx, cancel := context.WithCancelCause(m.Ctx)
 	defer func() {
+		cancel(nil)
 		tw := session.totalWritten()
 		state := stateQuery(tw, err)
 		m.loggers[DBUG].Println(state, tw)
 		switch state {
 		case sessionUncompletedWithAdvance, sessionCompletedWithError:
 			dumpName := outputName
-			if canceled.Load() {
+			if errors.Is(context.Cause(ctx), errSessionCanceled) {
 				dumpName += ".recovered"
 			} else {
 				dumpName += ".json"
@@ -333,7 +333,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	var i uint
 	var doneCount atomic.Uint32
-	var eg errgroup.Group
 	var chunks [][]byte
 	{
 		size := m.opt.BufferSize * 1024
@@ -354,46 +353,55 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	session.summary(outputName, m.loggers)
 
+	var wg sync.WaitGroup
+	errCh := make(chan error, 1)
+
 	for _, p := range session.Parts {
 		if err := p.init(session); err != nil {
-			session.cancel()
-			canceled.Store(true)
+			cancel(errSessionCanceled)
+			wg.Wait()
 			return err
 		}
 		if p.isContentDownloaded() {
 			doneCount.Add(1)
 			continue
 		}
-		p.ctx, p.cancel = context.WithCancel(m.Ctx)
+		p.ctx = ctx
 		p.patcher = patcher
 		p.firstResp = firstResp
 		p.progress = progress
 		p.logger = log.New(m.Err, fmt.Sprintf(prefixFormat, p.name, 0), log.LstdFlags)
 		buf := chunks[i]
 		i++
-		eg.Go(func() (err error) {
+		wg.Add(1) // prefer wg.Add to wg.Go because wg.Done must be called on panic
+		go func() {
+			var err error
 			defer func() {
 				if x := recover(); x != nil {
-					session.cancel()
-					canceled.Store(true)
 					if e, ok := x.(error); ok {
 						err = fmt.Errorf("%s recovered: %w", p.name, e)
 					} else {
 						err = fmt.Errorf("%s recovered: %v", p.name, x)
 					}
-					return
+					cancel(errSessionCanceled)
 				}
-				// p.isDone instead of p.isContentDownloaded to allow zero ContentLength to complete
-				if p.isDone() {
+				if err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+				} else if p.isDone() {
+					// p.isDone instead of p.isContentDownloaded to allow zero ContentLength to complete
 					doneCount.Add(1)
 				}
+				wg.Done()
 			}()
-			return p.download(session.location, options, buf)
-		})
+			err = p.download(session.location, options, buf)
+		}()
 	}
 
 	go func() {
-		_ = eg.Wait()
+		wg.Wait()
 		firstResp.cancel(nil)
 	}()
 
@@ -406,18 +414,17 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	switch {
 	case errors.Is(cause, errContextFallback):
 		if session.restored {
-			session.cancel()
-			canceled.Store(true)
-			_ = eg.Wait()
+			cancel(errSessionCanceled)
+			wg.Wait()
 			panic(fmt.Errorf(
 				"restored session is expected to have status %d but it is %d instead",
 				http.StatusPartialContent,
 				http.StatusOK,
 			))
 		}
-		err = eg.Wait()
 		if !session.Single {
 			session.Single = true
+			wg.Wait()
 			id := <-firstResp.id
 			var part *Part
 			for _, p := range session.Parts {
@@ -428,7 +435,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 			}
 			if part == nil {
-				canceled.Store(true)
+				cancel(errSessionCanceled)
 				panic(fmt.Errorf("unexpected firstResp id: %d", id))
 			}
 			session.Parts[0] = part
@@ -477,14 +484,13 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				})
 			}
 		}
-		fallthrough
-	default:
-		err = eg.Wait()
 	}
 
+	wg.Wait()
+	close(errCh)
 	session.Elapsed += time.Since(start)
 
-	if err := cmp.Or(err, context.Cause(m.Ctx)); err != nil {
+	if err := cmp.Or(<-errCh, context.Cause(m.Ctx)); err != nil {
 		expProgress.Set(expError, expvar.Func(func() any {
 			// returning just err will result in empty object like '"error":{}'
 			// therefore call Error() instead to have some error string value
@@ -494,7 +500,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	if doneCount.Load() != uint32(len(session.Parts)) {
-		canceled.Store(true)
+		cancel(errSessionCanceled)
 		panic(errors.New("done count != session parts"))
 	}
 
@@ -882,7 +888,9 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 		return nil
 	}
 
-	var eg errgroup.Group
+	var wg sync.WaitGroup
+	errCh := make(chan error, 1)
+
 	for c := range slices.Chunk(parts, 2) {
 		if len(c) != 2 {
 			break
@@ -903,23 +911,36 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 			return err
 		}
 
-		eg.Go(func() (err error) {
+		wg.Go(func() {
 			n, err := io.Copy(dst.file, src.file)
 			logger.Printf("dst=%q <- src=%q %d: %v", dst, src, n, err)
 			if err != nil {
-				return err
+				select {
+				case errCh <- err:
+				default:
+				}
+				return
 			}
-
-			bar.Increment()
 
 			err = cmp.Or(src.Close(), os.Remove(src.Name()))
 			logger.Printf("src=%q close,remove: %v", src, err)
+			if err != nil {
+				select {
+				case errCh <- err:
+				default:
+				}
+				return
+			}
+
+			bar.Increment()
 			src.file = nil
-			return err
 		})
 	}
 
-	if err := eg.Wait(); err != nil {
+	wg.Wait()
+	close(errCh)
+
+	if err := <-errCh; err != nil {
 		for _, p := range parts {
 			logger.Printf("%q close: %v", p, p.Close())
 		}

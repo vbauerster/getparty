@@ -81,15 +81,6 @@ func (s *Session) dumpState(name string) error {
 	return cmp.Or(json.NewEncoder(f).Encode(s), f.Close())
 }
 
-// cancel is idempotent and concurrency safe
-func (s Session) cancel() {
-	for _, p := range s.Parts {
-		if p.cancel != nil {
-			p.cancel()
-		}
-	}
-}
-
 func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 	var stat os.FileInfo
 	parts := make([]*outFile, 0, len(s.Parts))
