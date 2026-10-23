@@ -32,7 +32,7 @@ const (
 
 // errSessionCanceled indicates that session canceled due to unexpected error.
 // Target usage is context.Cause check.
-var errSessionCanceled = errors.New("Session canceled")
+var errSessionCanceled = errors.New("session canceled")
 
 // errTimeout indicates context deadline due to timeout.
 // Target usage is context.Cause check.
