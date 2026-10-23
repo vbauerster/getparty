@@ -691,11 +691,12 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 		return http.ErrUseLastResponse
 	}
 
+	var fc uint
+	template := "R%02d:F%02d %s"
 	location := rawURL
 	timeout := m.getTimeout()
-	template := "R%02d %%s"
 	maxRetry := cmp.Or(m.opt.MaxRetry, math.MaxUint)
-	maxRedirect := cmp.Or(m.opt.MaxRedirect, math.MaxUint-1) + 1
+	maxFollow := cmp.Or(m.opt.MaxRedirect, math.MaxUint-1) + 1
 
 	err = backoff.RetryWithContext(m.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (retry bool, err error) {
@@ -711,10 +712,9 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 					m.loggers[DBUG].Println(err.Error())
 				}
 			}()
-			template := fmt.Sprintf(template, attempt)
-			for range maxRedirect {
-				m.loggers[INFO].Printf(template, location)
-				m.loggers[DBUG].Printf(template, location)
+			for range maxFollow - fc {
+				m.loggers[INFO].Printf(template, attempt, fc, location)
+				m.loggers[DBUG].Printf(template, attempt, fc, location)
 
 				req, err := http.NewRequest(http.MethodHead, location, nil)
 				if err != nil {
@@ -754,6 +754,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 						return false, withStack(err)
 					}
 					location = loc.String()
+					fc++
 					continue
 				}
 
