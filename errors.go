@@ -36,7 +36,7 @@ var errSessionCanceled = errors.New("Session canceled")
 
 // errTimeout indicates context deadline due to timeout.
 // Target usage is context.Cause check.
-var errTimeout = errors.New("Timeout context deadline exceeded")
+var errTimeout = errors.New("context deadline exceeded")
 
 type (
 	mismatchType                int

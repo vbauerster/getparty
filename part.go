@@ -185,7 +185,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			timedCtx, cancel := context.WithCancelCause(p.ctx)
 			timer := time.AfterFunc(timeout, func() {
 				cancel(errTimeout)
-				p.logger.Println(errTimeout.Error())
+				p.logger.Println(timeoutMsg, errTimeout.Error())
 			})
 			var idle time.Duration
 			start := time.Now()
@@ -227,7 +227,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 						if barNotNil {
 							bar.flashTimeout()
 						}
-						progressLogger.Println(errTimeout.Error())
+						progressLogger.Println(timeoutMsg, errTimeout.Error())
 					} else {
 						progressLogger.Println(unwrapOrErr(err).Error())
 					}
