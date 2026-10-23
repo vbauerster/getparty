@@ -119,7 +119,6 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 					patcher.patch(req)
 				}
 				var sum time.Duration
-				mir := &mirror{url: url}
 				for range pass {
 					// it's safe to reuse *http.Request: https://github.com/golang/go/issues/19653#issuecomment-341540384
 					var dur time.Duration
@@ -134,7 +133,10 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 					sum += dur
 				}
 				if err == nil {
-					mir.dur = time.Duration(int64(sum) / int64(pass))
+					mir := &mirror{
+						url: url,
+						dur: time.Duration(int64(sum) / int64(pass)),
+					}
 					select {
 					case dst <- mir:
 					case <-ctx.Done():
