@@ -715,7 +715,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 				m.loggers[INFO].Printf(template, location)
 				m.loggers[DBUG].Printf(template, location)
 
-				req, err := http.NewRequest(http.MethodGet, location, nil)
+				req, err := http.NewRequest(http.MethodHead, location, nil)
 				if err != nil {
 					return false, withStack(err)
 				}
