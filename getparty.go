@@ -683,11 +683,7 @@ func (m Cmd) getTLSConfig() (config *tls.Config, err error) {
 
 // follow invariant: httpClient != nil
 func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session, err error) {
-	var redirected bool
 	defer func() {
-		if redirected {
-			httpClient.CloseIdleConnections()
-		}
 		httpClient.CheckRedirect = nil
 		err = withMessage(err, "follow")
 	}()
@@ -751,7 +747,6 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 
 				if isRedirect(resp.StatusCode) {
 					m.loggers[INFO].Println("Response Status:", resp.Status)
-					redirected = true
 					loc, err := resp.Location()
 					if err != nil {
 						return false, withStack(err)
