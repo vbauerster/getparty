@@ -693,7 +693,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 
 	location := rawURL
 	timeout := m.getTimeout()
-	template := "GET:R%02d %%s"
+	template := "R%02d %%s"
 	maxRetry := cmp.Or(m.opt.MaxRetry, math.MaxUint)
 	maxRedirect := cmp.Or(m.opt.MaxRedirect, math.MaxUint-1) + 1
 
