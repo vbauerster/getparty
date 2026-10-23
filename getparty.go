@@ -267,6 +267,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	stateQuery := makeStateQuery(current, session.ContentLength, session.isResumable())
 	outputName := filepath.Join(session.dir, session.OutputName)
 	ctx, cancel := context.WithCancelCause(m.Ctx)
+	session.summary(outputName, m.loggers)
 	defer func() {
 		cancel(nil)
 		tw := session.totalWritten()
@@ -351,8 +352,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		timeout: m.getTimeout(),
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
 	}
-
-	session.summary(outputName, m.loggers)
+	m.loggers[DBUG].Printf("Common options: maxTry=%d timeout=%s sleep=%s", options.maxTry, options.timeout, options.sleep)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, 1)
