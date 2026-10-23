@@ -16,12 +16,6 @@ import (
 	"unicode"
 )
 
-type discard struct{}
-
-func (discard) Write(p []byte) (int, error) {
-	return len(p), nil
-}
-
 type mirror struct {
 	url string
 	dur time.Duration
@@ -76,11 +70,7 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 	ctx, cancel := context.WithCancelCause(m.Ctx)
 	defer cancel(nil)
 
-	// need to force io.CopyBuffer to use buf; passing io.Discard as dst
-	// will make buf nop because io.Discard implements io.ReaderFrom
-	// therefore discard without io.ReaderFrom ensures buf will be used
-	var dw io.Writer = discard{}
-	query := func(req *http.Request, buf []byte) (time.Duration, error) {
+	query := func(req *http.Request, target uint) (time.Duration, error) {
 		ctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		start := time.Now()
@@ -91,23 +81,19 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 		if resp.StatusCode != http.StatusOK {
 			return 0, UnexpectedHttpStatusError(resp.StatusCode)
 		}
-		if buf != nil {
-			_, err = io.CopyBuffer(dw, io.LimitReader(resp.Body, int64(len(buf))), buf)
+		if target != 0 {
+			_, err = io.Copy(io.Discard, io.LimitReader(resp.Body, int64(target)))
 		}
 		return time.Since(start), cmp.Or(err, resp.Body.Close())
 	}
 
 	var wg sync.WaitGroup
-	downKiB := m.opt.BestMirror.Doget * 1024
+	target := m.opt.BestMirror.Doget * 1024
 	src := readLines(ctx, cancel, input, m.loggers)
 	dst := make(chan *mirror, min(workers, 8))
 
 	for range workers {
 		wg.Go(func() {
-			var buf []byte
-			if downKiB != 0 {
-				buf = make([]byte, min(downKiB, 1048576)) // limit to 1024KiB
-			}
 			for url := range src {
 				req, err := http.NewRequest(m.opt.BestMirror.Method, url, nil)
 				if err != nil {
@@ -124,7 +110,7 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 				for range pass {
 					// it's safe to reuse *http.Request: https://github.com/golang/go/issues/19653#issuecomment-341540384
 					var dur time.Duration
-					dur, err = query(req, buf)
+					dur, err = query(req, target)
 					if err != nil {
 						if ctx.Err() != nil {
 							return
