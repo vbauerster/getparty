@@ -756,12 +756,6 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 						return false, withStack(err)
 					}
 					location = loc.String()
-					if resp.Body != nil {
-						err := resp.Body.Close()
-						if err != nil {
-							return false, withStack(err)
-						}
-					}
 					continue
 				}
 
