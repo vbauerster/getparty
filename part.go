@@ -27,8 +27,6 @@ const ewmaAge = 32
 
 var globTry atomic.Uint32
 
-var errTimeout = fmt.Errorf("%s %s", timeoutMsg, context.Canceled.Error())
-
 // Part represents state of each download part
 type Part struct {
 	Id      uint
