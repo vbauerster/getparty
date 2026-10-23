@@ -16,8 +16,8 @@ github.com/vbauerster/backoff v0.2.0 h1:BuNR/VVR3nZwUuMRPEWYwyVdaom+ZaBu1zcfzvE5
 github.com/vbauerster/backoff v0.2.0/go.mod h1:tFAdVtgx6cWvP/SEJ2I8NRsfaKw4RBbrGdnyG07zg60=
 github.com/vbauerster/cupwriter v0.0.5 h1:pxlPgxPLIebXh8lJPOZmn2TmjPE8+PqJIFkKkr7hI9I=
 github.com/vbauerster/cupwriter v0.0.5/go.mod h1:ptJDgOtLtGZp1gLzycD0TFnZztDhrQdsikG6EAA4xYQ=
-github.com/vbauerster/mpb/v8 v8.16.2 h1:+UH2Nhn6asKkdX58hSgN+5Jqg/JcFSqCcU+8z0IiYYo=
-github.com/vbauerster/mpb/v8 v8.16.2/go.mod h1:PFkxR+jl7Eew9ukpdUcodHBGq9ow74b6cXI7xL0t3mA=
+github.com/vbauerster/mpb/v8 v8.16.3 h1:C9AShAmENWKGHRPFU47CGMhVGUkLh38kzK7dcTKcH8g=
+github.com/vbauerster/mpb/v8 v8.16.3/go.mod h1:S4Cat6c3PMnKEE9NXhyhc02DCn60oAeh1+44gr3ujXU=
 golang.org/x/mod v0.42.0 h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg=
 golang.org/x/mod v0.42.0/go.mod h1:u5fzIrRInkL8MaO1cbRkUHT64v303YIT5KEqpNr7jRs=
 golang.org/x/net v0.61.0 h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=
