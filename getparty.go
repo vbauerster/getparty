@@ -703,12 +703,12 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 
 	err = backoff.RetryWithContext(m.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (bool, error) {
-			ctx, cancel := context.WithTimeout(m.Ctx, timeout)
+			ctx, cancel := context.WithTimeoutCause(m.Ctx, timeout, errTimeout)
 			defer func() {
-				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				cancel()
+				if errors.Is(context.Cause(ctx), errTimeout) {
 					timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
 				}
-				cancel()
 			}()
 			template := fmt.Sprintf(template, attempt)
 			for range maxRedirect {
