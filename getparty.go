@@ -333,8 +333,15 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		defer shutdown()
 	}
 
+	firstResp := newFirstHttpResponseContext(m.Ctx)
+	options := downloadOptions{
+		maxTry:  m.opt.MaxRetry,
+		timeout: m.getTimeout(),
+		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
+	}
+	m.loggers[DBUG].Printf("Common options: maxTry=%d timeout=%s sleep=%s", options.maxTry, options.timeout, options.sleep)
+
 	var i uint
-	var doneCount atomic.Uint32
 	var chunks [][]byte
 	{
 		size := m.opt.BufferSize * 1024
@@ -345,15 +352,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		i = 0
 	}
-
-	firstResp := newFirstHttpResponseContext(m.Ctx)
-	options := downloadOptions{
-		maxTry:  m.opt.MaxRetry,
-		timeout: m.getTimeout(),
-		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
-	}
-	m.loggers[DBUG].Printf("Common options: maxTry=%d timeout=%s sleep=%s", options.maxTry, options.timeout, options.sleep)
-
+	var doneCount atomic.Uint32
 	var wg sync.WaitGroup
 	errCh := make(chan error, 1)
 
