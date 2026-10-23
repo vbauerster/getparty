@@ -89,7 +89,7 @@ type options struct {
 	Timeout     uint              `short:"t" long:"timeout" value-name:"sec" default:"5" description:"initial timeout to fill a buffer"`
 	BufferSize  uint              `short:"b" long:"buf-size" value-name:"KiB" choice:"2" choice:"4" choice:"8" choice:"16" default:"16" description:"buffer size per each part, prefer smaller for slow connection"`
 	SpeedLimit  uint              `short:"l" long:"speed-limit" choice:"1" choice:"2" choice:"3" choice:"4" choice:"5" description:"speed limit (default: 0 = no limit; 5 = max limit)"`
-	SessionName string            `short:"s" long:"session" value-name:"FILE" description:"auto saved json file of previous incomplete download session"`
+	SessionName string            `short:"s" long:"session" value-name:"FILE" description:"json file of previous incomplete download session"`
 	UserAgent   string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" description:"User-Agent header (default: getparty/ver)"`
 	AuthUser    string            `long:"username" description:"basic http auth username"`
 	AuthPass    string            `long:"password" description:"basic http auth password"`
