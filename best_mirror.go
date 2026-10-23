@@ -44,7 +44,9 @@ func (m Cmd) bestMirror(transport http.RoundTripper, patcher httpRequestPatcher)
 		}()
 		input = fd
 	}
-	mirrors, err = m.batchMirrors(&http.Client{Transport: transport}, patcher, input)
+	client := &http.Client{Transport: transport}
+	defer client.CloseIdleConnections()
+	mirrors, err = m.batchMirrors(client, patcher, input)
 	if err != nil {
 		return nil, err
 	}
