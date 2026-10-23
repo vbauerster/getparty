@@ -27,7 +27,7 @@ func setupRedirectServer(source string, hops ...string) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-func TestMaxRedirect(t *testing.T) {
+func TestMaxFollow(t *testing.T) {
 	tests := []struct {
 		name string
 		maxr string
@@ -35,115 +35,115 @@ func TestMaxRedirect(t *testing.T) {
 		err  error
 	}{
 		{
-			name: "max-redirect 1, hops 1",
-			maxr: "--max-redirect=1",
+			name: "max-follow 1, hops 1",
+			maxr: "--max-follow=1",
 			hops: 1,
 		},
 		{
-			name: "max-redirect 2, hops 2",
-			maxr: "--max-redirect=2",
+			name: "max-follow 2, hops 2",
+			maxr: "--max-follow=2",
 			hops: 2,
 		},
 		{
-			name: "max-redirect 3, hops 3",
-			maxr: "--max-redirect=3",
+			name: "max-follow 3, hops 3",
+			maxr: "--max-follow=3",
 			hops: 3,
 		},
 		{
-			name: "max-redirect 4, hops 4",
-			maxr: "--max-redirect=4",
+			name: "max-follow 4, hops 4",
+			maxr: "--max-follow=4",
 			hops: 4,
 		},
 		{
-			name: "max-redirect 5, hops 5",
-			maxr: "--max-redirect=5",
+			name: "max-follow 5, hops 5",
+			maxr: "--max-follow=5",
 			hops: 5,
 		},
 		{
-			name: "max-redirect 6, hops 6",
-			maxr: "--max-redirect=6",
+			name: "max-follow 6, hops 6",
+			maxr: "--max-follow=6",
 			hops: 6,
 		},
 		{
-			name: "max-redirect 7, hops 7",
-			maxr: "--max-redirect=7",
+			name: "max-follow 7, hops 7",
+			maxr: "--max-follow=7",
 			hops: 7,
 		},
 		{
-			name: "max-redirect 8, hops 8",
-			maxr: "--max-redirect=8",
+			name: "max-follow 8, hops 8",
+			maxr: "--max-follow=8",
 			hops: 8,
 		},
 		{
-			name: "max-redirect 9, hops 9",
-			maxr: "--max-redirect=9",
+			name: "max-follow 9, hops 9",
+			maxr: "--max-follow=9",
 			hops: 9,
 		},
 		{
-			name: "max-redirect default, hops 10",
+			name: "max-follow default, hops 10",
 			hops: 10,
 		},
 		{
-			name: "max-redirect 0, hops 11",
-			maxr: "--max-redirect=0",
+			name: "max-follow 0, hops 11",
+			maxr: "--max-follow=0",
 			hops: 11,
 		},
 		{
-			name: "max-redirect 1, hops 2",
-			maxr: "--max-redirect=1",
+			name: "max-follow 1, hops 2",
+			maxr: "--max-follow=1",
 			hops: 2,
 			err:  getparty.ErrMaxRedirect,
 		},
 		{
-			name: "max-redirect 2, hops 3",
-			maxr: "--max-redirect=2",
+			name: "max-follow 2, hops 3",
+			maxr: "--max-follow=2",
 			hops: 3,
 			err:  getparty.ErrMaxRedirect,
 		},
 		{
-			name: "max-redirect 3, hops 4",
-			maxr: "--max-redirect=3",
+			name: "max-follow 3, hops 4",
+			maxr: "--max-follow=3",
 			hops: 4,
 			err:  getparty.ErrMaxRedirect,
 		},
 		{
-			name: "max-redirect 4, hops 5",
-			maxr: "--max-redirect=4",
+			name: "max-follow 4, hops 5",
+			maxr: "--max-follow=4",
 			hops: 5,
 			err:  getparty.ErrMaxRedirect,
 		},
 		{
-			name: "max-redirect 5, hops 6",
-			maxr: "--max-redirect=5",
+			name: "max-follow 5, hops 6",
+			maxr: "--max-follow=5",
 			hops: 6,
 			err:  getparty.ErrMaxRedirect,
 		},
 		{
-			name: "max-redirect 6, hops 7",
-			maxr: "--max-redirect=6",
+			name: "max-follow 6, hops 7",
+			maxr: "--max-follow=6",
 			hops: 7,
 			err:  getparty.ErrMaxRedirect,
 		},
 		{
-			name: "max-redirect 7, hops 8",
-			maxr: "--max-redirect=7",
+			name: "max-follow 7, hops 8",
+			maxr: "--max-follow=7",
 			hops: 8,
 			err:  getparty.ErrMaxRedirect,
 		},
 		{
-			name: "max-redirect 8, hops 9",
-			maxr: "--max-redirect=8",
+			name: "max-follow 8, hops 9",
+			maxr: "--max-follow=8",
 			hops: 9,
 			err:  getparty.ErrMaxRedirect,
 		},
 		{
-			name: "max-redirect 9, hops 10",
-			maxr: "--max-redirect=9",
+			name: "max-follow 9, hops 10",
+			maxr: "--max-follow=9",
 			hops: 10,
 			err:  getparty.ErrMaxRedirect,
 		},
 		{
-			name: "max-redirect default, hops 11",
+			name: "max-follow default, hops 11",
 			hops: 11,
 			err:  getparty.ErrMaxRedirect,
 		},

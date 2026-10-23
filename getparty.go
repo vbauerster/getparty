@@ -85,7 +85,7 @@ func init() {
 type options struct {
 	Parts       uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
 	MaxRetry    uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retries per each part, 0 for infinite"`
-	MaxRedirect uint              `long:"max-redirect" value-name:"n" default:"10" description:"max redirections to follow, 0 for infinite"`
+	MaxFollow   uint              `long:"max-follow" value-name:"n" default:"10" description:"max redirections to follow, 0 for infinite"`
 	Timeout     uint              `short:"t" long:"timeout" value-name:"sec" default:"5" description:"initial timeout to fill a buffer"`
 	BufferSize  uint              `short:"b" long:"buf-size" value-name:"KiB" choice:"2" choice:"4" choice:"8" choice:"16" default:"16" description:"buffer size per each part, prefer smaller for slow connection"`
 	SpeedLimit  uint              `short:"l" long:"speed-limit" choice:"1" choice:"2" choice:"3" choice:"4" choice:"5" description:"speed limit (default: 0 = no limit; 5 = max limit)"`
@@ -696,7 +696,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 	location := rawURL
 	timeout := m.getTimeout()
 	maxRetry := cmp.Or(m.opt.MaxRetry, math.MaxUint)
-	maxFollow := cmp.Or(m.opt.MaxRedirect, math.MaxUint-1) + 1
+	maxFollow := cmp.Or(m.opt.MaxFollow, math.MaxUint-1) + 1
 
 	err = backoff.RetryWithContext(m.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, _ func()) (retry bool, err error) {
