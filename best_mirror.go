@@ -106,7 +106,7 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 		wg.Go(func() {
 			var buf []byte
 			if downKiB != 0 {
-				buf = make([]byte, downKiB)
+				buf = make([]byte, min(downKiB, 1048576)) // limit to 1024KiB
 			}
 			for url := range src {
 				req, err := http.NewRequest(m.opt.BestMirror.Method, url, nil)
