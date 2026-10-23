@@ -699,6 +699,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 	location := rawURL
 	timeout := m.getTimeout()
 	template := "GET:R%02d %%s"
+	maxRetry := cmp.Or(m.opt.MaxRetry, math.MaxUint)
 	maxRedirect := cmp.Or(m.opt.MaxRedirect, math.MaxUint-1) + 1
 
 	err = backoff.RetryWithContext(m.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
@@ -730,7 +731,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 				if err != nil {
 					m.loggers[WARN].Println(unwrapOrErr(err).Error())
 					m.loggers[DBUG].Println(err.Error())
-					if attempt != 0 && attempt == m.opt.MaxRetry {
+					if attempt == maxRetry {
 						return false, withStack(ErrMaxRetry)
 					}
 					return true, withStack(err)
@@ -760,12 +761,15 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 				}
 
 				if resp.StatusCode != http.StatusOK {
-					err := withStack(UnexpectedHttpStatusError(resp.StatusCode))
+					err := UnexpectedHttpStatusError(resp.StatusCode)
 					m.loggers[WARN].Println(err.Error())
 					if isServerError(resp.StatusCode) { // server error may be temporary
-						return attempt != m.opt.MaxRetry, err
+						if attempt == maxRetry {
+							return false, withStack(ErrMaxRetry)
+						}
+						return true, withStack(err)
 					}
-					return false, err // err is already with stack
+					return false, withStack(err)
 				}
 
 				m.loggers[INFO].Println("Response Status:", resp.Status)
