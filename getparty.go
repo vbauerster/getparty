@@ -825,8 +825,9 @@ func (m Cmd) readPassword() (string, error) {
 
 func (m Cmd) replaceOutput(name string) error {
 	if m.opt.Output.Overwrite {
-		m.loggers[DBUG].Printf("Replace output forced: %q", name)
-		return os.Remove(name)
+		err := os.Remove(name)
+		m.loggers[DBUG].Printf("%q force remove: %v", name, err)
+		return err
 	}
 	if m.opt.Quiet {
 		return ErrInteractionRequired
@@ -846,8 +847,9 @@ func (m Cmd) replaceOutput(name string) error {
 	}
 	switch b[0] {
 	case 'y', 'Y', '\r':
-		m.loggers[DBUG].Printf("Replace output confirmed: %q", name)
-		return os.Remove(name)
+		err := os.Remove(name)
+		m.loggers[DBUG].Printf("%q remove: %v", name, err)
+		return err
 	default:
 		return ErrCanceledByUser
 	}
