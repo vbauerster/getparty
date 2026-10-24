@@ -89,21 +89,20 @@ func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 	}
 
 	defer func() {
-		if err != nil {
-			return
-		}
-		stat, err = parts[0].Stat()
-		if err != nil {
-			logger.Printf("%q stat: %s", parts[0], err.Error())
-			return
-		}
-		if size := stat.Size(); s.ContentLength != size {
-			err = ContentMismatchError[int64]{
-				kind: mismatchContentLength,
-				old:  s.ContentLength,
-				new:  size,
+		if err == nil {
+			stat, err = parts[0].Stat()
+			if err != nil {
+				logger.Printf("%q stat: %s", parts[0], err.Error())
+				return
 			}
-			err = withMessage(err, parts[0].Name())
+			if size := stat.Size(); s.ContentLength != size {
+				err = ContentMismatchError[int64]{
+					kind: mismatchContentLength,
+					old:  s.ContentLength,
+					new:  size,
+				}
+				err = withMessage(err, parts[0].Name())
+			}
 		}
 	}()
 
@@ -128,11 +127,7 @@ func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err != nil {
-			bar.Abort(false)
-		}
-	}()
+	defer bar.Abort(false)
 
 	return concat(logger, bar, parts)
 }
