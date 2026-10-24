@@ -634,10 +634,10 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if err != nil {
 				return nil, withStack(err)
 			}
-			if !exist {
-				return session, nil
+			if exist {
+				return session, withStack(m.replaceOutput(session.OutputName))
 			}
-			return session, withStack(m.replaceOutput(session.OutputName))
+			return session, nil
 		default:
 			return nil, new(flags.Error)
 		}
