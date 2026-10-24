@@ -259,7 +259,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		if session != nil && errors.Is(err, ErrZeroParts) {
 			session.summary("", m.loggers)
 		}
-		return cmp.Or(context.Cause(m.Ctx), err)
+		return err
 	}
 
 	uncompletedParts, current := session.uncompletedPartsCount(), session.totalWritten()
