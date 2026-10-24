@@ -487,10 +487,16 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	}
 
 	wg.Wait()
-	close(errCh)
 	session.Elapsed += time.Since(start)
 
-	if err := cmp.Or(<-errCh, context.Cause(m.Ctx)); err != nil {
+	close(errCh)
+	if v, ok := <-errCh; ok {
+		err = v
+	} else {
+		err = context.Cause(m.Ctx)
+	}
+
+	if err != nil {
 		expProgress.Set(expError, expvar.Func(func() any {
 			// returning just err will result in empty object like '"error":{}'
 			// therefore call Error() instead to have some error string value
