@@ -333,7 +333,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		defer shutdown()
 	}
 
-	firstResp := newSessionResponseContext(m.Ctx)
+	firstResp := newSessionResponseContext(ctx)
 	options := downloadOptions{
 		maxTry:  m.opt.MaxRetry,
 		timeout: m.getTimeout(),
