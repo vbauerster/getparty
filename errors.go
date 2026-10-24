@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"strconv"
 )
 
 const (
@@ -51,7 +52,7 @@ type (
 )
 
 func (s sessionFirstHttpStatus) Error() string {
-	return fmt.Sprintf("%T: %[1]d", s)
+	return strconv.Itoa(int(s))
 }
 
 func (e ExpectedError) Error() string {
