@@ -409,7 +409,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	start := time.Now()
 	cause := context.Cause(firstResp.ctx)
-	m.loggers[DBUG].Println(cause)
+	m.loggers[DBUG].Println("First http status:", cause)
 
 	switch {
 	case errors.Is(cause, errContextFallback):
