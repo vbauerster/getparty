@@ -1,11 +1,11 @@
 //go:generate go tool stringer -type=mismatchType -trimprefix=mismatch
-//go:generate go tool stringer -type=statusContextError -trimprefix=err
 
 package getparty
 
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"runtime/debug"
 )
 
@@ -15,8 +15,8 @@ const (
 )
 
 const (
-	errContextPartial statusContextError = iota
-	errContextFallback
+	errContextPartial  = sessionFirstHttpStatus(http.StatusPartialContent)
+	errContextFallback = sessionFirstHttpStatus(http.StatusOK)
 )
 
 const (
@@ -40,7 +40,7 @@ var errTimeout = errors.New("context deadline exceeded")
 
 type (
 	mismatchType                int
-	statusContextError          int
+	sessionFirstHttpStatus      int
 	UnexpectedHttpStatusError   int
 	ExpectedError               string
 	ContentMismatchError[T any] struct {
@@ -50,8 +50,8 @@ type (
 	}
 )
 
-func (s statusContextError) Error() string {
-	return s.String()
+func (s sessionFirstHttpStatus) Error() string {
+	return fmt.Sprintf("%T: %[1]d", s)
 }
 
 func (e ExpectedError) Error() string {

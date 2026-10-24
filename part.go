@@ -38,23 +38,23 @@ type Part struct {
 	patcher   httpRequestPatcher
 	ctx       context.Context
 	curTry    *atomic.Uint32
-	progress  *progress                 // shared among parts
-	firstResp *firstHttpResponseContext // shared among parts
+	progress  *progress               // shared among parts
+	firstResp *sessionResponseContext // shared among parts
 	logger    *log.Logger
 	output    *outFile
 	single    bool
 }
 
-type firstHttpResponseContext struct {
+type sessionResponseContext struct {
 	ctx    context.Context
 	cancel context.CancelCauseFunc
 	id     chan uint
 }
 
-// newFirstHttpResponseContext invariant: id must not be depleted until all parts done.
-func newFirstHttpResponseContext(parent context.Context) *firstHttpResponseContext {
+// newSessionResponseContext invariant: id must not be depleted until all parts done.
+func newSessionResponseContext(parent context.Context) *sessionResponseContext {
 	ctx, cancel := context.WithCancelCause(parent)
-	return &firstHttpResponseContext{
+	return &sessionResponseContext{
 		ctx:    ctx,
 		cancel: cancel,
 		id:     make(chan uint, 1),

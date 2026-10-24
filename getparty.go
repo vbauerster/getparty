@@ -333,7 +333,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		defer shutdown()
 	}
 
-	firstResp := newFirstHttpResponseContext(m.Ctx)
+	firstResp := newSessionResponseContext(m.Ctx)
 	options := downloadOptions{
 		maxTry:  m.opt.MaxRetry,
 		timeout: m.getTimeout(),
@@ -409,7 +409,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	start := time.Now()
 	cause := context.Cause(firstResp.ctx)
-	m.loggers[DBUG].Printf("%T: %v", firstResp, cause)
+	m.loggers[DBUG].Println(cause)
 
 	switch {
 	case errors.Is(cause, errContextFallback):
