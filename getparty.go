@@ -87,7 +87,6 @@ type options struct {
 	MaxRetry    uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retries per each part, 0 for infinite"`
 	MaxFollow   uint              `long:"max-follow" value-name:"n" default:"10" description:"max redirections to follow, 0 for infinite"`
 	Timeout     uint              `short:"t" long:"timeout" value-name:"sec" default:"5" description:"initial timeout to fill a buffer"`
-	BufferSize  uint              `short:"b" long:"buf-size" value-name:"KiB" choice:"2" choice:"4" choice:"8" choice:"16" default:"16" description:"buffer size per each part, prefer smaller for slow connection"`
 	SpeedLimit  uint              `short:"l" long:"speed-limit" choice:"1" choice:"2" choice:"3" choice:"4" choice:"5" description:"speed limit (default: 0 = no limit; 5 = max limit)"`
 	SessionName string            `short:"s" long:"session" value-name:"FILE" description:"json file of previous incomplete download session"`
 	UserAgent   string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" description:"User-Agent header (default: getparty/ver)"`
@@ -344,7 +343,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var i uint
 	var chunks [][]byte
 	{
-		size := m.opt.BufferSize * 1024
+		var size uint = 8 * 1024
 		row := make([]byte, size*uint(uncompletedParts))
 		for range uncompletedParts {
 			chunks = append(chunks, slices.Clip(row[i:i+size]))

@@ -169,9 +169,10 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 	}
 
 	var partial bool
-	var dtt int // decrement timeout threshold
 	var progressLogger *log.Logger
-	timeout := opt.timeout
+	var limitReset int
+	var targetLimit int64 = 32 * 1024
+	readLimit := targetLimit
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
@@ -183,7 +184,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
 		func(attempt uint, backoffReset func()) (retry bool, err error) {
 			timedCtx, cancel := context.WithCancelCause(p.ctx)
-			timer := time.AfterFunc(timeout, func() {
+			timer := time.AfterFunc(opt.timeout, func() {
 				cancel(errTimeout)
 				p.logger.Println(timeoutMsg, errTimeout.Error())
 			})
@@ -191,8 +192,13 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			start := time.Now()
 			defer func(written int64) {
 				if !timer.Stop() {
-					timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
-					dtt += (32 * 1024) / len(buf)
+					if blen := int64(len(buf)); readLimit == blen {
+						opt.timeout = min(opt.timeout+time.Second, maxTimeout*time.Second)
+					} else {
+						readLimit = max(readLimit/2, blen)
+						limitReset *= 2
+						limitReset += int(targetLimit / readLimit)
+					}
 				} else {
 					cancel(nil)
 				}
@@ -237,7 +243,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				p.curTry.Store(uint32(attempt + 1))
 			}(p.Written)
 
-			p.logger.Printf("GET(timeout=%s,dtt=%d): %s", timeout, dtt, req.URL)
+			p.logger.Printf("GET(limit=%d,timeout=%s): %s", readLimit, opt.timeout, req.URL)
 
 			req.Header.Set(hRange, p.getRange())
 			for k, v := range req.Header {
@@ -355,10 +361,10 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				limit = limitTimer.wait
 				sleep = true
 			}
-			for nw, blen := int64(0), int64(len(buf)); timer.Reset(timeout + opt.sleep); {
+			for nw := int64(0); timer.Reset(opt.timeout + opt.sleep); {
 				start := time.Now()
 				// p.output doesn't implement io.ReaderFrom which implies buf will be used to perform the copy
-				nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, blen), buf)
+				nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, readLimit), buf)
 				ewmaDur := time.Since(start)
 
 				if nw == 0 && err != nil {
@@ -384,7 +390,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 				bar.EwmaIncrInt64(nw, ewmaDur)
 
-				if nw < blen && err == nil {
+				if nw < readLimit && err == nil {
 					if lt.timer != nil {
 						lt.timer.Stop()
 					}
@@ -392,15 +398,11 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					p.logger.Println("Break loop:", nw, err.Error())
 					break
 				}
-				if timeout != opt.timeout {
-					switch dtt {
-					case 0:
-						timeout = max(timeout-5*time.Second, opt.timeout)
-						if timeout == opt.timeout {
-							backoffReset()
-						}
-					default:
-						dtt--
+				if readLimit != targetLimit {
+					limitReset--
+					if limitReset == 0 {
+						readLimit = min(readLimit*2, targetLimit)
+						backoffReset()
 					}
 				}
 				if limit(lt, timedCtx) {

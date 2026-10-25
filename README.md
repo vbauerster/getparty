@@ -40,7 +40,6 @@ Application Options:
   -r, --max-retry=n                                max retries per each part, 0 for infinite (default: 10)
       --max-follow=n                               max redirections to follow, 0 for infinite (default: 10)
   -t, --timeout=sec                                initial timeout to fill a buffer (default: 5)
-  -b, --buf-size=KiB[2|4|8|16]                     buffer size per each part, prefer smaller for slow connection (default: 16)
   -l, --speed-limit=[1|2|3|4|5]                    speed limit (default: 0 = no limit; 5 = max limit)
   -s, --session=FILE                               json file of previous incomplete download session
   -U, --user-agent=[chrome|firefox|safari|edge]    User-Agent header (default: getparty/ver)
