@@ -88,6 +88,7 @@ type ewmaSpeedPeak struct {
 	format string
 	msg    string
 	min    float64
+	set    bool
 }
 
 func newEwmaSpeedPeak(format string, age float64, wc decor.WC) *ewmaSpeedPeak {
@@ -107,13 +108,15 @@ func (d *ewmaSpeedPeak) Unwrap() decor.Decorator {
 
 func (d *ewmaSpeedPeak) Decor(stat decor.Statistics) (string, int) {
 	if !stat.Completed && !stat.Aborted {
-		mean := d.mean.Value()
-		if d.min == 0 || mean < d.min {
+		if mean := d.mean.Value(); !d.set && mean > 0 {
 			d.min = mean
+			d.set = true
+		} else {
+			d.min = math.Min(d.min, mean)
 		}
 		return d.Decorator.Decor(stat)
 	}
-	if d.min != 0 && d.msg == "" {
+	if d.msg == "" && d.min > 0 {
 		d.msg = fmt.Sprintf(d.format, decor.FmtAsSpeed(decor.SizeB1024(math.Round(1e9/d.min))))
 	}
 	return d.Format(cmp.Or(d.msg, "N/A"))
