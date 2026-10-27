@@ -170,20 +170,21 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 	var partial bool
 	var progressLogger *log.Logger
-	var limitReset int
-	var targetLimit int64 = 32 * 1024
-	readLimit := targetLimit
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			p.logger.Println("Connection RemoteAddr:", connInfo.Conn.RemoteAddr())
 		},
 	}
 
-	p.logger.Println("BUF size:", len(buf))
+	scoreManager := make(chunkScoreManager, 8)
+	defer close(scoreManager)
+	go scoreManager.serve(p.logger)
 
 	strategy := exponential.New(exponential.WithBaseDelay(500 * time.Millisecond))
 
 	return backoff.RetryWithContext(p.ctx, strategy, func(attempt uint) (retry bool, err error) {
+		chunk := scoreManager.get()
+		p.logger.Printf("LimitReader chunk KiB: %d", chunk.size)
 		timedCtx, cancel := context.WithCancelCause(p.ctx)
 		timer := time.AfterFunc(opt.timeout, func() {
 			cancel(errTimeout)
@@ -192,17 +193,8 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 		var idle time.Duration
 		start := time.Now()
 		defer func(written int64) {
-			if !timer.Stop() {
-				if blen := int64(len(buf)); readLimit == blen {
-					opt.timeout = min(opt.timeout+time.Second, maxTimeout*time.Second)
-				} else {
-					readLimit = max(readLimit/2, blen)
-					limitReset *= 2
-					limitReset += int(targetLimit / readLimit)
-				}
-			} else {
-				cancel(nil)
-			}
+			timer.Stop()
+			cancel(nil)
 			elapsed := time.Since(start)
 			totalElapsed += elapsed
 			totalIdle += idle
@@ -229,7 +221,12 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				retry, err = false, withStack(ErrMaxRetry)
 				return
 			}
+			chunk.failure = true
+			if chunk.size == 8 && p.Written-written == 0 {
+				opt.timeout = min(opt.timeout+time.Second, maxTimeout*time.Second)
+			}
 			go func(barNotNil bool) {
+				scoreManager.put(chunk)
 				if errors.Is(context.Cause(timedCtx), errTimeout) {
 					if barNotNil {
 						bar.flashTimeout()
@@ -244,7 +241,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			p.curTry.Store(uint32(attempt + 1))
 		}(p.Written)
 
-		p.logger.Printf("GET(limit=%d,timeout=%s): %s", readLimit, opt.timeout, req.URL)
+		p.logger.Printf("GET(timeout=%s): %s", opt.timeout, req.URL)
 
 		req.Header.Set(hRange, p.getRange())
 		for k, v := range req.Header {
@@ -363,6 +360,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			limit = limitTimer.wait
 			sleep = true
 		}
+		readLimit := chunk.size * 1024
 		for reset := makeReset(strategy, timer, opt.timeout+opt.sleep); reset(); {
 			start := time.Now()
 			// p.output doesn't implement io.ReaderFrom which implies buf will be used to perform the copy
@@ -400,12 +398,9 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				p.logger.Println("Break loop:", nw, err.Error())
 				break
 			}
-			if readLimit != targetLimit {
-				limitReset--
-				if limitReset == 0 {
-					readLimit = min(readLimit*2, targetLimit)
-				}
-			}
+
+			scoreManager.put(chunk)
+
 			if limit(lt, timedCtx) {
 				idle += opt.sleep
 				bar.EwmaIncrInt64(0, opt.sleep)
