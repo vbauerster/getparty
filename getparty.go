@@ -704,7 +704,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 	maxFollow := cmp.Or(m.opt.MaxFollow, math.MaxUint-1) + 1
 
 	err = backoff.RetryWithContext(m.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
-		func(attempt uint, _ func()) (retry bool, err error) {
+		func(attempt uint) (retry bool, err error) {
 			ctx, cancel := context.WithTimeoutCause(m.Ctx, timeout, errTimeout)
 			defer func() {
 				cancel()

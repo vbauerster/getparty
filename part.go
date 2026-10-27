@@ -181,253 +181,254 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 	p.logger.Println("BUF size:", len(buf))
 
-	return backoff.RetryWithContext(p.ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
-		func(attempt uint, backoffReset func()) (retry bool, err error) {
-			timedCtx, cancel := context.WithCancelCause(p.ctx)
-			timer := time.AfterFunc(opt.timeout, func() {
-				cancel(errTimeout)
-				p.logger.Println(timeoutMsg, errTimeout.Error())
-			})
-			var idle time.Duration
-			start := time.Now()
-			defer func(written int64) {
-				if !timer.Stop() {
-					if blen := int64(len(buf)); readLimit == blen {
-						opt.timeout = min(opt.timeout+time.Second, maxTimeout*time.Second)
-					} else {
-						readLimit = max(readLimit/2, blen)
-						limitReset *= 2
-						limitReset += int(targetLimit / readLimit)
-					}
+	strategy := exponential.New(exponential.WithBaseDelay(500 * time.Millisecond))
+
+	return backoff.RetryWithContext(p.ctx, strategy, func(attempt uint) (retry bool, err error) {
+		timedCtx, cancel := context.WithCancelCause(p.ctx)
+		timer := time.AfterFunc(opt.timeout, func() {
+			cancel(errTimeout)
+			p.logger.Println(timeoutMsg, errTimeout.Error())
+		})
+		var idle time.Duration
+		start := time.Now()
+		defer func(written int64) {
+			if !timer.Stop() {
+				if blen := int64(len(buf)); readLimit == blen {
+					opt.timeout = min(opt.timeout+time.Second, maxTimeout*time.Second)
 				} else {
-					cancel(nil)
+					readLimit = max(readLimit/2, blen)
+					limitReset *= 2
+					limitReset += int(targetLimit / readLimit)
 				}
-				elapsed := time.Since(start)
-				totalElapsed += elapsed
-				totalIdle += idle
-				p.logger.Println("Written:", p.Written-written)
-				p.logger.Println("Elapsed:", elapsed)
-				p.logger.Println("Idle:", idle)
-				if !retry || err == nil || p.ctx.Err() != nil {
-					return
-				}
-				if prefix := p.logger.Prefix(); progressLogger == nil {
-					progressLogger = log.New(p.progress, prefix, log.Ltime)
-				} else {
-					progressLogger.SetPrefix(prefix)
-				}
-				switch attempt {
-				case 0:
-					globTry.Add(1)
-				case opt.maxTry:
-					globTry.Add(^uint32(0)) // decrement
-					progressLogger.Printf("%s (%.1f / %.1f)",
-						ErrMaxRetry.Error(),
-						decor.SizeB1024(p.Written),
-						decor.SizeB1024(p.len()))
-					retry, err = false, withStack(ErrMaxRetry)
-					return
-				}
-				go func(barNotNil bool) {
-					if errors.Is(context.Cause(timedCtx), errTimeout) {
-						if barNotNil {
-							bar.flashTimeout()
-						}
-						progressLogger.Println(timeoutMsg, errTimeout.Error())
-					} else {
-						progressLogger.Println(unwrapOrErr(err).Error())
-					}
-				}(bar != nil)
-				p.logger.Println("Retry err:", err.Error())
-				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
-				p.curTry.Store(uint32(attempt + 1))
-			}(p.Written)
-
-			p.logger.Printf("GET(limit=%d,timeout=%s): %s", readLimit, opt.timeout, req.URL)
-
-			req.Header.Set(hRange, p.getRange())
-			for k, v := range req.Header {
-				p.logger.Printf("Request Header: %s: %v", k, v)
-			}
-
-			resp, err := httpClient.Do(req.WithContext(httptrace.WithClientTrace(timedCtx, trace)))
-			if err != nil {
-				return true, withStack(err)
-			}
-			defer func() {
-				if resp.Body != nil {
-					err = cmp.Or(err, resp.Body.Close())
-				}
-			}()
-
-			p.logger.Println("Response Status:", resp.Status)
-
-			if jar := httpClient.Jar; jar != nil {
-				for _, cookie := range jar.Cookies(req.URL) {
-					p.logger.Println("Cookie:", cookie) // *http.Cookie implements fmt.Stringer
-				}
-			}
-
-			for k, v := range resp.Header {
-				p.logger.Printf("Response Header: %s: %v", k, v)
-			}
-
-			switch resp.StatusCode {
-			case http.StatusPartialContent:
-				select {
-				case p.firstResp.id <- p.Id:
-					p.firstResp.cancel(errContextPartial)
-				default:
-					if !partial && errors.Is(context.Cause(p.firstResp.ctx), errContextFallback) {
-						// some other part got http.StatusOK first
-						panic(UnexpectedHttpStatusError(http.StatusPartialContent))
-					}
-				}
-				if p.output.file == nil {
-					err := p.output.Open(os.O_WRONLY | os.O_CREATE | os.O_APPEND)
-					if err != nil {
-						return false, withStack(err)
-					}
-				}
-				if bar == nil {
-					b, err := p.newBar()
-					if err != nil {
-						return false, withStack(err)
-					}
-					bar = b
-				} else {
-					bar.SetRefillCurrent()
-				}
-				partial = true
-			case http.StatusOK: // no partial content, fallback to single part mode
-				select {
-				case p.firstResp.id <- p.Id:
-					p.firstResp.cancel(errContextFallback)
-					if p.Written != 0 {
-						panic(fmt.Errorf("unexpected written %d on first %s", p.Written, resp.Status))
-					}
-					err := p.output.Open(os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
-					if err != nil {
-						return false, withStack(err)
-					}
-					b, err := p.newBar()
-					if err != nil {
-						return false, withStack(err)
-					}
-					bar = b
-					p.reset(resp.ContentLength)
-				default:
-					if !p.single || partial {
-						if errors.Is(context.Cause(p.firstResp.ctx), errContextPartial) {
-							// some other part got http.StatusPartialContent first
-							panic(UnexpectedHttpStatusError(http.StatusOK))
-						}
-						p.logger.Println("Some other part got:", resp.Status)
-						return false, nil
-					}
-					if p.Written != 0 {
-						// there is no way to resume on http.StatusOK so retry from scratch
-						err := p.output.Truncate(0)
-						if err != nil {
-							return false, withStack(err)
-						}
-						p.Written = 0
-						bar.SetCurrent(0)
-						expProgress.Set(expCurrent, expvar.Func(func() any { return 0 }))
-					}
-				}
-			case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-				return true, withStack(UnexpectedHttpStatusError(resp.StatusCode))
-			default:
-				if attempt != 0 {
-					globTry.Add(^uint32(0)) // decrement
-				}
-				if prefix := p.logger.Prefix(); progressLogger == nil {
-					progressLogger = log.New(p.progress, prefix, log.Ltime)
-				} else {
-					progressLogger.SetPrefix(prefix)
-				}
-				err := UnexpectedHttpStatusError(resp.StatusCode)
-				progressLogger.Println(err.Error())
-				return false, withStack(err)
-			}
-
-			var lt limitTimer
-			var limit func(limitTimer, context.Context) bool
-			var sleep bool
-			if opt.sleep == 0 {
-				limit = limitTimer.nop
 			} else {
-				limit = limitTimer.wait
-				sleep = true
+				cancel(nil)
 			}
-			for nw := int64(0); timer.Reset(opt.timeout + opt.sleep); {
-				start := time.Now()
-				// p.output doesn't implement io.ReaderFrom which implies buf will be used to perform the copy
-				nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, readLimit), buf)
-				ewmaDur := time.Since(start)
-
-				if nw == 0 && err != nil {
-					bar.EwmaIncrInt64(0, ewmaDur)
-					return errors.Is(context.Cause(timedCtx), errTimeout) || !errors.Is(err, context.Canceled), err
-				}
-
-				if sleep {
-					lt.timer = time.NewTimer(opt.sleep)
-				}
-
-				p.Written += nw
-
-				if !p.single {
-					p.progress.incrTotal(nw)
+			elapsed := time.Since(start)
+			totalElapsed += elapsed
+			totalIdle += idle
+			p.logger.Println("Written:", p.Written-written)
+			p.logger.Println("Elapsed:", elapsed)
+			p.logger.Println("Idle:", idle)
+			if !retry || err == nil || p.ctx.Err() != nil {
+				return
+			}
+			if prefix := p.logger.Prefix(); progressLogger == nil {
+				progressLogger = log.New(p.progress, prefix, log.Ltime)
+			} else {
+				progressLogger.SetPrefix(prefix)
+			}
+			switch attempt {
+			case 0:
+				globTry.Add(1)
+			case opt.maxTry:
+				globTry.Add(^uint32(0)) // decrement
+				progressLogger.Printf("%s (%.1f / %.1f)",
+					ErrMaxRetry.Error(),
+					decor.SizeB1024(p.Written),
+					decor.SizeB1024(p.len()))
+				retry, err = false, withStack(ErrMaxRetry)
+				return
+			}
+			go func(barNotNil bool) {
+				if errors.Is(context.Cause(timedCtx), errTimeout) {
+					if barNotNil {
+						bar.flashTimeout()
+					}
+					progressLogger.Println(timeoutMsg, errTimeout.Error())
 				} else {
-					expProgress.Add(expCurrent, nw)
-					if p.len() <= 0 {
-						// bar.SetTotal should precede bar.EwmaIncrInt64
-						bar.SetTotal(p.Written, false)
-					}
+					progressLogger.Println(unwrapOrErr(err).Error())
 				}
+			}(bar != nil)
+			p.logger.Println("Retry err:", err.Error())
+			p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
+			p.curTry.Store(uint32(attempt + 1))
+		}(p.Written)
 
-				bar.EwmaIncrInt64(nw, ewmaDur)
+		p.logger.Printf("GET(limit=%d,timeout=%s): %s", readLimit, opt.timeout, req.URL)
 
-				if nw < readLimit && err == nil {
-					if lt.timer != nil {
-						lt.timer.Stop()
-					}
-					err = io.EOF // src stopped early; must have been EOF
-					p.logger.Println("Break loop:", nw, err.Error())
-					break
-				}
-				if readLimit != targetLimit {
-					limitReset--
-					if limitReset == 0 {
-						readLimit = min(readLimit*2, targetLimit)
-						backoffReset()
-					}
-				}
-				if limit(lt, timedCtx) {
-					idle += opt.sleep
-					bar.EwmaIncrInt64(0, opt.sleep)
+		req.Header.Set(hRange, p.getRange())
+		for k, v := range req.Header {
+			p.logger.Printf("Request Header: %s: %v", k, v)
+		}
+
+		resp, err := httpClient.Do(req.WithContext(httptrace.WithClientTrace(timedCtx, trace)))
+		if err != nil {
+			return true, withStack(err)
+		}
+		defer func() {
+			if resp.Body != nil {
+				err = cmp.Or(err, resp.Body.Close())
+			}
+		}()
+
+		p.logger.Println("Response Status:", resp.Status)
+
+		if jar := httpClient.Jar; jar != nil {
+			for _, cookie := range jar.Cookies(req.URL) {
+				p.logger.Println("Cookie:", cookie) // *http.Cookie implements fmt.Stringer
+			}
+		}
+
+		for k, v := range resp.Header {
+			p.logger.Printf("Response Header: %s: %v", k, v)
+		}
+
+		switch resp.StatusCode {
+		case http.StatusPartialContent:
+			select {
+			case p.firstResp.id <- p.Id:
+				p.firstResp.cancel(errContextPartial)
+			default:
+				if !partial && errors.Is(context.Cause(p.firstResp.ctx), errContextFallback) {
+					// some other part got http.StatusOK first
+					panic(UnexpectedHttpStatusError(http.StatusPartialContent))
 				}
 			}
-
-			if p.len() <= 0 && errors.Is(err, io.EOF) {
-				p.reset(p.Written)
-				bar.EnableTriggerComplete()
+			if p.output.file == nil {
+				err := p.output.Open(os.O_WRONLY | os.O_CREATE | os.O_APPEND)
+				if err != nil {
+					return false, withStack(err)
+				}
 			}
-
-			if p.isDone() {
-				if errors.Is(err, io.EOF) {
-					p.logger.Println("Part is done")
+			if bar == nil {
+				b, err := p.newBar()
+				if err != nil {
+					return false, withStack(err)
+				}
+				bar = b
+			} else {
+				bar.SetRefillCurrent()
+			}
+			partial = true
+		case http.StatusOK: // no partial content, fallback to single part mode
+			select {
+			case p.firstResp.id <- p.Id:
+				p.firstResp.cancel(errContextFallback)
+				if p.Written != 0 {
+					panic(fmt.Errorf("unexpected written %d on first %s", p.Written, resp.Status))
+				}
+				err := p.output.Open(os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
+				if err != nil {
+					return false, withStack(err)
+				}
+				b, err := p.newBar()
+				if err != nil {
+					return false, withStack(err)
+				}
+				bar = b
+				p.reset(resp.ContentLength)
+			default:
+				if !p.single || partial {
+					if errors.Is(context.Cause(p.firstResp.ctx), errContextPartial) {
+						// some other part got http.StatusPartialContent first
+						panic(UnexpectedHttpStatusError(http.StatusOK))
+					}
+					p.logger.Println("Some other part got:", resp.Status)
 					return false, nil
 				}
-				panic(fmt.Errorf("expected EOF, got: %w", err))
+				if p.Written != 0 {
+					// there is no way to resume on http.StatusOK so retry from scratch
+					err := p.output.Truncate(0)
+					if err != nil {
+						return false, withStack(err)
+					}
+					p.Written = 0
+					bar.SetCurrent(0)
+					expProgress.Set(expCurrent, expvar.Func(func() any { return 0 }))
+				}
+			}
+		case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			return true, withStack(UnexpectedHttpStatusError(resp.StatusCode))
+		default:
+			if attempt != 0 {
+				globTry.Add(^uint32(0)) // decrement
+			}
+			if prefix := p.logger.Prefix(); progressLogger == nil {
+				progressLogger = log.New(p.progress, prefix, log.Ltime)
+			} else {
+				progressLogger.SetPrefix(prefix)
+			}
+			err := UnexpectedHttpStatusError(resp.StatusCode)
+			progressLogger.Println(err.Error())
+			return false, withStack(err)
+		}
+
+		var nw int64
+		var lt limitTimer
+		var limit func(limitTimer, context.Context) bool
+		var sleep bool
+		if opt.sleep == 0 {
+			limit = limitTimer.nop
+		} else {
+			limit = limitTimer.wait
+			sleep = true
+		}
+		for reset := makeReset(strategy, timer, opt.timeout+opt.sleep); reset(); {
+			start := time.Now()
+			// p.output doesn't implement io.ReaderFrom which implies buf will be used to perform the copy
+			nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, readLimit), buf)
+			ewmaDur := time.Since(start)
+
+			if nw == 0 && err != nil {
+				bar.EwmaIncrInt64(0, ewmaDur)
+				return errors.Is(context.Cause(timedCtx), errTimeout) || !errors.Is(err, context.Canceled), err
 			}
 
-			// invariant: err is never nil here
-			// fallback to errTimeout when loop break reason is timer.Reset
-			return true, cmp.Or(err, errTimeout)
-		})
+			if sleep {
+				lt.timer = time.NewTimer(opt.sleep)
+			}
+
+			p.Written += nw
+
+			if !p.single {
+				p.progress.incrTotal(nw)
+			} else {
+				expProgress.Add(expCurrent, nw)
+				if p.len() <= 0 {
+					// bar.SetTotal should precede bar.EwmaIncrInt64
+					bar.SetTotal(p.Written, false)
+				}
+			}
+
+			bar.EwmaIncrInt64(nw, ewmaDur)
+
+			if nw < readLimit && err == nil {
+				if lt.timer != nil {
+					lt.timer.Stop()
+				}
+				err = io.EOF // src stopped early; must have been EOF
+				p.logger.Println("Break loop:", nw, err.Error())
+				break
+			}
+			if readLimit != targetLimit {
+				limitReset--
+				if limitReset == 0 {
+					readLimit = min(readLimit*2, targetLimit)
+				}
+			}
+			if limit(lt, timedCtx) {
+				idle += opt.sleep
+				bar.EwmaIncrInt64(0, opt.sleep)
+			}
+		}
+
+		if p.len() <= 0 && errors.Is(err, io.EOF) {
+			p.reset(p.Written)
+			bar.EnableTriggerComplete()
+		}
+
+		if p.isDone() {
+			if errors.Is(err, io.EOF) {
+				p.logger.Println("Part is done")
+				return false, nil
+			}
+			panic(fmt.Errorf("expected EOF, got: %w", err))
+		}
+
+		// invariant: err is never nil here
+		// fallback to errTimeout when loop break reason is timer.Reset
+		return true, cmp.Or(err, errTimeout)
+	})
 }
 
 func (p *Part) reset(contentLength int64) {
@@ -473,4 +474,16 @@ func (t limitTimer) wait(ctx context.Context) bool {
 
 func (limitTimer) nop(context.Context) bool {
 	return false
+}
+
+func makeReset(strategy backoff.Strategy, timer *time.Timer, d time.Duration) func() bool {
+	var count uint
+	return func() bool {
+		ok := timer.Reset(d)
+		if ok && count == 1 {
+			strategy.Reset()
+		}
+		count++
+		return ok
+	}
 }
