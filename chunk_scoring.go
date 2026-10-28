@@ -3,7 +3,6 @@ package getparty
 import (
 	"cmp"
 	"container/heap"
-	"errors"
 	"log"
 )
 
@@ -102,16 +101,14 @@ func (m chunkScoreManager) serve(logger *log.Logger) {
 		switch req.cmd {
 		case sm_put:
 			res := req.data.(chunkDatum)
-			chunk, ok := chunks[res.size]
-			if !ok {
-				panic(errors.New("unknown chunk size"))
+			if chunk, ok := chunks[res.size]; ok {
+				if res.failure {
+					chunk.failure++
+				} else {
+					chunk.success++
+				}
+				pq.update(chunk)
 			}
-			if res.failure {
-				chunk.failure++
-			} else {
-				chunk.success++
-			}
-			pq.update(chunk)
 		case sm_get:
 			ch := req.data.(chan int64)
 			ch <- pq[0].size
