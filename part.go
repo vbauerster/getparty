@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/vbauerster/backoff"
-	"github.com/vbauerster/backoff/exponential"
 	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
 )
@@ -180,9 +179,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 	defer close(scoreManager)
 	go scoreManager.serve(p.logger)
 
-	strategy := exponential.New(exponential.WithBaseDelay(500 * time.Millisecond))
-
-	return backoff.RetryWithContext(p.ctx, strategy, func(attempt uint) (retry bool, err error) {
+	return backoff.RetryWithContext(p.ctx, backoff.DefaultStrategy, func(attempt uint) (retry bool, err error) {
 		chunk := scoreManager.get()
 		p.logger.Printf("LimitReader chunk KiB: %d", chunk.size)
 		timedCtx, cancel := context.WithCancelCause(p.ctx)
@@ -361,7 +358,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			sleep = true
 		}
 		readLimit := chunk.size * 1024
-		for reset := makeReset(strategy, timer, opt.timeout+opt.sleep); reset(); {
+		for reset := makeReset(backoff.DefaultStrategy, timer, opt.timeout+opt.sleep); reset(); {
 			start := time.Now()
 			// p.output doesn't implement io.ReaderFrom which implies buf will be used to perform the copy
 			nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, readLimit), buf)

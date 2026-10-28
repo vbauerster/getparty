@@ -31,7 +31,6 @@ import (
 
 	flags "github.com/jessevdk/go-flags"
 	"github.com/vbauerster/backoff"
-	"github.com/vbauerster/backoff/exponential"
 	"github.com/vbauerster/mpb/v8"
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/term"
@@ -703,105 +702,104 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 	maxRetry := cmp.Or(m.opt.MaxRetry, math.MaxUint)
 	maxFollow := cmp.Or(m.opt.MaxFollow, math.MaxUint-1) + 1
 
-	err = backoff.RetryWithContext(m.Ctx, exponential.New(exponential.WithBaseDelay(500*time.Millisecond)),
-		func(attempt uint) (retry bool, err error) {
-			ctx, cancel := context.WithTimeoutCause(m.Ctx, timeout, errTimeout)
-			defer func() {
-				cancel()
-				if errors.Is(context.Cause(ctx), errTimeout) {
-					timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
-					m.loggers[WARN].Println(timeoutMsg, errTimeout.Error())
-					m.loggers[DBUG].Println(timeoutMsg, errTimeout.Error())
-				} else if err != nil {
-					m.loggers[WARN].Println(unwrapOrErr(err).Error())
-					m.loggers[DBUG].Println(err.Error())
-				}
-			}()
-			for range maxFollow - fc {
-				m.loggers[INFO].Printf(template, attempt, fc, location)
-				m.loggers[DBUG].Printf(template, attempt, fc, location)
+	err = backoff.RetryWithContext(m.Ctx, backoff.DefaultStrategy, func(attempt uint) (retry bool, err error) {
+		ctx, cancel := context.WithTimeoutCause(m.Ctx, timeout, errTimeout)
+		defer func() {
+			cancel()
+			if errors.Is(context.Cause(ctx), errTimeout) {
+				timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
+				m.loggers[WARN].Println(timeoutMsg, errTimeout.Error())
+				m.loggers[DBUG].Println(timeoutMsg, errTimeout.Error())
+			} else if err != nil {
+				m.loggers[WARN].Println(unwrapOrErr(err).Error())
+				m.loggers[DBUG].Println(err.Error())
+			}
+		}()
+		for range maxFollow - fc {
+			m.loggers[INFO].Printf(template, attempt, fc, location)
+			m.loggers[DBUG].Printf(template, attempt, fc, location)
 
-				req, err := http.NewRequest(http.MethodHead, location, nil)
+			req, err := http.NewRequest(http.MethodHead, location, nil)
+			if err != nil {
+				return false, withStack(err)
+			}
+
+			patcher.patch(req)
+
+			for k, v := range req.Header {
+				m.loggers[DBUG].Printf("Request Header: %s: %v", k, v)
+			}
+
+			resp, err := httpClient.Do(req.WithContext(ctx))
+			if err != nil {
+				if attempt == maxRetry {
+					return false, withStack(ErrMaxRetry)
+				}
+				return true, withStack(err)
+			}
+
+			if jar := httpClient.Jar; jar != nil {
+				for _, cookie := range jar.Cookies(req.URL) {
+					m.loggers[DBUG].Println("Cookie:", cookie) // *http.Cookie implements fmt.Stringer
+				}
+			}
+
+			m.loggers[DBUG].Println("Response Status:", resp.Status)
+
+			for k, v := range resp.Header {
+				m.loggers[DBUG].Printf("Response Header: %s: %v", k, v)
+			}
+
+			if isRedirect(resp.StatusCode) {
+				m.loggers[INFO].Println("Response Status:", resp.Status)
+				loc, err := resp.Location()
 				if err != nil {
 					return false, withStack(err)
 				}
+				location = loc.String()
+				fc++
+				continue
+			}
 
-				patcher.patch(req)
-
-				for k, v := range req.Header {
-					m.loggers[DBUG].Printf("Request Header: %s: %v", k, v)
-				}
-
-				resp, err := httpClient.Do(req.WithContext(ctx))
-				if err != nil {
+			if resp.StatusCode != http.StatusOK {
+				if isServerError(resp.StatusCode) { // server error may be temporary
 					if attempt == maxRetry {
 						return false, withStack(ErrMaxRetry)
 					}
-					return true, withStack(err)
+					return true, withStack(UnexpectedHttpStatusError(resp.StatusCode))
 				}
+				return false, withStack(UnexpectedHttpStatusError(resp.StatusCode))
+			}
 
-				if jar := httpClient.Jar; jar != nil {
-					for _, cookie := range jar.Cookies(req.URL) {
-						m.loggers[DBUG].Println("Cookie:", cookie) // *http.Cookie implements fmt.Stringer
-					}
-				}
+			m.loggers[INFO].Println("Response Status:", resp.Status)
 
-				m.loggers[DBUG].Println("Response Status:", resp.Status)
-
-				for k, v := range resp.Header {
-					m.loggers[DBUG].Printf("Response Header: %s: %v", k, v)
-				}
-
-				if isRedirect(resp.StatusCode) {
-					m.loggers[INFO].Println("Response Status:", resp.Status)
-					loc, err := resp.Location()
+			if m.opt.Output.Name == "" {
+				for _, pf := range []bool{m.opt.Output.PathFirst, !m.opt.Output.PathFirst} {
+					name, err := parseOutputName(location, resp.Header, pf)
 					if err != nil {
 						return false, withStack(err)
 					}
-					location = loc.String()
-					fc++
-					continue
-				}
-
-				if resp.StatusCode != http.StatusOK {
-					if isServerError(resp.StatusCode) { // server error may be temporary
-						if attempt == maxRetry {
-							return false, withStack(ErrMaxRetry)
-						}
-						return true, withStack(UnexpectedHttpStatusError(resp.StatusCode))
-					}
-					return false, withStack(UnexpectedHttpStatusError(resp.StatusCode))
-				}
-
-				m.loggers[INFO].Println("Response Status:", resp.Status)
-
-				if m.opt.Output.Name == "" {
-					for _, pf := range []bool{m.opt.Output.PathFirst, !m.opt.Output.PathFirst} {
-						name, err := parseOutputName(location, resp.Header, pf)
-						if err != nil {
-							return false, withStack(err)
-						}
-						m.loggers[DBUG].Printf("PathFirst: %t; OutputName: %q", pf, name)
-						if name != "" {
-							m.opt.Output.Name = name
-							break
-						}
+					m.loggers[DBUG].Printf("PathFirst: %t; OutputName: %q", pf, name)
+					if name != "" {
+						m.opt.Output.Name = name
+						break
 					}
 				}
-
-				session = &Session{
-					location:      location,
-					URL:           rawURL,
-					OutputName:    cmp.Or(m.opt.Output.Name, "unknown"),
-					AcceptRanges:  resp.Header.Get(hAcceptRanges),
-					ContentType:   resp.Header.Get(hContentType),
-					ContentLength: resp.ContentLength,
-					Headers:       m.opt.Headers,
-				}
-				return false, withStack(resp.Body.Close())
 			}
-			return false, withStack(ErrMaxRedirect)
-		})
+
+			session = &Session{
+				location:      location,
+				URL:           rawURL,
+				OutputName:    cmp.Or(m.opt.Output.Name, "unknown"),
+				AcceptRanges:  resp.Header.Get(hAcceptRanges),
+				ContentType:   resp.Header.Get(hContentType),
+				ContentLength: resp.ContentLength,
+				Headers:       m.opt.Headers,
+			}
+			return false, withStack(resp.Body.Close())
+		}
+		return false, withStack(ErrMaxRedirect)
+	})
 
 	return session, err
 }
