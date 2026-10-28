@@ -75,12 +75,6 @@ func (b *flashBar) flashTimeout() {
 	b.signal <- struct{}{}
 }
 
-func (b *flashBar) Abort(drop bool) {
-	if b != nil {
-		b.Bar.Abort(drop)
-	}
-}
-
 func (p Part) newBar() (*flashBar, error) {
 	total, signal := p.len(), make(chan struct{}, 1)
 	p.logger.Println("Setting bar total:", total)
@@ -147,10 +141,8 @@ func (p *Part) init(session *Session) error {
 }
 
 func (p *Part) download(location string, opt downloadOptions, buf []byte) (err error) {
-	var bar *flashBar
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
-		bar.Abort(!p.single)
 		p.logger.Println("Total Written:", p.Written)
 		p.logger.Println("Total Elapsed:", totalElapsed)
 		p.logger.Println("Total Idle:", totalIdle)
@@ -167,6 +159,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 		p.patcher.patch(req)
 	}
 
+	var bar *flashBar
 	var partial bool
 	var progressLogger *log.Logger
 	trace := &httptrace.ClientTrace{
@@ -176,7 +169,13 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 	}
 
 	scoreManager := make(chunkScoreManager, 8)
-	defer close(scoreManager)
+	defer func() {
+		close(scoreManager)
+		if bar != nil {
+			bar.Abort(!p.single)
+		}
+	}()
+
 	go scoreManager.serve(p.logger)
 
 	return backoff.RetryWithContext(p.ctx, backoff.DefaultStrategy, func(attempt uint) (retry bool, err error) {
