@@ -188,8 +188,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			p.logger.Println(timeoutMsg, errTimeout.Error())
 		})
 		var idle time.Duration
-		start := time.Now()
-		defer func(written int64) {
+		defer func(written int64, start time.Time) {
 			timer.Stop()
 			cancel(nil)
 			elapsed := time.Since(start)
@@ -236,7 +235,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			p.logger.Println("Retry err:", err.Error())
 			p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
 			p.curTry.Store(uint32(attempt + 1))
-		}(p.Written)
+		}(p.Written, time.Now())
 
 		p.logger.Printf("GET(timeout=%s): %s", opt.timeout, req.URL)
 
