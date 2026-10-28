@@ -22,8 +22,8 @@ const (
 
 const (
 	ErrCanceledByUser      = ExpectedError("Canceled by user")
-	ErrMaxRedirect         = ExpectedError("Max redirections")
-	ErrMaxRetry            = ExpectedError("Max retries")
+	ErrMaxRetry            = ExpectedError("Retry limit exceeded")
+	ErrMaxRedirect         = ExpectedError("Follow limit exceeded")
 	ErrZeroParts           = ExpectedError("No parts no work")
 	ErrTooFragmented       = ExpectedError("Too fragmented, reduce number of parts maybe?")
 	ErrInteractionRequired = ExpectedError("Interaction required, run without --queit maybe?")
