@@ -49,7 +49,7 @@ const (
 	cmdName     = "getparty"
 	projectHome = "https://github.com/vbauerster/getparty"
 
-	maxTimeout          = 90
+	maxTimeout          = 60
 	minFragment         = 512
 	refreshRate         = 200
 	hUserAgentKey       = "User-Agent"
