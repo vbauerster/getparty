@@ -52,14 +52,16 @@ func (pq *priorityq) Pop() any {
 }
 
 func (pq *priorityq) update(item *chunkScore) {
-	if item.success != 0 {
+	switch {
+	case item.success != 0:
 		total := item.success + item.failure
 		rate := float64(item.success) / float64(total)
 		item.priority = rate * item.weight
-	} else if item.size != 8 {
-		item.priority -= 0.5
+		heap.Fix(pq, item.index)
+	case item.size != 8:
+		item.priority = item.weight - 0.5
+		heap.Fix(pq, item.index)
 	}
-	heap.Fix(pq, item.index)
 }
 
 type chunkScoreManager chan scoreManagerQuery
