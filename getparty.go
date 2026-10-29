@@ -85,7 +85,7 @@ type options struct {
 	Parts       uint              `short:"p" long:"parts" value-name:"n" default:"1" description:"number of parts"`
 	MaxRetry    uint              `short:"r" long:"max-retry" value-name:"n" default:"10" description:"max retries per each part, 0 for infinite"`
 	MaxFollow   uint              `long:"max-follow" value-name:"n" default:"10" description:"max redirections to follow, 0 for infinite"`
-	Timeout     uint              `short:"t" long:"timeout" value-name:"sec" default:"5" description:"initial timeout to fill a buffer"`
+	Timeout     uint              `short:"t" long:"timeout" value-name:"sec" default:"5" description:"timeout to read 64KiB chunk; on exceed size is reduced"`
 	SpeedLimit  uint              `short:"l" long:"speed-limit" choice:"1" choice:"2" choice:"3" choice:"4" choice:"5" description:"speed limit (default: 0 = no limit; 5 = max limit)"`
 	SessionName string            `short:"s" long:"session" value-name:"FILE" description:"json file of previous incomplete download session"`
 	UserAgent   string            `short:"U" long:"user-agent" choice:"chrome" choice:"firefox" choice:"safari" choice:"edge" description:"User-Agent header (default: getparty/ver)"`
