@@ -180,7 +180,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 	return backoff.RetryWithContext(p.ctx, backoff.DefaultStrategy, func(attempt uint) (retry bool, err error) {
 		chunk := scoreManager.get()
-		p.logger.Printf("LimitReader chunk KiB: %d", chunk.size)
+		p.logger.Printf("LimitRead=%dKiB timeout=%s", chunk.size, opt.timeout)
 		timedCtx, cancel := context.WithCancelCause(p.ctx)
 		timer := time.AfterFunc(opt.timeout, func() {
 			cancel(errTimeout)
@@ -236,7 +236,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			p.curTry.Store(uint32(attempt + 1))
 		}(p.Written, time.Now())
 
-		p.logger.Printf("GET(timeout=%s): %s", opt.timeout, req.URL)
+		p.logger.Println("GET:", req.URL)
 
 		req.Header.Set(hRange, p.getRange())
 		for k, v := range req.Header {
