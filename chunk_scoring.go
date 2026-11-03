@@ -78,16 +78,16 @@ type scoreManagerQuery struct {
 }
 
 func (m chunkScoreManager) serve(logger *log.Logger) {
-	chunks := map[int64]*chunkScore{
+	scores := map[int64]*chunkScore{
 		8:  {weight: 1.00},
 		16: {weight: 1.08},
 		32: {weight: 1.16},
 		64: {weight: 1.24},
 	}
 
-	pq := make(priorityq, len(chunks))
+	pq := make(priorityq, len(scores))
 	i := 0
-	for k, v := range chunks {
+	for k, v := range scores {
 		v.size = k
 		v.priority = v.weight
 		v.index = i
@@ -100,14 +100,14 @@ func (m chunkScoreManager) serve(logger *log.Logger) {
 	for req := range m {
 		switch req.cmd {
 		case sm_put:
-			res := req.data.(chunkDatum)
-			if chunk, ok := chunks[res.size]; ok {
-				if res.failure {
-					chunk.failure++
+			chunk := req.data.(chunkDatum)
+			if score, ok := scores[chunk.size]; ok {
+				if chunk.failure {
+					score.failure++
 				} else {
-					chunk.success++
+					score.success++
 				}
-				pq.update(chunk)
+				pq.update(score)
 			}
 		case sm_get:
 			ch := req.data.(chan int64)
