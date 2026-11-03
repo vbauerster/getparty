@@ -7,13 +7,13 @@ import (
 )
 
 type chunkDatum struct {
-	size    int64
+	size    int
 	reads   int
 	failure bool
 }
 
 type chunkScore struct {
-	size     int64
+	size     int
 	success  int
 	failure  int
 	weight   float64
@@ -79,7 +79,7 @@ type scoreManagerQuery struct {
 }
 
 func (m chunkScoreManager) serve(logger *log.Logger) {
-	scores := map[int64]*chunkScore{
+	scores := map[int]*chunkScore{
 		8:  {weight: 1.00},
 		16: {weight: 1.08},
 		32: {weight: 1.16},
@@ -110,7 +110,7 @@ func (m chunkScoreManager) serve(logger *log.Logger) {
 				pq.update(score)
 			}
 		case sm_get:
-			ch := req.data.(chan int64)
+			ch := req.data.(chan int)
 			ch <- pq[0].size
 		}
 	}
@@ -125,7 +125,7 @@ func (m chunkScoreManager) put(item chunkDatum) {
 }
 
 func (m chunkScoreManager) get() chunkDatum {
-	ch := make(chan int64)
+	ch := make(chan int)
 	m <- scoreManagerQuery{cmd: sm_get, data: ch}
 	return chunkDatum{size: <-ch}
 }

@@ -358,7 +358,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			limit = limitTimer.wait
 			sleep = true
 		}
-		readLimit := chunk.size * 1024
+		readLimit := int64(chunk.size) * 1024
 		for reset := makeReset(backoff.DefaultStrategy, timer, opt.timeout+opt.sleep); reset(); {
 			start := time.Now()
 			// p.output doesn't implement io.ReaderFrom which implies buf will be used to perform the copy
