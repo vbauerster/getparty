@@ -168,7 +168,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 		},
 	}
 
-	scoreManager := make(chunkScoreManager, 8)
+	scoreManager := make(chunkScoreManager, 1)
 	defer func() {
 		close(scoreManager)
 		if bar != nil {
@@ -180,6 +180,9 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 
 	return backoff.RetryWithContext(p.ctx, backoff.DefaultStrategy, func(attempt uint) (retry bool, err error) {
 		chunk := scoreManager.get()
+		defer func() {
+			scoreManager.put(chunk)
+		}()
 		p.logger.Printf("LimitRead=%dKiB timeout=%s", chunk.size, opt.timeout)
 		timedCtx, cancel := context.WithCancelCause(p.ctx)
 		timer := time.AfterFunc(opt.timeout, func() {
@@ -196,6 +199,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			p.logger.Println("Written:", p.Written-written)
 			p.logger.Println("Elapsed:", elapsed)
 			p.logger.Println("Idle:", idle)
+			p.logger.Println("Retry err:", err)
 			if !retry || err == nil || p.ctx.Err() != nil {
 				return
 			}
@@ -204,9 +208,8 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			} else {
 				progressLogger.SetPrefix(prefix)
 			}
+			chunk.failure = true
 			switch attempt {
-			case 0:
-				globTry.Add(1)
 			case opt.maxTry:
 				globTry.Add(^uint32(0)) // decrement
 				progressLogger.Printf("%s (%.1f / %.1f)",
@@ -214,26 +217,26 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 					decor.SizeB1024(p.Written),
 					decor.SizeB1024(p.len()))
 				retry, err = false, withStack(ErrMaxRetry)
-				return
-			}
-			chunk.failure = true
-			if chunk.size == 8 && p.Written-written == 0 {
-				opt.timeout = min(opt.timeout+time.Second, maxTimeout*time.Second)
-			}
-			go func(barNotNil bool) {
-				scoreManager.put(chunk)
-				if errors.Is(context.Cause(timedCtx), errTimeout) {
-					if barNotNil {
-						bar.flashTimeout()
-					}
-					progressLogger.Println(timeoutMsg, errTimeout.Error())
-				} else {
-					progressLogger.Println(unwrapOrErr(err).Error())
+			case 0:
+				globTry.Add(1)
+				fallthrough
+			default:
+				p.curTry.Store(uint32(attempt + 1))
+				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
+				if chunk.size == 8 && p.Written-written == 0 {
+					opt.timeout = min(opt.timeout+time.Second, maxTimeout*time.Second)
 				}
-			}(bar != nil)
-			p.logger.Println("Retry err:", err.Error())
-			p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
-			p.curTry.Store(uint32(attempt + 1))
+				go func(barNotNil bool) {
+					if errors.Is(context.Cause(timedCtx), errTimeout) {
+						if barNotNil {
+							bar.flashTimeout()
+						}
+						progressLogger.Println(timeoutMsg, errTimeout.Error())
+					} else {
+						progressLogger.Println(unwrapOrErr(err).Error())
+					}
+				}(bar != nil)
+			}
 		}(p.Written, time.Now())
 
 		p.logger.Println("GET:", req.URL)
@@ -394,7 +397,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 				break
 			}
 
-			scoreManager.put(chunk)
+			chunk.reads++
 
 			if limit(lt, timedCtx) {
 				idle += opt.sleep

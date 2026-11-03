@@ -8,6 +8,7 @@ import (
 
 type chunkDatum struct {
 	size    int64
+	reads   int
 	failure bool
 }
 
@@ -104,9 +105,8 @@ func (m chunkScoreManager) serve(logger *log.Logger) {
 			if score, ok := scores[chunk.size]; ok {
 				if chunk.failure {
 					score.failure++
-				} else {
-					score.success++
 				}
+				score.success += chunk.reads
 				pq.update(score)
 			}
 		case sm_get:
