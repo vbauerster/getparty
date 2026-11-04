@@ -337,7 +337,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		timeout: m.getTimeout(),
 		sleep:   time.Duration(m.opt.SpeedLimit*50) * time.Millisecond,
 	}
-	m.loggers[DBUG].Printf("Common options: maxTry=%d timeout=%s sleep=%s", options.maxTry, options.timeout, options.sleep)
+	m.loggers[DBUG].Printf("Common options: %+v", options)
 
 	var i uint
 	var chunks [][]byte
