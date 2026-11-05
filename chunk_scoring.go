@@ -59,7 +59,8 @@ func (pq *priorityq) update(item *chunkScore) {
 		item.priority = rate * item.weight
 		heap.Fix(pq, item.index)
 	case item.size != 8:
-		item.priority = item.weight - 0.5
+		// same as if success=1 and failure=1
+		item.priority = item.weight / 2
 		heap.Fix(pq, item.index)
 	}
 }
