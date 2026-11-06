@@ -208,7 +208,6 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			} else {
 				progressLogger.SetPrefix(prefix)
 			}
-			chunk.failure = true
 			switch attempt {
 			case opt.maxTry:
 				globTry.Add(^uint32(0)) // decrement
@@ -417,6 +416,8 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			}
 			panic(fmt.Errorf("expected EOF, got: %w", err))
 		}
+
+		chunk.failure = true
 
 		// invariant: err is never nil here
 		// fallback to errTimeout when loop break reason is timer.Reset
