@@ -9,10 +9,9 @@ HTTP Download Manager with multi-parts
 
 ## Installation
 
-#### Homebrew
+#### [Homebrew](https://formulae.brew.sh/formula/getparty)
 
 ```
-$ brew tap vbauerster/getparty
 $ brew install getparty
 ```
 
