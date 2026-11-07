@@ -129,8 +129,16 @@ type httpRequestPatcher interface {
 
 // requestPatcher type used to patch *http.Request with headers
 type requestPatcher struct {
-	userinfo *url.Userinfo
 	headers  map[string]string
+	userinfo *url.Userinfo
+}
+
+func (p *requestPatcher) init(src map[string]string, userAgent string) {
+	if p.headers == nil {
+		p.headers = make(map[string]string)
+	}
+	maps.Copy(p.headers, src)
+	p.headers[hUserAgentKey] = userAgent
 }
 
 func (p requestPatcher) patch(req *http.Request) {
@@ -153,22 +161,14 @@ func (p requestPatcher) patch(req *http.Request) {
 	}
 }
 
-func (p *requestPatcher) setHeaders(headers map[string]string) {
-	p.headers = headers
-}
-
-// setUserAgent invariant: p.headers != nil
-func (p *requestPatcher) setUserAgent(agent string) {
-	p.headers[hUserAgentKey] = agent
-}
-
 // Cmd type used to manage download session
 type Cmd struct {
-	Ctx     context.Context
-	Out     io.Writer
-	Err     io.Writer
-	opt     *options
-	loggers [lEVELS]*log.Logger
+	Ctx       context.Context
+	Out       io.Writer
+	Err       io.Writer
+	loggers   [lEVELS]*log.Logger
+	userAgent string
+	opt       *options
 }
 
 func (m *Cmd) Exit(err error) (status int) {
@@ -232,15 +232,13 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		err = withMessage(err, "run")
 	}()
 
-	err = m.init(args)
+	err = m.init(args, version)
 	if err != nil {
 		return err
 	}
 
-	userAgents[""] = fmt.Sprintf("%s/%s", cmdName, version)
-
 	if m.opt.Version {
-		_, e1 := fmt.Fprintf(os.Stdout, "%s (%.7s) (%s)\n", userAgents[""], commit, runtime.Version())
+		_, e1 := fmt.Fprintf(os.Stdout, "%s (%.7s) (%s)\n", m.userAgent, commit, runtime.Version())
 		_, e2 := fmt.Fprintf(os.Stdout, "Project home: %s\n", projectHome)
 		return cmp.Or(e1, e2)
 	}
@@ -515,7 +513,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	return withStack(session.merge(progress, m.loggers[DBUG]))
 }
 
-func (m *Cmd) init(args []string) error {
+func (m *Cmd) init(args []string, version string) error {
 	if m.Ctx == nil {
 		m.Ctx = context.Background()
 	}
@@ -527,7 +525,11 @@ func (m *Cmd) init(args []string) error {
 	}
 	m.opt = new(options)
 	_, err := flags.NewParser(m.opt, flags.Default).ParseArgs(args)
-	return err
+	if err != nil {
+		return err
+	}
+	m.userAgent = fmt.Sprintf("%s/%s", cmdName, version)
+	return nil
 }
 
 func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
@@ -553,8 +555,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 	if err != nil {
 		return nil, withStack(err)
 	}
-	patcher.setHeaders(m.opt.Headers)
-	patcher.setUserAgent(userAgents[m.opt.UserAgent])
 	for {
 		switch {
 		case m.opt.SessionName != "":
@@ -562,12 +562,11 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if err := restored.loadState(m.opt.SessionName); err != nil {
 				return nil, withStack(err)
 			}
-			m.loggers[DBUG].Printf("Session restored from: %q", m.opt.SessionName)
-			patcher.setHeaders(restored.Headers)
-			if m.opt.UserAgent != "" {
-				// respect UserAgent explicitly set by user
-				patcher.setUserAgent(userAgents[m.opt.UserAgent])
+			userAgent := restored.Headers[hUserAgentKey]
+			if strings.HasPrefix(userAgent, cmdName) {
+				userAgent = m.userAgent
 			}
+			patcher.init(restored.Headers, cmp.Or(userAgents[m.opt.UserAgent], userAgent))
 			if httpClient == nil {
 				httpClient = &http.Client{
 					Jar:       jar,
@@ -660,6 +659,7 @@ func (m Cmd) newRequestPatcher() (*requestPatcher, error) {
 		m.opt.AuthUser = ""
 		m.opt.AuthPass = ""
 	}
+	patcher.init(m.opt.Headers, cmp.Or(userAgents[m.opt.UserAgent], m.userAgent))
 	return patcher, nil
 }
 
