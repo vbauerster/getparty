@@ -358,7 +358,7 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 			sleep = true
 		}
 		readLimit := int64(chunk.size) * 1024
-		for reset := makeReset(backoff.DefaultStrategy, timer, opt.timeout+opt.sleep); reset(); {
+		for reset := makeReset(attempt, timer); reset(opt.timeout + opt.sleep); {
 			start := time.Now()
 			// p.output doesn't implement io.ReaderFrom which implies buf will be used to perform the copy
 			nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, readLimit), buf)
@@ -471,12 +471,15 @@ func (limitTimer) nop(context.Context) bool {
 	return false
 }
 
-func makeReset(strategy backoff.Strategy, timer *time.Timer, d time.Duration) func() bool {
+func makeReset(attempt uint, timer *time.Timer) func(time.Duration) bool {
+	if attempt == 0 {
+		return timer.Reset
+	}
 	var count uint
-	return func() bool {
+	return func(d time.Duration) bool {
 		ok := timer.Reset(d)
 		if ok && count == 1 {
-			strategy.Reset()
+			backoff.DefaultStrategy.Reset()
 		}
 		count++
 		return ok
