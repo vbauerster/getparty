@@ -22,7 +22,7 @@ func (s *outFile) Open(flag int) error {
 }
 
 func (s *outFile) Close() error {
-	if s != nil && s.file != nil {
+	if !s.done && s.file != nil {
 		return s.file.Close()
 	}
 	return nil
