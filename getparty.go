@@ -573,20 +573,17 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				userAgent = m.userAgent
 			}
 			patcher.init(restored.Headers, cmp.Or(userAgents[m.opt.UserAgent], userAgent))
-			if httpClient == nil {
+			if session != nil {
+				if restored.URL == session.URL {
+					restored.location = cmp.Or(session.location, session.URL)
+					return restored, withStack(checkContentMismatch(restored, session))
+				}
+				m.loggers[DBUG].Printf("Updating session.URL from: %q to: %q", restored.URL, session.URL)
+				restored.URL = session.URL
+			} else {
 				httpClient = &http.Client{
 					Jar:       jar,
 					Transport: rtBuilder.pool(true).build(),
-				}
-			}
-			if session != nil {
-				if restored.URL != session.URL {
-					m.loggers[DBUG].Printf("Updating session.URL from: %q to: %q", restored.URL, session.URL)
-					restored.URL = session.URL
-				}
-				if maps.Equal(restored.Headers, session.Headers) {
-					restored.location = session.location
-					return restored, withStack(checkContentMismatch(restored, session))
 				}
 			}
 			// re-follow with patcher set to restored.Headers and restored.URL
