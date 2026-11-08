@@ -478,6 +478,9 @@ func TestConcat(t *testing.T) {
 			if output := string(data); output != test.expected {
 				t.Errorf("expected %q got %q", test.expected, output)
 			}
+			if !bar.Completed() {
+				t.Fatal("expected completed bar")
+			}
 		})
 	}
 }
