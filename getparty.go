@@ -286,8 +286,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 			}()
 			if err := session.dumpState(dumpName); err != nil {
-				// defer panic to fallthrough take place
-				defer panic(err)
+				defer panic(err) // defer panic to fallthrough take place
 			}
 			fallthrough
 		case sessionUncompleted:
