@@ -125,6 +125,7 @@ type options struct {
 
 type httpRequestPatcher interface {
 	patch(*http.Request)
+	populate(map[string]string)
 }
 
 // requestPatcher type used to patch *http.Request with headers
@@ -159,6 +160,10 @@ func (p requestPatcher) patch(req *http.Request) {
 			req.Header.Set(k, v)
 		}
 	}
+}
+
+func (p requestPatcher) populate(dst map[string]string) {
+	maps.Copy(dst, p.headers)
 }
 
 // Cmd type used to manage download session
@@ -584,8 +589,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 					return restored, withStack(checkContentMismatch(restored, session))
 				}
 			}
-			// re-follow with patcher set to restored.HeaderMap and restored.URL
-			m.opt.Headers = restored.Headers
+			// re-follow with patcher set to restored.Headers and restored.URL
 			m.opt.Output.Name = restored.OutputName
 			session, err = m.follow(patcher, restored.URL)
 			if err != nil {
@@ -792,6 +796,9 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 				}
 			}
 
+			headers := make(map[string]string)
+			patcher.populate(headers)
+
 			session = &Session{
 				location:      location,
 				URL:           rawURL,
@@ -799,7 +806,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 				AcceptRanges:  resp.Header.Get(hAcceptRanges),
 				ContentType:   resp.Header.Get(hContentType),
 				ContentLength: resp.ContentLength,
-				Headers:       m.opt.Headers,
+				Headers:       headers,
 			}
 			return false, withStack(resp.Body.Close())
 		}
