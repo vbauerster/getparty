@@ -937,7 +937,7 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 			}
 
 			bar.Increment()
-			src.file = nil
+			src.done = true
 		})
 	}
 
@@ -953,7 +953,7 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 
 	i := 0
 	for _, p := range parts {
-		if p.file != nil {
+		if !p.done {
 			parts[i] = p
 			i++
 		}

@@ -9,6 +9,7 @@ const umask = 0644
 type outFile struct {
 	name string
 	file *os.File
+	done bool
 }
 
 func (s *outFile) Open(flag int) error {
