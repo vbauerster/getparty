@@ -293,12 +293,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		case sessionUncompleted:
 			for _, p := range session.Parts {
 				if p.Written == 0 {
-					stat, err := p.output.Stat()
-					if err != nil {
-						m.loggers[DBUG].Printf("%q stat: %s", p.output, err.Error())
-						continue
-					}
-					if stat.Size() == 0 {
+					if stat, err := p.output.Stat(); err == nil && stat.Size() == 0 {
 						m.loggers[DBUG].Printf("%q is zero: close,remove: %v", p.output, cmp.Or(p.output.Close(), os.Remove(p.output.Name())))
 					}
 				} else {
