@@ -83,9 +83,9 @@ func (s *Session) dumpState(name string) error {
 
 func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 	var stat os.FileInfo
-	parts := make([]*outFile, 0, len(s.Parts))
-	for _, p := range s.Parts {
-		parts = append(parts, p.output)
+	parts := make([]*outFile, len(s.Parts))
+	for i, p := range s.Parts {
+		parts[i] = p.output
 	}
 
 	defer func() {
