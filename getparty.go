@@ -510,7 +510,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		panic(errors.New("done count != session parts"))
 	}
 
-	return withStack(session.merge(progress, m.loggers[DBUG]))
+	return session.merge(progress, m.loggers[DBUG])
 }
 
 func (m *Cmd) init(args []string, version string) error {
@@ -905,14 +905,14 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 			err := dst.Open(os.O_WRONLY | os.O_APPEND)
 			logger.Printf("dst=%q reopen: %v", dst, err)
 			if err != nil {
-				return err
+				return withStack(err)
 			}
 		}
 		// have to reopen src.file for reading
 		err := src.Open(os.O_RDONLY)
 		logger.Printf("src=%q reopen: %v", src, err)
 		if err != nil {
-			return err
+			return withStack(err)
 		}
 
 		wg.Go(func() {
@@ -945,7 +945,7 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 	close(errCh)
 
 	if err := <-errCh; err != nil {
-		return err
+		return withStack(err)
 	}
 
 	i := 0

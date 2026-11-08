@@ -113,19 +113,19 @@ func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 		return nil
 	}
 	if !s.isResumable() {
-		return errors.New("attempt to concat unresumable session")
+		return withStack(errors.New("attempt to concat unresumable session"))
 	}
 
 	for i, of := range parts {
 		err := of.checkContentMismatch(s.Parts[i].Written)
 		if err != nil {
-			return err
+			return withStack(err)
 		}
 	}
 
 	bar, err := progress.addMergeBar(len(parts))
 	if err != nil {
-		return err
+		return withStack(err)
 	}
 	defer bar.Abort(false)
 
