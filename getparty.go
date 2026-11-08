@@ -569,7 +569,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				return nil, withStack(err)
 			}
 			userAgent := restored.Headers[hUserAgentKey]
-			if strings.HasPrefix(userAgent, cmdName) {
+			if userAgent == "" || strings.HasPrefix(userAgent, cmdName) {
 				userAgent = m.userAgent
 			}
 			patcher.init(restored.Headers, cmp.Or(userAgents[m.opt.UserAgent], userAgent))
