@@ -124,18 +124,7 @@ func (p *Part) init(session *Session) error {
 		name: filepath.Join(session.dir, fmt.Sprintf("%s.%02d", session.OutputName, p.Id)),
 	}
 	if session.restored && p.Written != 0 {
-		stat, err := p.output.Stat()
-		if err != nil {
-			return withStack(err)
-		}
-		if size := stat.Size(); size != p.Written {
-			err := ContentMismatchError[int64]{
-				kind: mismatchContentLength,
-				old:  p.Written,
-				new:  size,
-			}
-			return withStack(withMessage(err, p.output.Name()))
-		}
+		return withStack(p.output.checkContentMismatch(p.Written))
 	}
 	return nil
 }

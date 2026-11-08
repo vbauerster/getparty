@@ -82,7 +82,6 @@ func (s *Session) dumpState(name string) error {
 }
 
 func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
-	var stat os.FileInfo
 	parts := make([]*outFile, len(s.Parts))
 	for i, p := range s.Parts {
 		parts[i] = p.output
@@ -90,19 +89,7 @@ func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 
 	defer func() {
 		if err == nil {
-			stat, err = parts[0].Stat()
-			if err != nil {
-				logger.Printf("%q stat: %s", parts[0], err.Error())
-				return
-			}
-			if size := stat.Size(); s.ContentLength != size {
-				err = ContentMismatchError[int64]{
-					kind: mismatchContentLength,
-					old:  s.ContentLength,
-					new:  size,
-				}
-				err = withMessage(err, parts[0].Name())
-			}
+			err = withStack(parts[0].checkContentMismatch(s.ContentLength))
 		}
 	}()
 
