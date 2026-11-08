@@ -945,9 +945,6 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 	close(errCh)
 
 	if err := <-errCh; err != nil {
-		for _, p := range parts {
-			logger.Printf("%q close: %v", p, p.Close())
-		}
 		return err
 	}
 
