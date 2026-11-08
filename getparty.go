@@ -263,12 +263,13 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
+	outputName := filepath.Join(session.dir, session.OutputName)
+	session.summary(outputName, m.loggers)
+
 	uncompletedParts, current := session.uncompletedPartsCount(), session.totalWritten()
 	progress := newProgress(m.Ctx, m.Out, m.Err, uncompletedParts)
 	stateQuery := makeStateQuery(current, session.ContentLength, session.isResumable())
-	outputName := filepath.Join(session.dir, session.OutputName)
 	ctx, cancel := context.WithCancelCause(m.Ctx)
-	session.summary(outputName, m.loggers)
 	defer func() {
 		cancel(nil)
 		tw := session.totalWritten()
