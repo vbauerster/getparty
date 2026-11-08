@@ -294,14 +294,21 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			for _, p := range session.Parts {
 				if p.Written == 0 {
 					if stat, err := p.output.Stat(); err == nil && stat.Size() == 0 {
-						m.loggers[DBUG].Printf("%q is zero: close,remove: %v", p.output, cmp.Or(p.output.Close(), os.Remove(p.output.Name())))
+						m.loggers[DBUG].Printf("%q is zero: close,remove: %v",
+							p.output,
+							cmp.Or(p.output.Close(), os.Remove(p.output.Name())),
+						)
 					}
 				} else {
 					m.loggers[DBUG].Printf("%q close: %v", p.output, p.output.Close())
 				}
 			}
 			if p := session.Parts[0]; session.Single && !session.isResumable() && p.output != nil {
-				m.loggers[DBUG].Printf("%q rename to %q: %v", p.output, outputName, os.Rename(p.output.Name(), outputName))
+				m.loggers[DBUG].Printf("%q rename to %q: %v",
+					p.output,
+					outputName,
+					os.Rename(p.output.Name(), outputName),
+				)
 			}
 			progress.Wait()
 		case sessionCompleted:
