@@ -3,8 +3,15 @@ package getparty
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/vbauerster/mpb/v8"
 )
 
 func TestMakeParts(t *testing.T) {
@@ -287,6 +294,188 @@ func TestParseOutputName(t *testing.T) {
 				t.Fatal(err)
 			}
 			if output != test.expected {
+				t.Errorf("expected %q got %q", test.expected, output)
+			}
+		})
+	}
+}
+
+func TestConcat(t *testing.T) {
+	tests := []struct {
+		parts    []*outFile
+		nilfiles string
+		expected string
+	}{
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+			},
+			expected: "12",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+			},
+			nilfiles: "1",
+			expected: "12",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+			},
+			nilfiles: "2",
+			expected: "12",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+			},
+			nilfiles: "12",
+			expected: "12",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+			},
+			expected: "123",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+			},
+			nilfiles: "1",
+			expected: "123",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+			},
+			nilfiles: "12",
+			expected: "123",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+			},
+			nilfiles: "13",
+			expected: "123",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+			},
+			nilfiles: "2",
+			expected: "123",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+			},
+			nilfiles: "23",
+			expected: "123",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+			},
+			nilfiles: "3",
+			expected: "123",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+			},
+			nilfiles: "123",
+			expected: "123",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+				{name: "4"},
+			},
+			expected: "1234",
+		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+				{name: "4"},
+				{name: "5"},
+			},
+			expected: "12345",
+		},
+	}
+
+	logger := log.New(io.Discard, "", 0)
+	progress := mpb.New(mpb.WithOutput(io.Discard))
+	defer progress.Wait()
+
+	for i, test := range tests {
+		testname := fmt.Sprintf("%d:expected=%s:nilfiles=%s", i, test.expected, test.nilfiles)
+		dir, err := os.MkdirTemp("", "getparty-concat")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, of := range test.parts {
+			basename := of.name
+			of.name = filepath.Join(dir, basename)
+			err := of.Open(os.O_WRONLY | os.O_CREATE)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = of.file.Write([]byte(basename))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(test.nilfiles, basename) {
+				err := of.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+				of.file = nil
+			}
+		}
+		t.Run(testname, func(t *testing.T) {
+			bar := progress.AddBar(int64(len(test.parts)))
+			defer bar.Abort(false)
+			err := concat(logger, bar, test.parts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, of := range test.parts {
+				err := of.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			data, err := os.ReadFile(test.parts[0].Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if output := string(data); output != test.expected {
 				t.Errorf("expected %q got %q", test.expected, output)
 			}
 		})
