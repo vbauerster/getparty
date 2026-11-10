@@ -1,6 +1,9 @@
 package getparty
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 const umask = 0644
 
@@ -13,6 +16,9 @@ type outFile struct {
 }
 
 func (s *outFile) Open(flag int) error {
+	if s.done {
+		panic(fmt.Errorf("%q is done", s.name))
+	}
 	err := s.Close()
 	if err != nil {
 		return err
