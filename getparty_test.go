@@ -427,6 +427,16 @@ func TestConcat(t *testing.T) {
 			},
 			expected: "12345",
 		},
+		{
+			parts: []*outFile{
+				{name: "1"},
+				{name: "2"},
+				{name: "3"},
+				{name: "3"},
+				{name: "4"},
+			},
+			expected: "panic",
+		},
 	}
 
 	logger := log.New(io.Discard, "", 0)
@@ -460,7 +470,14 @@ func TestConcat(t *testing.T) {
 		}
 		t.Run(testname, func(t *testing.T) {
 			bar := progress.AddBar(int64(len(test.parts)))
-			defer bar.Abort(false)
+			defer func() {
+				bar.Abort(false)
+				if x := recover(); x != nil {
+					if test.expected != "panic" {
+						t.Fatal(x)
+					}
+				}
+			}()
 			err := concat(logger, bar, test.parts)
 			if err != nil {
 				t.Fatal(err)
