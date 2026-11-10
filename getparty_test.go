@@ -442,7 +442,7 @@ func TestConcat(t *testing.T) {
 		for _, of := range test.parts {
 			basename := of.name
 			of.name = filepath.Join(dir, basename)
-			err := of.Open(os.O_WRONLY | os.O_CREATE)
+			err := of.Open(os.O_WRONLY | os.O_CREATE | os.O_APPEND)
 			if err != nil {
 				t.Fatal(err)
 			}
