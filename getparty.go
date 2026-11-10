@@ -907,7 +907,7 @@ func concat(logger *log.Logger, bar *mpb.Bar, parts []*outFile) error {
 		}
 		dst, src := c[0], c[1]
 		if dst.Name() == src.Name() {
-			panic(fmt.Errorf("dst is src: %q", src.Name()))
+			panic(fmt.Errorf("dst is src: %q", src))
 		}
 		// dst.file can be nil when session is restored with some done part
 		if dst.file == nil {
