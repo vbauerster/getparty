@@ -587,7 +587,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				}
 			}
 			// re-follow with patcher set to restored.Headers and restored.URL
-			m.opt.Output.Name = restored.OutputName
 			session, err = m.follow(patcher, restored.URL)
 			if err != nil {
 				return nil, err
@@ -1035,6 +1034,9 @@ func isFileExist(name string) (bool, error) {
 }
 
 func checkContentMismatch(old, new *Session) error {
+	if old.OutputName != new.OutputName {
+		return fmt.Errorf("output name mismatch: old=%q new=%q", old.OutputName, new.OutputName)
+	}
 	if old.ContentType != new.ContentType {
 		return ContentMismatchError[string]{
 			kind: mismatchContentType,
