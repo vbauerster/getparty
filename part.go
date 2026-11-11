@@ -166,6 +166,10 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 
 	go scoreManager.serve(p.logger)
 
+	if buf == nil {
+		buf = make([]byte, bufSize)
+	}
+
 	return backoff.RetryWithContext(p.ctx, backoff.DefaultStrategy, func(attempt uint) (retry bool, err error) {
 		chunk := scoreManager.get()
 		defer func() {
