@@ -374,7 +374,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			continue
 		}
 		p.ctx = ctx
-		p.patcher = patcher
 		p.firstResp = firstResp
 		p.progress = progress
 		p.logger = log.New(m.Err, fmt.Sprintf(prefixFormat, p.name, 0), log.LstdFlags)
@@ -403,7 +402,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 				wg.Done()
 			}()
-			err = p.download(session.location, options, buf)
+			err = p.download(patcher, session.location, options, buf)
 		}()
 	}
 

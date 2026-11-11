@@ -34,7 +34,6 @@ type Part struct {
 	Written int64
 
 	name      string
-	patcher   httpRequestPatcher
 	ctx       context.Context
 	curTry    *atomic.Uint32
 	progress  *progress               // shared among parts
@@ -129,7 +128,7 @@ func (p *Part) init(session *Session) error {
 	return nil
 }
 
-func (p *Part) download(location string, opt downloadOptions, buf []byte) (err error) {
+func (p *Part) download(patcher httpRequestPatcher, location string, opt downloadOptions, buf []byte) (err error) {
 	var totalElapsed, totalIdle time.Duration
 	defer func() {
 		p.logger.Println("Total Written:", p.Written)
@@ -144,8 +143,8 @@ func (p *Part) download(location string, opt downloadOptions, buf []byte) (err e
 		return withStack(err)
 	}
 
-	if p.patcher != nil {
-		p.patcher.patch(req)
+	if patcher != nil {
+		patcher.patch(req)
 	}
 
 	var bar *flashBar
