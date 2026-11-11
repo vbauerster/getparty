@@ -578,7 +578,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 					restored.location = cmp.Or(session.location, session.URL)
 					return restored, withStack(checkContentMismatch(restored, session))
 				}
-				m.loggers[DBUG].Printf("Updating session.URL from: %q to: %q", restored.URL, session.URL)
+				m.loggers[DBUG].Printf("Updating session URL: old=%q new=%q", restored.URL, session.URL)
 				restored.URL = session.URL
 			} else {
 				httpClient = &http.Client{
