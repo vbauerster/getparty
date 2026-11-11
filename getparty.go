@@ -52,6 +52,7 @@ const (
 	maxTimeout          = 60
 	minFragment         = 512
 	refreshRate         = 200
+	bufSize             = 8192
 	hUserAgentKey       = "User-Agent"
 	hContentDisposition = "Content-Disposition"
 	hAcceptRanges       = "Accept-Ranges"
@@ -351,11 +352,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	var i uint
 	var chunks [][]byte
 	{
-		var size uint = 8 * 1024
-		row := make([]byte, size*uint(uncompletedParts))
+		row := make([]byte, bufSize*uncompletedParts)
 		for range uncompletedParts {
-			chunks = append(chunks, slices.Clip(row[i:i+size]))
-			i += size
+			chunks = append(chunks, slices.Clip(row[i:i+bufSize]))
+			i += bufSize
 		}
 		i = 0
 	}
