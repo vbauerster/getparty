@@ -599,7 +599,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			session.dir = filepath.Dir(m.opt.SessionName)
 			return session, withStack(checkContentMismatch(restored, session))
 		case m.opt.BestMirror.Mirrors != "":
-			top, err := m.bestMirror(rtBuilder.pool(false).build(), patcher)
+			top, err := m.bestMirror(patcher, rtBuilder.pool(false).build())
 			if err != nil {
 				return nil, withStack(err)
 			}

@@ -22,7 +22,7 @@ type mirror struct {
 }
 
 // bestMirror invariant: len(top) != 0 on err == nil
-func (m Cmd) bestMirror(transport http.RoundTripper, patcher httpRequestPatcher) (mirrors []*mirror, err error) {
+func (m Cmd) bestMirror(patcher httpRequestPatcher, transport http.RoundTripper) (mirrors []*mirror, err error) {
 	var input io.Reader
 	if m.opt.BestMirror.Mirrors == "-" {
 		input = os.Stdin
