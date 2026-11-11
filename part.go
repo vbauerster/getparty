@@ -358,7 +358,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 
 			if nw == 0 && err != nil {
 				bar.EwmaIncrInt64(0, ewmaDur)
-				p.logger.Println("Break loop:", nw, err.Error())
+				p.logger.Println("Break loop:", 0, err.Error())
 				break
 			}
 
