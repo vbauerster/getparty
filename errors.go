@@ -24,7 +24,7 @@ const (
 	ErrCanceledByUser      = ExpectedError("Canceled by user")
 	ErrMaxRetry            = ExpectedError("Retry limit exceeded")
 	ErrMaxRedirect         = ExpectedError("Follow limit exceeded")
-	ErrZeroParts           = ExpectedError("No parts no work")
+	ErrZeroParts           = ExpectedError("Need at least one part to continue")
 	ErrTooFragmented       = ExpectedError("Too fragmented, reduce number of parts maybe?")
 	ErrInteractionRequired = ExpectedError("Interaction required, run without --queit maybe?")
 	ErrMirrorStop          = ExpectedError("Stop, more than one mirror requested")
