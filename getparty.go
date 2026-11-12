@@ -808,6 +808,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 				}
 			} else {
 				session.OutputName = m.opt.Output.Name
+				session.ExplicitOutput = true
 			}
 
 			return false, withStack(resp.Body.Close())

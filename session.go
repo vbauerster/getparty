@@ -15,18 +15,19 @@ import (
 
 // Session represents download session state
 type Session struct {
-	dir           string
-	location      string
-	URL           string
-	OutputName    string
-	AcceptRanges  string
-	ContentType   string
-	ContentLength int64
-	Elapsed       time.Duration
-	Headers       map[string]string
-	Parts         []*Part
-	Single        bool
-	restored      bool
+	dir            string
+	location       string
+	URL            string
+	OutputName     string
+	AcceptRanges   string
+	ContentType    string
+	ContentLength  int64
+	Elapsed        time.Duration
+	Headers        map[string]string
+	Parts          []*Part
+	ExplicitOutput bool
+	Single         bool
+	restored       bool
 }
 
 func (s *Session) makeParts(n uint) error {
