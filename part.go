@@ -118,7 +118,7 @@ func (p Part) newBar() (*flashBar, error) {
 func (p *Part) init(session *Session) error {
 	p.name = fmt.Sprintf("P%02d", p.Id)
 	p.curTry = new(atomic.Uint32)
-	p.single = session.Single
+	p.single = len(session.Parts) == 1
 	p.output = &outFile{
 		name: filepath.Join(session.dir, fmt.Sprintf("%s.%02d", session.OutputName, p.Id)),
 	}

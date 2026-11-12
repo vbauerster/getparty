@@ -26,7 +26,6 @@ type Session struct {
 	Headers        map[string]string
 	Parts          []*Part
 	ExplicitOutput bool
-	Single         bool
 	restored       bool
 }
 
@@ -62,7 +61,6 @@ func (s *Session) makeParts(n uint) error {
 	}
 
 	s.Parts = parts
-	s.Single = n == 1
 	return nil
 }
 
@@ -94,7 +92,7 @@ func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 		}
 	}()
 
-	if s.Single {
+	if len(s.Parts) == 1 {
 		if !s.isResumable() {
 			s.ContentLength = s.Parts[0].Written
 		}

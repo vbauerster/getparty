@@ -309,7 +309,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					m.loggers[DBUG].Printf("%q close: %v", p.output, p.output.Close())
 				}
 			}
-			if p := session.Parts[0]; session.Single && !session.isResumable() && p.output != nil {
+			if len(session.Parts) == 1 && !session.isResumable() {
+				p := session.Parts[0]
 				m.loggers[DBUG].Printf("%q rename to %q: %v",
 					p.output,
 					outputName,
@@ -428,8 +429,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				http.StatusOK,
 			))
 		}
-		if !session.Single {
-			session.Single = true
+		if len(session.Parts) > 1 {
 			wg.Wait()
 			id := <-firstResp.id
 			var part *Part
@@ -448,7 +448,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			session.Parts = slices.Clip(session.Parts[:1])
 		}
 	case errors.Is(cause, errContextPartial):
-		if !session.Single {
+		if len(session.Parts) > 1 {
 			bar, err := progress.addTotalBar(
 				start.Add(-session.Elapsed),
 				session.ContentLength,
@@ -600,7 +600,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if err != nil {
 				return nil, err
 			}
-			session.Single = restored.Single
 			session.Parts = restored.Parts
 			session.Elapsed = restored.Elapsed
 			session.restored = true
