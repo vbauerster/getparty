@@ -575,6 +575,8 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			patcher.init(restored.Headers, cmp.Or(userAgents[m.opt.UserAgent], userAgent))
 			if session != nil {
 				if restored.URL == session.URL {
+					restored.restored = true
+					restored.dir = filepath.Dir(m.opt.SessionName)
 					restored.location = cmp.Or(session.location, session.URL)
 					return restored, withStack(checkContentMismatch(restored, session))
 				}
