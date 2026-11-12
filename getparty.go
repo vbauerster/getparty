@@ -588,6 +588,13 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 					Transport: rtBuilder.pool(true).build(),
 				}
 			}
+			if restored.ExplicitOutput {
+				if m.opt.Output.Name != "" {
+					m.loggers[WARN].Printf("Ignoring output %q", m.opt.Output.Name)
+					m.loggers[DBUG].Printf("Ignoring output %q", m.opt.Output.Name)
+				}
+				m.opt.Output.Name = restored.OutputName
+			}
 			// re-follow with patcher set to restored.Headers and restored.URL
 			session, err = m.follow(patcher, restored.URL)
 			if err != nil {
