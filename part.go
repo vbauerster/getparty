@@ -115,14 +115,11 @@ func (p Part) newBar() (*flashBar, error) {
 	return &flashBar{bar, signal}, nil
 }
 
-func (p *Part) init(session *Session) error {
-	p.name = fmt.Sprintf("P%02d", p.Id)
-	p.curTry = new(atomic.Uint32)
-	p.single = len(session.Parts) == 1
+func (p *Part) init(dir, outputName string) error {
 	p.output = &outFile{
-		name: filepath.Join(session.dir, fmt.Sprintf("%s.%02d", session.OutputName, p.Id)),
+		name: filepath.Join(dir, fmt.Sprintf("%s.%02d", outputName, p.Id)),
 	}
-	if session.restored && p.Written != 0 {
+	if p.Written != 0 {
 		return withStack(p.output.checkContentMismatch(p.Written))
 	}
 	return nil

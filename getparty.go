@@ -365,7 +365,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	errCh := make(chan error, 1)
 
 	for _, p := range session.Parts {
-		if err := p.init(session); err != nil {
+		if err := p.init(session.dir, session.OutputName); err != nil {
 			cancel(errSessionCanceled)
 			wg.Wait()
 			return err
@@ -375,6 +375,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			continue
 		}
 		p.ctx = ctx
+		p.name = fmt.Sprintf("P%02d", p.Id)
+		p.curTry = new(atomic.Uint32)
+		p.single = len(session.Parts) == 1
 		p.firstResp = firstResp
 		p.progress = progress
 		p.logger = log.New(m.Err, fmt.Sprintf(prefixFormat, p.name, 0), log.LstdFlags)
