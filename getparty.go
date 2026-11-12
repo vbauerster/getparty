@@ -778,6 +778,17 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 
 			m.loggers[INFO].Println("Response Status:", resp.Status)
 
+			session = &Session{
+				location:      location,
+				URL:           rawURL,
+				AcceptRanges:  resp.Header.Get(hAcceptRanges),
+				ContentType:   resp.Header.Get(hContentType),
+				ContentLength: resp.ContentLength,
+				Headers:       make(map[string]string),
+			}
+
+			patcher.populate(session.Headers)
+
 			if m.opt.Output.Name == "" {
 				for _, pf := range []bool{m.opt.Output.PathFirst, !m.opt.Output.PathFirst} {
 					name, err := parseOutputName(location, resp.Header, pf)
@@ -786,24 +797,17 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 					}
 					m.loggers[DBUG].Printf("PathFirst: %t; OutputName: %q", pf, name)
 					if name != "" {
-						m.opt.Output.Name = name
+						session.OutputName = name
 						break
 					}
 				}
+				if session.OutputName == "" {
+					session.OutputName = "unknown"
+				}
+			} else {
+				session.OutputName = m.opt.Output.Name
 			}
 
-			headers := make(map[string]string)
-			patcher.populate(headers)
-
-			session = &Session{
-				location:      location,
-				URL:           rawURL,
-				OutputName:    cmp.Or(m.opt.Output.Name, "unknown"),
-				AcceptRanges:  resp.Header.Get(hAcceptRanges),
-				ContentType:   resp.Header.Get(hContentType),
-				ContentLength: resp.ContentLength,
-				Headers:       headers,
-			}
 			return false, withStack(resp.Body.Close())
 		}
 		return false, withStack(ErrMaxRedirect)
