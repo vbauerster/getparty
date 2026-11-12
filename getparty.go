@@ -264,6 +264,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
+	if len(session.Parts) == 0 {
+		panic(withMessage(ErrZeroParts, "unexpected"))
+	}
+
 	outputName := filepath.Join(session.dir, session.OutputName)
 	session.summary(outputName, m.loggers)
 
