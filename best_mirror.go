@@ -40,7 +40,7 @@ func (m Cmd) bestMirror(patcher httpRequestPatcher, transport http.RoundTripper)
 	}
 	client := &http.Client{Transport: transport}
 	defer client.CloseIdleConnections()
-	mirrors, err = m.batchMirrors(client, patcher, input)
+	mirrors, err = batchMirrors(m.Ctx, input, patcher, client, m.opt, m.loggers)
 	if err != nil {
 		return nil, err
 	}
@@ -50,24 +50,34 @@ func (m Cmd) bestMirror(patcher httpRequestPatcher, transport http.RoundTripper)
 	return mirrors, nil
 }
 
-func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input io.Reader) ([]*mirror, error) {
-	if m.opt.BestMirror.Doget != 0 {
-		m.opt.BestMirror.Method = http.MethodGet
+func batchMirrors(
+	ctx context.Context,
+	input io.Reader,
+	patcher httpRequestPatcher,
+	client *http.Client,
+	opt *options,
+	loggers [lEVELS]*log.Logger,
+) ([]*mirror, error) {
+	if opt.BestMirror.NoWarn {
+		loggers[WARN] = loggers[DBUG]
 	}
-	workers := cmp.Or(m.opt.BestMirror.Workers, uint(runtime.GOMAXPROCS(0)), 1)
-	pass := cmp.Or(m.opt.BestMirror.Pass, 1)
-	timeout := m.getBestMirrorTimeout()
+	if opt.BestMirror.Doget != 0 {
+		opt.BestMirror.Method = http.MethodGet
+	}
+	workers := cmp.Or(opt.BestMirror.Workers, uint(runtime.GOMAXPROCS(0)), 1)
+	pass := cmp.Or(opt.BestMirror.Pass, 1)
+	timeout := time.Duration(min(cmp.Or(opt.BestMirror.Timeout, 5), maxTimeout)) * time.Second
 
-	m.loggers[DBUG].Printf(
-		"BestMirror: method=%s doget=%d workers=%d pass=%d timeout=%s",
-		m.opt.BestMirror.Method,
-		m.opt.BestMirror.Doget,
+	loggers[DBUG].Printf(
+		"BestMirror options: method=%s doget=%d workers=%d pass=%d timeout=%s",
+		opt.BestMirror.Method,
+		opt.BestMirror.Doget,
 		workers,
 		pass,
 		timeout,
 	)
 
-	ctx, cancel := context.WithCancelCause(m.Ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
 	query := func(req *http.Request, target uint) (time.Duration, error) {
@@ -88,18 +98,18 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 	}
 
 	var wg sync.WaitGroup
-	target := m.opt.BestMirror.Doget * 1024
-	src := readLines(ctx, cancel, input, m.loggers)
+	target := opt.BestMirror.Doget * 1024
+	src := readLines(ctx, cancel, input, loggers)
 	dst := make(chan *mirror, min(workers, 8))
 
 	for range workers {
 		wg.Go(func() {
 			for url := range src {
-				req, err := http.NewRequest(m.opt.BestMirror.Method, url, nil)
+				req, err := http.NewRequest(opt.BestMirror.Method, url, nil)
 				if err != nil {
 					err = withMessage(err, "NewRequest")
-					m.loggers[ERRO].Println(err.Error())
-					m.loggers[DBUG].Println("BestMirror:", err.Error())
+					loggers[ERRO].Println(err.Error())
+					loggers[DBUG].Println("BestMirror:", err.Error())
 					cancel(err) // cancel all workers
 					return
 				}
@@ -115,7 +125,7 @@ func (m Cmd) batchMirrors(client *http.Client, patcher httpRequestPatcher, input
 						if ctx.Err() != nil {
 							return
 						}
-						m.loggers[WARN].Println(url, unwrapOrErr(err).Error())
+						loggers[WARN].Println(url, unwrapOrErr(err).Error())
 						break
 					}
 					sum += dur
