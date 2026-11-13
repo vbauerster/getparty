@@ -24,7 +24,11 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer func() {
 		stop()
-		os.Exit(status)
+		if x := recover(); x != nil {
+			panic(x)
+		} else {
+			os.Exit(status)
+		}
 	}()
 	cmd := &getparty.Cmd{
 		Ctx: ctx,
