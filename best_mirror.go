@@ -51,11 +51,12 @@ func batchMirrors(
 	workers := cmp.Or(opt.BestMirror.Workers, uint(runtime.GOMAXPROCS(0)), 1)
 	pass := cmp.Or(opt.BestMirror.Pass, 1)
 	timeout := time.Duration(min(cmp.Or(opt.BestMirror.Timeout, 5), maxTimeout)) * time.Second
+	target := opt.BestMirror.Doget * 1024
 
 	loggers[DBUG].Printf(
 		"BestMirror options: method=%s doget=%d workers=%d pass=%d timeout=%s",
 		opt.BestMirror.Method,
-		opt.BestMirror.Doget,
+		target,
 		workers,
 		pass,
 		timeout,
@@ -64,7 +65,7 @@ func batchMirrors(
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
-	query := func(req *http.Request, target uint) (time.Duration, error) {
+	query := func(req *http.Request) (time.Duration, error) {
 		ctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		start := time.Now()
@@ -81,7 +82,6 @@ func batchMirrors(
 		return time.Since(start), cmp.Or(err, resp.Body.Close())
 	}
 
-	target := opt.BestMirror.Doget * 1024
 	var input io.Reader
 	if opt.BestMirror.Mirrors == "-" {
 		input = os.Stdin
@@ -120,7 +120,7 @@ func batchMirrors(
 				for range pass {
 					// it's safe to reuse *http.Request: https://github.com/golang/go/issues/19653#issuecomment-341540384
 					var dur time.Duration
-					dur, err = query(req, target)
+					dur, err = query(req)
 					if err != nil {
 						if ctx.Err() != nil {
 							return
