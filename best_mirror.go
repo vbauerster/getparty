@@ -29,6 +29,9 @@ func (m Cmd) bestMirror(patcher httpRequestPatcher, transport http.RoundTripper)
 	if err != nil {
 		return nil, err
 	}
+	if len(mirrors) == 0 {
+		return nil, ErrMirrorNone
+	}
 	slices.SortFunc(mirrors, func(a, b *mirror) int {
 		return cmp.Compare(a.dur, b.dur)
 	})
@@ -150,14 +153,10 @@ func batchMirrors(
 		close(dst)
 	}()
 
-	var mirrors []*mirror
 	for mir := range dst {
-		mirrors = append(mirrors, mir)
+		unsorted = append(unsorted, mir)
 	}
-	if len(mirrors) == 0 {
-		return nil, ErrMirrorNone
-	}
-	return mirrors, context.Cause(ctx)
+	return unsorted, context.Cause(ctx)
 }
 
 func readLines(
