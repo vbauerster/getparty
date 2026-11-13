@@ -574,7 +574,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if m.opt.Output.Name != "" {
 				m.loggers[WARN].Printf("Ignoring --output=%q", m.opt.Output.Name)
 				m.loggers[DBUG].Printf("Ignoring --output=%q", m.opt.Output.Name)
-				m.opt.Output.Name = ""
 			}
 			if patcher != nil {
 				userAgent := userAgents[m.opt.UserAgent]
@@ -603,6 +602,8 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			}
 			if restored.ExplicitOutput {
 				m.opt.Output.Name = restored.OutputName
+			} else {
+				m.opt.Output.Name = ""
 			}
 			// re-follow with patcher set to restored.Headers and restored.URL
 			session, err = m.follow(patcher, restored.URL)
