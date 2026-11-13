@@ -582,7 +582,9 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 					userAgent = m.userAgent
 				}
 			}
-			patcher.init(restored.Headers, userAgent)
+			if patcher != nil {
+				patcher.init(restored.Headers, userAgent)
+			}
 			if session != nil {
 				if restored.URL == session.URL {
 					restored.restored = true
@@ -743,7 +745,9 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 				return false, withStack(err)
 			}
 
-			patcher.patch(req)
+			if patcher != nil {
+				patcher.patch(req)
+			}
 
 			for k, v := range req.Header {
 				m.loggers[DBUG].Printf("Request Header: %s: %v", k, v)
@@ -801,7 +805,9 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 				Headers:       make(map[string]string),
 			}
 
-			patcher.populate(session.Headers)
+			if patcher != nil {
+				patcher.populate(session.Headers)
+			}
 
 			if m.opt.Output.Name == "" {
 				for _, pf := range []bool{m.opt.Output.PathFirst, !m.opt.Output.PathFirst} {
