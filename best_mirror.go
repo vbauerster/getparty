@@ -39,7 +39,7 @@ func (m Cmd) bestMirror(patcher httpRequestPatcher, transport http.RoundTripper)
 }
 
 func batchMirrors(
-	ctx context.Context,
+	parent context.Context,
 	patcher httpRequestPatcher,
 	client *http.Client,
 	opt *options,
@@ -65,7 +65,7 @@ func batchMirrors(
 		timeout,
 	)
 
-	ctx, cancel := context.WithCancelCause(ctx)
+	ctx, cancel := context.WithCancelCause(parent)
 	defer cancel(nil)
 
 	query := func(req *http.Request) (time.Duration, error) {
@@ -160,7 +160,7 @@ func batchMirrors(
 }
 
 func readLines(
-	ctx context.Context,
+	parent context.Context,
 	cancel context.CancelCauseFunc,
 	input io.Reader,
 	loggers []*log.Logger,
@@ -187,7 +187,7 @@ func readLines(
 				select {
 				case ch <- line:
 					seen[line] = true
-				case <-ctx.Done():
+				case <-parent.Done():
 					return
 				}
 			}
