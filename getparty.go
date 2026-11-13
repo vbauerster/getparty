@@ -114,7 +114,7 @@ type options struct {
 		TopN    uint   `long:"top" value-name:"n" default:"1" description:"list top n mirrors without downloading unless n=1"`
 		Pass    uint   `long:"pass" value-name:"n" default:"1" description:"query each mirror n times to get average result"`
 		Timeout uint   `long:"timeout" value-name:"sec" default:"5" description:"query timeout"`
-		NoWarn  bool   `long:"no-warn" description:"suppress any warngings"`
+		NoWarn  bool   `long:"no-warn" description:"suppress any warnings"`
 	} `group:"Best-mirror Options" namespace:"mirror"`
 	Expose struct {
 		Host string `long:"host" value-name:"host" description:"host (optional)"`

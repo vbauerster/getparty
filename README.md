@@ -67,7 +67,7 @@ Best-mirror Options:
       --mirror.top=n                               list top n mirrors without downloading unless n=1 (default: 1)
       --mirror.pass=n                              query each mirror n times to get average result (default: 1)
       --mirror.timeout=sec                         query timeout (default: 5)
-      --mirror.no-warn                             suppress any warngings
+      --mirror.no-warn                             suppress any warnings
 
 Expose progress (host:port/debug/vars):
       --expose.host=host                           host (optional)
