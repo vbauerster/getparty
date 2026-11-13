@@ -107,9 +107,9 @@ func batchMirrors(
 			for url := range src {
 				req, err := http.NewRequest(opt.BestMirror.Method, url, nil)
 				if err != nil {
-					err = withMessage(err, "NewRequest")
-					loggers[ERRO].Println(err.Error())
+					err = withMessage(err, "http.NewRequest")
 					loggers[DBUG].Println("BestMirror:", err.Error())
+					loggers[ERRO].Println(err.Error())
 					cancel(err) // cancel all workers
 					return
 				}
@@ -195,8 +195,8 @@ func readLines(
 		}
 		if err := scanner.Err(); err != nil {
 			err = withMessage(err, "Scan")
-			loggers[ERRO].Println(err.Error())
 			loggers[DBUG].Println("BestMirror:", err.Error())
+			loggers[ERRO].Println(err.Error())
 			cancel(err)
 		}
 	}()
