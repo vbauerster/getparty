@@ -570,6 +570,11 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if err := restored.loadState(m.opt.SessionName); err != nil {
 				return nil, withStack(err)
 			}
+			if m.opt.Output.Name != "" {
+				m.loggers[WARN].Printf("Ignoring --output=%q", m.opt.Output.Name)
+				m.loggers[DBUG].Printf("Ignoring --output=%q", m.opt.Output.Name)
+				m.opt.Output.Name = ""
+			}
 			userAgent := restored.Headers[hUserAgentKey]
 			if userAgent == "" || strings.HasPrefix(userAgent, cmdName) {
 				userAgent = m.userAgent
@@ -591,10 +596,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				}
 			}
 			if restored.ExplicitOutput {
-				if m.opt.Output.Name != "" {
-					m.loggers[WARN].Printf("Ignoring output %q", m.opt.Output.Name)
-					m.loggers[DBUG].Printf("Ignoring output %q", m.opt.Output.Name)
-				}
 				m.opt.Output.Name = restored.OutputName
 			}
 			// re-follow with patcher set to restored.Headers and restored.URL
