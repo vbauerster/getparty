@@ -289,17 +289,16 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			} else {
 				dumpName += ".json"
 			}
+			var dumpErr error
 			defer func() {
-				if x := recover(); x != nil {
+				if dumpErr != nil {
 					_ = json.NewEncoder(os.Stderr).Encode(session)
-					panic(x)
+					panic(dumpErr)
 				} else {
 					m.loggers[INFO].Printf("Session state saved; to resume run: %s --session %q", cmdName, dumpName)
 				}
 			}()
-			if err := session.dumpState(dumpName); err != nil {
-				defer panic(err) // defer panic to fallthrough take place
-			}
+			dumpErr = session.dumpState(dumpName)
 			fallthrough
 		case sessionUncompleted:
 			var of *outFile
