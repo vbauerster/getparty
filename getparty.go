@@ -576,14 +576,14 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				m.loggers[DBUG].Printf("Ignoring --output=%q", m.opt.Output.Name)
 				m.opt.Output.Name = ""
 			}
-			userAgent := userAgents[m.opt.UserAgent]
-			if userAgent == "" {
-				userAgent = restored.Headers[hUserAgentKey]
-				if userAgent == "" || strings.HasPrefix(userAgent, cmdName) {
-					userAgent = m.userAgent
-				}
-			}
 			if patcher != nil {
+				userAgent := userAgents[m.opt.UserAgent]
+				if userAgent == "" {
+					userAgent = restored.Headers[hUserAgentKey]
+					if userAgent == "" || strings.HasPrefix(userAgent, cmdName) {
+						userAgent = m.userAgent
+					}
+				}
 				patcher.init(restored.Headers, userAgent)
 			}
 			if session != nil {
