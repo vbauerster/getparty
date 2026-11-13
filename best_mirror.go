@@ -95,7 +95,7 @@ func batchMirrors(
 		}
 		defer func() {
 			er := fd.Close()
-			loggers[DBUG].Printf("BestMirror: %q close: %v", opt.BestMirror.Mirrors, er)
+			loggers[DBUG].Printf("BestMirror: input %q close: %v", opt.BestMirror.Mirrors, er)
 			err = cmp.Or(err, er)
 		}()
 		input = fd
@@ -111,7 +111,7 @@ func batchMirrors(
 				req, err := http.NewRequest(opt.BestMirror.Method, url, nil)
 				if err != nil {
 					err = withMessage(err, "http.NewRequest")
-					loggers[DBUG].Println("BestMirror:", err.Error())
+					loggers[DBUG].Println("BestMirror.batchMirrors:", err.Error())
 					loggers[ERRO].Println(err.Error())
 					cancel(err) // cancel all workers
 					return
@@ -194,7 +194,7 @@ func readLines(
 		}
 		if err := scanner.Err(); err != nil {
 			err = withMessage(err, "Scan")
-			loggers[DBUG].Println("BestMirror:", err.Error())
+			loggers[DBUG].Println("BestMirror.readLines:", err.Error())
 			loggers[ERRO].Println(err.Error())
 			cancel(err)
 		}
