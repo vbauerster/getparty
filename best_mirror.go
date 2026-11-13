@@ -21,26 +21,11 @@ type mirror struct {
 	dur time.Duration
 }
 
-// bestMirror invariant: len(top) != 0 on err == nil
-func (m Cmd) bestMirror(patcher httpRequestPatcher, transport http.RoundTripper) (mirrors []*mirror, err error) {
-	var input io.Reader
-	if m.opt.BestMirror.Mirrors == "-" {
-		input = os.Stdin
-	} else {
-		fd, fdErr := os.Open(m.opt.BestMirror.Mirrors)
-		if fdErr != nil {
-			return nil, fdErr
-		}
-		defer func() {
-			clErr := fd.Close()
-			m.loggers[DBUG].Printf("BestMirror: %q close: %v", m.opt.BestMirror.Mirrors, clErr)
-			err = cmp.Or(err, clErr)
-		}()
-		input = fd
-	}
+// bestMirror invariant: len([]*mirror) != 0 on err == nil
+func (m Cmd) bestMirror(patcher httpRequestPatcher, transport http.RoundTripper) ([]*mirror, error) {
 	client := &http.Client{Transport: transport}
 	defer client.CloseIdleConnections()
-	mirrors, err = batchMirrors(m.Ctx, input, patcher, client, m.opt, m.loggers)
+	mirrors, err := batchMirrors(m.Ctx, patcher, client, m.opt, m.loggers)
 	if err != nil {
 		return nil, err
 	}
@@ -52,12 +37,11 @@ func (m Cmd) bestMirror(patcher httpRequestPatcher, transport http.RoundTripper)
 
 func batchMirrors(
 	ctx context.Context,
-	input io.Reader,
 	patcher httpRequestPatcher,
 	client *http.Client,
 	opt *options,
 	loggers [lEVELS]*log.Logger,
-) ([]*mirror, error) {
+) (unsorted []*mirror, err error) {
 	if opt.BestMirror.NoWarn {
 		loggers[WARN] = loggers[DBUG]
 	}
@@ -97,9 +81,25 @@ func batchMirrors(
 		return time.Since(start), cmp.Or(err, resp.Body.Close())
 	}
 
-	var wg sync.WaitGroup
 	target := opt.BestMirror.Doget * 1024
-	src := readLines(ctx, cancel, input, loggers)
+	var input io.Reader
+	if opt.BestMirror.Mirrors == "-" {
+		input = os.Stdin
+	} else {
+		fd, er := os.Open(opt.BestMirror.Mirrors)
+		if er != nil {
+			return nil, er
+		}
+		defer func() {
+			er := fd.Close()
+			loggers[DBUG].Printf("BestMirror: %q close: %v", opt.BestMirror.Mirrors, er)
+			err = cmp.Or(err, er)
+		}()
+		input = fd
+	}
+
+	var wg sync.WaitGroup
+	src := readLines(ctx, cancel, input, loggers[:])
 	dst := make(chan *mirror, min(workers, 8))
 
 	for range workers {
@@ -164,7 +164,7 @@ func readLines(
 	ctx context.Context,
 	cancel context.CancelCauseFunc,
 	input io.Reader,
-	loggers [lEVELS]*log.Logger,
+	loggers []*log.Logger,
 ) <-chan string {
 	ch := make(chan string)
 	go func() {
