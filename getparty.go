@@ -498,8 +498,8 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	session.Elapsed += time.Since(start)
 
 	close(errCh)
-	if v, ok := <-errCh; ok {
-		err = v
+	if er, ok := <-errCh; ok {
+		err = er
 	} else {
 		err = context.Cause(m.Ctx)
 	}
