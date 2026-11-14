@@ -571,8 +571,8 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				return nil, withStack(err)
 			}
 			if m.opt.Output.Name != "" {
-				m.loggers[WARN].Printf("Ignoring --output=%q", m.opt.Output.Name)
-				m.loggers[DBUG].Printf("Ignoring --output=%q", m.opt.Output.Name)
+				m.loggers[WARN].Printf("Ignoring --output.name=%q", m.opt.Output.Name)
+				m.loggers[DBUG].Printf("Ignoring --output.name=%q", m.opt.Output.Name)
 			}
 			if patcher != nil {
 				userAgent := userAgents[m.opt.UserAgent]
