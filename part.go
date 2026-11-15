@@ -167,6 +167,8 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 		buf = make([]byte, bufSize)
 	}
 
+	initialTimeout := opt.timeout
+
 	return backoff.RetryWithContext(p.ctx, backoff.DefaultStrategy, func(attempt uint) (retry bool, err error) {
 		chunk := scoreManager.get()
 		defer func() {
@@ -213,6 +215,8 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
 				if chunk.size == 8 && p.Written-written == 0 {
 					opt.timeout = min(opt.timeout+time.Second, maxTimeout*time.Second)
+				} else if diff := opt.timeout - initialTimeout; diff >= initialTimeout {
+					opt.timeout = max(opt.timeout-time.Second, initialTimeout)
 				}
 				go func(barNotNil bool) {
 					if errors.Is(context.Cause(timedCtx), errTimeout) {
