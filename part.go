@@ -213,10 +213,12 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 			default:
 				p.curTry.Store(uint32(attempt + 1))
 				p.logger.SetPrefix(fmt.Sprintf(prefixFormat, p.name, attempt+1))
-				if chunk.size == 8 && p.Written-written == 0 {
-					opt.timeout = min(opt.timeout+time.Second, maxTimeout*time.Second)
-				} else if diff := opt.timeout - initialTimeout; diff >= initialTimeout {
-					opt.timeout = max(opt.timeout-time.Second, initialTimeout)
+				if chunk.size == 8 {
+					if p.Written-written == 0 {
+						opt.timeout = min(opt.timeout+time.Second, maxTimeout*time.Second)
+					} else if opt.timeout > initialTimeout*2 {
+						opt.timeout = max(opt.timeout-time.Second, initialTimeout)
+					}
 				}
 				go func(barNotNil bool) {
 					if errors.Is(context.Cause(timedCtx), errTimeout) {
