@@ -215,16 +215,15 @@ func (m *Cmd) Exit(err error) (status int) {
 	}
 
 	if e, ok := errors.AsType[ExpectedError](err); ok {
+		if e == ErrMirrorStop {
+			return 0
+		}
 		if e == ErrInteractionRequired {
 			_, err := fmt.Fprintln(os.Stderr, err.Error())
 			if err != nil {
 				panic(err)
 			}
 			return 4
-		}
-		if e == ErrMirrorStop {
-			m.loggers[INFO].Println(err.Error())
-			return 0
 		}
 		m.loggers[ERRO].Println(err.Error())
 		return 1
@@ -623,7 +622,10 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				m.loggers[INFO].Println(mir.dur.Truncate(time.Microsecond), mir.url)
 			}
 			if m.opt.BestMirror.TopN != 1 {
-				return nil, withStack(ErrMirrorStop)
+				if !m.opt.BestMirror.NoWarn {
+					m.loggers[WARN].Println(ErrMirrorStop.Error())
+				}
+				return nil, ErrMirrorStop
 			}
 			m.opt.Positional.Location = top[0].url
 			fallthrough

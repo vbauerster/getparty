@@ -27,7 +27,7 @@ const (
 	ErrZeroParts           = ExpectedError("Need at least one part to continue")
 	ErrTooFragmented       = ExpectedError("Too fragmented, reduce number of parts maybe?")
 	ErrInteractionRequired = ExpectedError("Interaction required, run without --queit maybe?")
-	ErrMirrorStop          = ExpectedError("Stop, more than one mirror requested")
+	ErrMirrorStop          = ExpectedError("More than one mirror requested, stop processing")
 	ErrMirrorNone          = ExpectedError("None of the mirror responded with valid result")
 )
 
