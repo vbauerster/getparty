@@ -12,8 +12,8 @@ github.com/jessevdk/go-flags v1.6.1 h1:Cvu5U8UGrLay1rZfv/zP7iLpSHGUZ/Ou68T0iX1bB
 github.com/jessevdk/go-flags v1.6.1/go.mod h1:Mk8T1hIAWpOiJiHa9rJASDK2UGWji0EuPGBnNLMooyc=
 github.com/mattn/go-runewidth v0.0.31 h1:1oCV4ReTlosDBc6rYRw5cL8S/4y8iv5oRl4SJ5IBgwo=
 github.com/mattn/go-runewidth v0.0.31/go.mod h1:3qAiGCV4Koz/yuveO58qUefmUTRm8r0IGEXZ9jeHp/8=
-github.com/vbauerster/backoff v1.0.0 h1:WDiyq+x5h9RzTyisZx7HJyUQQyyRFtlCrpqwM8Bpmlw=
-github.com/vbauerster/backoff v1.0.0/go.mod h1:tFAdVtgx6cWvP/SEJ2I8NRsfaKw4RBbrGdnyG07zg60=
+github.com/vbauerster/backoff/v2 v2.0.0 h1:MyEHlYVDDYHhBhKl2elaJOf9dyvIdqlcqZMMzwHZqak=
+github.com/vbauerster/backoff/v2 v2.0.0/go.mod h1:id+ftXJIHEmjsHxvL6P5X4gW68zNrg3lYdNTH9ST8MI=
 github.com/vbauerster/cupwriter v0.0.5 h1:pxlPgxPLIebXh8lJPOZmn2TmjPE8+PqJIFkKkr7hI9I=
 github.com/vbauerster/cupwriter v0.0.5/go.mod h1:ptJDgOtLtGZp1gLzycD0TFnZztDhrQdsikG6EAA4xYQ=
 github.com/vbauerster/mpb/v8 v8.16.3 h1:C9AShAmENWKGHRPFU47CGMhVGUkLh38kzK7dcTKcH8g=
