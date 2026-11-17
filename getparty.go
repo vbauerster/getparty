@@ -730,11 +730,13 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 		ctx, cancel := context.WithTimeoutCause(m.Ctx, timeout, errTimeout)
 		defer func() {
 			cancel()
-			if errors.Is(context.Cause(ctx), errTimeout) {
-				timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
-				m.loggers[WARN].Println(timeoutMsg, errTimeout.Error())
-				m.loggers[DBUG].Println(timeoutMsg, errTimeout.Error())
-			} else if err != nil {
+			if err != nil {
+				if errors.Is(context.Cause(ctx), errTimeout) {
+					timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
+					m.loggers[WARN].Println(timeoutMsg, errTimeout.Error())
+					m.loggers[DBUG].Println(timeoutMsg, errTimeout.Error())
+					return
+				}
 				m.loggers[WARN].Println(unwrapOrErr(err).Error())
 				m.loggers[DBUG].Println(err.Error())
 			}
