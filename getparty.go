@@ -732,7 +732,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 			cancel()
 			if err != nil {
 				if errors.Is(context.Cause(ctx), errTimeout) {
-					timeout = min(timeout+5*time.Second, maxTimeout*time.Second)
+					timeout = min(timeout+time.Second, maxTimeout*time.Second)
 					m.loggers[WARN].Println(timeoutMsg, errTimeout.Error())
 					m.loggers[DBUG].Println(timeoutMsg, errTimeout.Error())
 					return
