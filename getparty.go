@@ -30,7 +30,7 @@ import (
 	"time"
 
 	flags "github.com/jessevdk/go-flags"
-	"github.com/vbauerster/backoff"
+	"github.com/vbauerster/backoff/v2"
 	"github.com/vbauerster/mpb/v8"
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/term"
@@ -726,7 +726,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 	maxRetry := cmp.Or(m.opt.MaxRetry, math.MaxUint)
 	maxFollow := cmp.Or(m.opt.MaxFollow, math.MaxUint-1) + 1
 
-	err = backoff.RetryWithContext(m.Ctx, backoff.DefaultStrategy, func(attempt uint) (retry bool, err error) {
+	err = backoff.RetryWithContext(m.Ctx, backoff.DefaultStrategy(), func(attempt uint) (retry bool, err error) {
 		ctx, cancel := context.WithTimeoutCause(m.Ctx, timeout, errTimeout)
 		defer func() {
 			cancel()

@@ -15,7 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/vbauerster/backoff"
+	"github.com/vbauerster/backoff/v2"
 	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
 )
@@ -168,8 +168,9 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 	}
 
 	initialTimeout := opt.timeout
+	strategy := backoff.DefaultStrategy()
 
-	return backoff.RetryWithContext(p.ctx, backoff.DefaultStrategy, func(attempt uint) (retry bool, err error) {
+	return backoff.RetryWithContext(p.ctx, strategy, func(attempt uint) (retry bool, err error) {
 		chunk := scoreManager.get()
 		defer func() {
 			scoreManager.put(chunk)
@@ -353,7 +354,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 			sleep = true
 		}
 		readLimit := int64(chunk.size) * 1024
-		for reset := makeReset(attempt, timer); reset(opt.timeout + opt.sleep); {
+		for reset := makeReset(strategy, timer, attempt); reset(opt.timeout + opt.sleep); {
 			start := time.Now()
 			// p.output doesn't implement io.ReaderFrom which implies buf will be used to perform the copy
 			nw, err = io.CopyBuffer(p.output, io.LimitReader(resp.Body, readLimit), buf)
@@ -466,7 +467,7 @@ func (limitTimer) nop(context.Context) bool {
 	return false
 }
 
-func makeReset(attempt uint, timer *time.Timer) func(time.Duration) bool {
+func makeReset(strategy backoff.Strategy, timer *time.Timer, attempt uint) func(time.Duration) bool {
 	if attempt == 0 {
 		return timer.Reset
 	}
@@ -474,7 +475,7 @@ func makeReset(attempt uint, timer *time.Timer) func(time.Duration) bool {
 	return func(d time.Duration) bool {
 		ok := timer.Reset(d)
 		if ok && count == 1 {
-			backoff.DefaultStrategy.Reset()
+			strategy.Reset()
 		}
 		count++
 		return ok
