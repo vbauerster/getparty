@@ -625,6 +625,7 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				if !m.opt.BestMirror.NoWarn {
 					m.loggers[WARN].Println(ErrMirrorStop.Error())
 				}
+				m.loggers[DBUG].Println(ErrMirrorStop.Error())
 				return nil, ErrMirrorStop
 			}
 			m.opt.Positional.Location = top[0].url
