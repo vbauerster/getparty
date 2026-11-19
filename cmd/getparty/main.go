@@ -20,20 +20,14 @@ var (
 )
 
 func main() {
-	var status int
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer func() {
-		stop()
-		if x := recover(); x != nil {
-			panic(x)
-		} else {
-			os.Exit(status)
-		}
-	}()
+	defer stop()
 	cmd := &getparty.Cmd{
 		Ctx: ctx,
 		Out: os.Stdout,
 		Err: os.Stderr,
 	}
-	status = cmd.Exit(cmd.Run(os.Args[1:], version, commit))
+	status := cmd.Exit(cmd.Run(os.Args[1:], version, commit))
+	stop()
+	os.Exit(status)
 }
