@@ -268,7 +268,13 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		panic(withMessage(ErrZeroParts, "unexpected"))
 	}
 
-	outputName := filepath.Join(session.dir, session.OutputName)
+	var outputName string
+	if session.restored && !session.ExplicitOutput {
+		outputName = filepath.Join(filepath.Dir(m.opt.SessionName), session.OutputName)
+	} else {
+		outputName = session.OutputName
+	}
+
 	session.summary(outputName, m.loggers)
 
 	uncompletedParts, current := session.uncompletedPartsCount(), session.totalWritten()
@@ -297,6 +303,13 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					m.loggers[INFO].Printf("Session state saved; to resume run: %s --session %q", cmdName, dumpName)
 				}
 			}()
+			if !session.restored && session.ExplicitOutput {
+				if abs, err := filepath.Abs(session.OutputName); err == nil {
+					session.OutputName = abs
+				} else {
+					m.loggers[DBUG].Printf("filepath.Abs(%q): %s", session.OutputName, err.Error())
+				}
+			}
 			dumpErr = session.dumpState(dumpName)
 			fallthrough
 		case sessionUncompleted:
@@ -363,7 +376,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	errCh := make(chan error, 1)
 
 	for _, p := range session.Parts {
-		if err := p.init(session.dir, session.OutputName); err != nil {
+		if err := p.init(outputName); err != nil {
 			cancel(errSessionCanceled)
 			wg.Wait()
 			return err
@@ -582,7 +595,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if session != nil {
 				if restored.URL == session.URL {
 					restored.restored = true
-					restored.dir = filepath.Dir(m.opt.SessionName)
 					restored.location = cmp.Or(session.location, session.URL)
 					return restored, withStack(checkContentMismatch(restored, session))
 				}
@@ -611,7 +623,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			session.Parts = restored.Parts
 			session.Elapsed = restored.Elapsed
 			session.restored = true
-			session.dir = filepath.Dir(m.opt.SessionName)
 			return session, withStack(checkContentMismatch(restored, session))
 		case m.opt.BestMirror.Mirrors != "":
 			top, err := m.bestMirror(patcher, rtBuilder.pool(false).build())

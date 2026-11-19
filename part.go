@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"os"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -115,9 +114,9 @@ func (p Part) newBar() (*flashBar, error) {
 	return &flashBar{bar, signal}, nil
 }
 
-func (p *Part) init(dir, outputName string) error {
+func (p *Part) init(outputName string) error {
 	p.output = &outFile{
-		name: filepath.Join(dir, fmt.Sprintf("%s.%02d", outputName, p.Id)),
+		name: fmt.Sprintf("%s.%02d", outputName, p.Id),
 	}
 	if p.Written != 0 {
 		return withStack(p.output.checkContentMismatch(p.Written))
