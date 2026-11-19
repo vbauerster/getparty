@@ -1062,8 +1062,10 @@ func isFileExist(name string) (bool, error) {
 }
 
 func checkContentMismatch(old, new *Session) error {
-	if old.OutputName != new.OutputName {
-		return fmt.Errorf("output name mismatch: old=%q new=%q", old.OutputName, new.OutputName)
+	a := filepath.Base(old.OutputName)
+	b := filepath.Base(new.OutputName)
+	if a != b {
+		return fmt.Errorf("output name mismatch: old=%q new=%q", a, b)
 	}
 	if old.ContentType != new.ContentType {
 		return ContentMismatchError[string]{
