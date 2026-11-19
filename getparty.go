@@ -409,6 +409,9 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				if err != nil {
 					select {
 					case errCh <- err:
+						if errors.Is(err, os.ErrNotExist) {
+							cancel(err)
+						}
 					default:
 					}
 				} else if p.isDone() {
