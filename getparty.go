@@ -569,10 +569,6 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 			if err := restored.loadState(m.opt.SessionName); err != nil {
 				return nil, withStack(err)
 			}
-			if m.opt.Output.Name != "" {
-				m.loggers[WARN].Printf("Ignoring --output.name=%q", m.opt.Output.Name)
-				m.loggers[DBUG].Printf("Ignoring --output.name=%q", m.opt.Output.Name)
-			}
 			if patcher != nil {
 				userAgent := userAgents[m.opt.UserAgent]
 				if userAgent == "" {
@@ -596,6 +592,10 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				httpClient = &http.Client{
 					Jar:       jar,
 					Transport: rtBuilder.pool(true).build(),
+				}
+				if m.opt.Output.Name != "" {
+					m.loggers[WARN].Printf("Ignoring --output.name=%q", m.opt.Output.Name)
+					m.loggers[DBUG].Printf("Ignoring --output.name=%q", m.opt.Output.Name)
 				}
 			}
 			if restored.ExplicitOutput {
