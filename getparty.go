@@ -645,6 +645,8 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				return nil, withStack(err)
 			}
 			if exist {
+				m.loggers[INFO].Printf("Session file found: %q", state)
+				m.loggers[DBUG].Printf("Session file found: %q", state)
 				m.opt.SessionName = state
 				break // goto case m.opt.SessionName != "":
 			}
