@@ -651,25 +651,20 @@ func (m *Cmd) getState(patcher *requestPatcher) (session *Session, err error) {
 				return nil, err
 			}
 			state := session.OutputName + ".json"
-			exist, err := isFileExist(state)
-			if err != nil {
-				return nil, withStack(err)
-			}
-			if exist {
+			if exist, err := isFileExist(state); err != nil {
+				return nil, err
+			} else if exist {
 				m.loggers[INFO].Printf("Session file found: %q", state)
 				m.loggers[DBUG].Printf("Session file found: %q", state)
 				m.opt.SessionName = state
 				break // goto case m.opt.SessionName != "":
 			}
-			err = session.makeParts(m.opt.Parts)
-			if err != nil {
+			if err := session.makeParts(m.opt.Parts); err != nil {
 				return session, withStack(err)
 			}
-			exist, err = isFileExist(session.OutputName)
-			if err != nil {
-				return nil, withStack(err)
-			}
-			if exist {
+			if exist, err := isFileExist(session.OutputName); err != nil {
+				return nil, err
+			} else if exist {
 				return session, withStack(m.replaceOutput(session.OutputName))
 			}
 			return session, nil
@@ -1058,6 +1053,7 @@ func isServerError(status int) bool {
 	return status > 499 && status < 600
 }
 
+// https://stackoverflow.com/a/12518877/4927751
 func isFileExist(name string) (bool, error) {
 	stat, err := os.Stat(name)
 	if err == nil {
