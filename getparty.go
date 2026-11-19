@@ -238,7 +238,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		err = withMessage(err, "run")
 	}()
 
-	err = m.init(args, version)
+	err = m.init(args, cmp.Or(version, "dev"))
 	if err != nil {
 		return err
 	}
