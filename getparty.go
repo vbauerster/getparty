@@ -399,12 +399,12 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			var err error
 			defer func() {
 				if x := recover(); x != nil {
+					cancel(errSessionCanceled)
 					if e, ok := x.(error); ok {
 						err = fmt.Errorf("%s recovered: %w", p.name, e)
 					} else {
 						err = fmt.Errorf("%s recovered: %v", p.name, x)
 					}
-					cancel(errSessionCanceled)
 				}
 				if err != nil {
 					select {
