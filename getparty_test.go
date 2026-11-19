@@ -471,6 +471,7 @@ func TestConcat(t *testing.T) {
 		t.Run(testname, func(t *testing.T) {
 			bar := progress.AddBar(int64(len(test.parts)))
 			defer func() {
+				_ = os.RemoveAll(dir)
 				bar.Abort(false)
 				if x := recover(); x != nil {
 					if test.expected != "panic" {
