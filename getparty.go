@@ -433,10 +433,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 
 	start := time.Now()
 	cause := context.Cause(firstResp.ctx)
-	m.loggers[DBUG].Println("First http status:", cause)
+	m.loggers[DBUG].Println(cause)
 
 	switch {
-	case errors.Is(cause, errContextFallback):
+	case errors.Is(cause, errResponseOK):
 		if session.restored {
 			cancel(errSessionCanceled)
 			wg.Wait()
@@ -464,7 +464,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			session.Parts[0] = part
 			session.Parts = slices.Clip(session.Parts[:1])
 		}
-	case errors.Is(cause, errContextPartial):
+	case errors.Is(cause, errResponsePartial):
 		if len(session.Parts) > 1 {
 			bar, err := progress.addTotalBar(
 				start.Add(-session.Elapsed),

@@ -266,9 +266,9 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 		case http.StatusPartialContent:
 			select {
 			case p.firstResp.id <- p.Id:
-				p.firstResp.cancel(errContextPartial)
+				p.firstResp.cancel(errResponsePartial)
 			default:
-				if !partial && errors.Is(context.Cause(p.firstResp.ctx), errContextFallback) {
+				if !partial && errors.Is(context.Cause(p.firstResp.ctx), errResponseOK) {
 					// some other part got http.StatusOK first
 					panic(UnexpectedHttpStatusError(http.StatusPartialContent))
 				}
@@ -292,7 +292,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 		case http.StatusOK: // no partial content, fallback to single part mode
 			select {
 			case p.firstResp.id <- p.Id:
-				p.firstResp.cancel(errContextFallback)
+				p.firstResp.cancel(errResponseOK)
 				if p.Written != 0 {
 					panic(fmt.Errorf("unexpected written %d on first %s", p.Written, resp.Status))
 				}
@@ -308,7 +308,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 				p.reset(resp.ContentLength)
 			default:
 				if !p.single || partial {
-					if errors.Is(context.Cause(p.firstResp.ctx), errContextPartial) {
+					if errors.Is(context.Cause(p.firstResp.ctx), errResponsePartial) {
 						// some other part got http.StatusPartialContent first
 						panic(UnexpectedHttpStatusError(http.StatusOK))
 					}

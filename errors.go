@@ -5,9 +5,7 @@ package getparty
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"runtime/debug"
-	"strconv"
 )
 
 const (
@@ -16,8 +14,8 @@ const (
 )
 
 const (
-	errContextPartial  = sessionFirstHttpStatus(http.StatusPartialContent)
-	errContextFallback = sessionFirstHttpStatus(http.StatusOK)
+	errResponsePartial = ExpectedError("First response is 206")
+	errResponseOK      = ExpectedError("First response is 200")
 )
 
 const (
@@ -41,7 +39,6 @@ var errTimeout = errors.New("context deadline exceeded")
 
 type (
 	mismatchType                int
-	sessionFirstHttpStatus      int
 	UnexpectedHttpStatusError   int
 	ExpectedError               string
 	ContentMismatchError[T any] struct {
@@ -50,10 +47,6 @@ type (
 		new  T
 	}
 )
-
-func (s sessionFirstHttpStatus) Error() string {
-	return strconv.Itoa(int(s))
-}
 
 func (e ExpectedError) Error() string {
 	return string(e)
