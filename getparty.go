@@ -464,48 +464,46 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 			session.Parts[0] = part
 			session.Parts = slices.Clip(session.Parts[:1])
 		}
-	case errors.Is(cause, errResponsePartial):
-		if len(session.Parts) > 1 {
-			bar, err := progress.addTotalBar(
-				start.Add(-session.Elapsed),
-				session.ContentLength,
-				len(session.Parts),
-				&doneCount,
-			)
-			if err != nil {
-				return withStack(err)
-			}
-			if current != 0 {
-				m.loggers[DBUG].Println("Setting total current:", current)
-				bar.SetCurrent(current)
-				bar.SetRefillCurrent()
-			}
-			var wg sync.WaitGroup
-			defer func() {
-				close(progress.totalCh)
-				wg.Wait()
-				bar.Abort(false)
-			}()
-			incr := func(n int64) {
-				expProgress.Add(expCurrent, n)
-				bar.IncrInt64(n)
-			}
-			for range max(cap(progress.totalCh)/3, 1) {
-				wg.Go(func() {
-					var stash int64
-					for n := range progress.totalCh {
-						if stash == 0 {
-							stash = n
-						} else {
-							incr(stash + n)
-							stash = 0
-						}
+	case len(session.Parts) > 1:
+		bar, err := progress.addTotalBar(
+			start.Add(-session.Elapsed),
+			session.ContentLength,
+			len(session.Parts),
+			&doneCount,
+		)
+		if err != nil {
+			return withStack(err)
+		}
+		if current != 0 {
+			m.loggers[DBUG].Println("Setting total current:", current)
+			bar.SetCurrent(current)
+			bar.SetRefillCurrent()
+		}
+		var wg sync.WaitGroup
+		defer func() {
+			close(progress.totalCh)
+			wg.Wait()
+			bar.Abort(false)
+		}()
+		incr := func(n int64) {
+			expProgress.Add(expCurrent, n)
+			bar.IncrInt64(n)
+		}
+		for range max(cap(progress.totalCh)/3, 1) {
+			wg.Go(func() {
+				var stash int64
+				for n := range progress.totalCh {
+					if stash == 0 {
+						stash = n
+					} else {
+						incr(stash + n)
+						stash = 0
 					}
-					if stash != 0 {
-						incr(stash)
-					}
-				})
-			}
+				}
+				if stash != 0 {
+					incr(stash)
+				}
+			})
 		}
 	}
 
