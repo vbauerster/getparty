@@ -178,7 +178,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 		timedCtx, cancel := context.WithCancelCause(p.ctx)
 		timer := time.AfterFunc(opt.timeout, func() {
 			cancel(errTimeout)
-			p.logger.Println(timeoutMsg, errTimeout.Error())
+			p.logger.Println(errTimeout.Error())
 		})
 		var idle time.Duration
 		defer func(written int64, start time.Time) {
@@ -225,7 +225,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 						if barNotNil {
 							bar.flashTimeout()
 						}
-						progressLogger.Println(timeoutMsg, errTimeout.Error())
+						progressLogger.Println(errTimeout.Error())
 					} else {
 						progressLogger.Println(unwrapOrErr(err).Error())
 					}
@@ -415,9 +415,11 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 
 		chunk.failure = true
 
-		// invariant: err is never nil here
-		// fallback to errTimeout when loop break reason is timer.Reset
-		return true, cmp.Or(err, errTimeout)
+		if err != nil {
+			return true, err
+		}
+		// timer.Reset most likely returned false so return explicit error
+		return true, errTimeout
 	})
 }
 

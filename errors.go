@@ -14,11 +14,6 @@ const (
 )
 
 const (
-	errResponsePartial = ExpectedError("First response is 206")
-	errResponseOK      = ExpectedError("First response is 200")
-)
-
-const (
 	ErrCanceledByUser      = ExpectedError("Canceled by user")
 	ErrMaxRetry            = ExpectedError("Retry limit exceeded")
 	ErrMaxRedirect         = ExpectedError("Follow limit exceeded")
@@ -29,13 +24,13 @@ const (
 	ErrMirrorNone          = ExpectedError("None of the mirror responded with valid result")
 )
 
-// errSessionCanceled indicates that session canceled due to unexpected error.
-// Target usage is context.Cause check.
-var errSessionCanceled = errors.New("session canceled")
+const (
+	errResponsePartial = ExpectedError("First response is 206")
+	errResponseOK      = ExpectedError("First response is 200")
+	errTimeout         = ExpectedError("Timeout: context deadline exceeded")
+)
 
-// errTimeout indicates context deadline due to timeout.
-// Target usage is context.Cause check.
-var errTimeout = errors.New("context deadline exceeded")
+var errSessionCanceled = errors.New("session canceled due to unexpected condition")
 
 type (
 	mismatchType                int
