@@ -410,7 +410,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 					select {
 					case errCh <- err:
 						if errors.Is(err, os.ErrNotExist) {
-							cancel(err)
+							cancel(nil)
 						}
 					default:
 					}
