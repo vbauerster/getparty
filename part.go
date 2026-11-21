@@ -178,7 +178,6 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 		timedCtx, cancel := context.WithCancelCause(p.ctx)
 		timer := time.AfterFunc(opt.timeout, func() {
 			cancel(errTimeout)
-			p.logger.Println(errTimeout.Error())
 		})
 		var idle time.Duration
 		defer func(written int64, start time.Time) {
