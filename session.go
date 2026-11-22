@@ -97,8 +97,9 @@ func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 		}
 		return nil
 	}
+
 	if !s.isResumable() {
-		return withStack(errors.New("attempt to concat unresumable session"))
+		panic(errors.New("attempt to merge on unresumable session"))
 	}
 
 	for i, of := range parts {
