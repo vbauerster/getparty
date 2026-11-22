@@ -479,11 +479,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	} else if session.restored && errors.Is(cause, errResponseOK) {
 		cancel(errSessionCanceled)
 		wg.Wait()
-		panic(fmt.Errorf(
-			"restored session is expected to have status %d but it is %d instead",
-			http.StatusPartialContent,
-			http.StatusOK,
-		))
+		panic(UnexpectedHttpStatusError(http.StatusOK))
 	}
 
 	wg.Wait()
