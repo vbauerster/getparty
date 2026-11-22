@@ -432,10 +432,10 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	<-firstResp.ctx.Done()
 
 	start := time.Now()
-	cause := context.Cause(firstResp.ctx)
-	m.loggers[DBUG].Println(cause)
+	respCause := context.Cause(firstResp.ctx)
+	m.loggers[DBUG].Println(respCause)
 
-	if len(session.Parts) > 1 && errors.Is(cause, errResponsePartial) {
+	if len(session.Parts) > 1 && errors.Is(respCause, errResponsePartial) {
 		bar, err := progress.addTotalBar(
 			start.Add(-session.Elapsed),
 			session.ContentLength,
@@ -476,7 +476,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 			})
 		}
-	} else if session.restored && errors.Is(cause, errResponseOK) {
+	} else if session.restored && errors.Is(respCause, errResponseOK) {
 		cancel(errSessionCanceled)
 		wg.Wait()
 		panic(UnexpectedHttpStatusError(http.StatusOK))
@@ -506,7 +506,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		panic(errors.New("done count != session parts"))
 	}
 
-	if len(session.Parts) > 1 && errors.Is(cause, errResponseOK) {
+	if len(session.Parts) > 1 && errors.Is(respCause, errResponseOK) {
 		id := <-firstResp.id
 		var part *Part
 		for _, p := range session.Parts {
