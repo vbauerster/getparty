@@ -435,36 +435,7 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	cause := context.Cause(firstResp.ctx)
 	m.loggers[DBUG].Println(cause)
 
-	switch {
-	case errors.Is(cause, errResponseOK):
-		if session.restored {
-			cancel(errSessionCanceled)
-			wg.Wait()
-			panic(fmt.Errorf(
-				"restored session is expected to have status %d but it is %d instead",
-				http.StatusPartialContent,
-				http.StatusOK,
-			))
-		}
-		if len(session.Parts) > 1 {
-			wg.Wait()
-			id := <-firstResp.id
-			var part *Part
-			for _, p := range session.Parts {
-				if p.Id == id {
-					part = p
-				} else {
-					m.loggers[DBUG].Printf("%q close: %v", p.output, p.output.Close())
-				}
-			}
-			if part == nil {
-				cancel(errSessionCanceled)
-				panic(fmt.Errorf("unexpected firstResp id: %d", id))
-			}
-			session.Parts[0] = part
-			session.Parts = slices.Clip(session.Parts[:1])
-		}
-	case len(session.Parts) > 1 && errors.Is(cause, errResponsePartial):
+	if len(session.Parts) > 1 && errors.Is(cause, errResponsePartial) {
 		bar, err := progress.addTotalBar(
 			start.Add(-session.Elapsed),
 			session.ContentLength,
@@ -505,6 +476,14 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 				}
 			})
 		}
+	} else if session.restored && errors.Is(cause, errResponseOK) {
+		cancel(errSessionCanceled)
+		wg.Wait()
+		panic(fmt.Errorf(
+			"restored session is expected to have status %d but it is %d instead",
+			http.StatusPartialContent,
+			http.StatusOK,
+		))
 	}
 
 	wg.Wait()
@@ -529,6 +508,25 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 	if doneCount.Load() != uint32(len(session.Parts)) {
 		cancel(errSessionCanceled)
 		panic(errors.New("done count != session parts"))
+	}
+
+	if len(session.Parts) > 1 && errors.Is(cause, errResponseOK) {
+		id := <-firstResp.id
+		var part *Part
+		for _, p := range session.Parts {
+			if p.Id == id {
+				part = p
+			} else {
+				m.loggers[DBUG].Printf("%q close: %v", p.output, p.output.Close())
+			}
+		}
+		if part == nil {
+			cancel(errSessionCanceled)
+			panic(fmt.Errorf("unexpected firstResp id: %d", id))
+		}
+		session.Parts[0] = part
+		session.Parts = session.Parts[:1]
+		return nil
 	}
 
 	return session.merge(progress, m.loggers[DBUG])
