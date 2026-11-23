@@ -501,11 +501,6 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		return err
 	}
 
-	if doneCount.Load() != uint32(len(session.Parts)) {
-		cancel(errSessionCanceled)
-		panic(errors.New("done count != session parts"))
-	}
-
 	if len(session.Parts) > 1 && errors.Is(respCause, errResponseOK) {
 		id := <-firstResp.id
 		var part *Part
@@ -522,7 +517,12 @@ func (m *Cmd) Run(args []string, version, commit string) (err error) {
 		}
 		session.Parts[0] = part
 		session.Parts = session.Parts[:1]
-		return nil
+		doneCount.Store(1)
+	}
+
+	if doneCount.Load() != uint32(len(session.Parts)) {
+		cancel(errSessionCanceled)
+		panic(errors.New("done count != session parts"))
 	}
 
 	return session.merge(progress, m.loggers[DBUG])
