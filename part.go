@@ -423,8 +423,9 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 }
 
 func (p *Part) reset(contentLength int64) {
+	p.Start = 0
+	p.Stop = contentLength - 1
 	p.single = true
-	p.Start, p.Stop = 0, contentLength-1
 }
 
 func (p Part) getRange() string {
