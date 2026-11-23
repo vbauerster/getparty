@@ -8,7 +8,7 @@ require (
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/vbauerster/backoff/v2 v2.0.1
 	github.com/vbauerster/mpb/v8 v8.16.3
-	golang.org/x/net v0.62.0
+	golang.org/x/net v0.63.0
 	golang.org/x/term v0.48.0
 )
 
@@ -17,10 +17,10 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/vbauerster/cupwriter v0.0.5 // indirect
-	golang.org/x/mod v0.42.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/mod v0.43.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
-	golang.org/x/tools v0.52.0 // indirect
+	golang.org/x/tools v0.53.0 // indirect
 )
 
 tool golang.org/x/tools/cmd/stringer
