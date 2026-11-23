@@ -725,6 +725,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 	template := "R%02d:F%02d %s"
 	location := rawURL
 	timeout := m.getTimeout()
+	timeout2 := timeout * 2
 	maxRetry := cmp.Or(m.opt.MaxRetry, math.MaxUint)
 	maxFollow := cmp.Or(m.opt.MaxFollow, math.MaxUint-1) + 1
 
@@ -734,7 +735,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 			cancel()
 			if err != nil {
 				if errors.Is(context.Cause(ctx), errTimeout) {
-					timeout = min(timeout+time.Second, maxTimeout*time.Second)
+					timeout = min(timeout+time.Second, timeout2, maxTimeout*time.Second)
 					m.loggers[WARN].Println(errTimeout.Error())
 					m.loggers[DBUG].Println(errTimeout.Error())
 					return
