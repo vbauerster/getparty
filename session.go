@@ -91,7 +91,7 @@ func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 	}()
 
 	if len(s.Parts) == 1 {
-		if s.ContentLength <= 0 {
+		if !s.isResumable() {
 			s.ContentLength = s.Parts[0].Written
 		}
 		return nil
