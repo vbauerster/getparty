@@ -78,15 +78,10 @@ func (s *Session) dumpState(name string) error {
 	return cmp.Or(json.NewEncoder(f).Encode(s), f.Close())
 }
 
-func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
-	parts := make([]*outFile, len(s.Parts))
-	for i, p := range s.Parts {
-		parts[i] = p.output
-	}
-
+func (s *Session) merge(progress *progress, logger *log.Logger) (err error) {
 	defer func() {
 		if err == nil {
-			err = withStack(parts[0].checkContentMismatch(s.ContentLength))
+			err = withStack(s.Parts[0].output.checkContentMismatch(s.ContentLength))
 		}
 	}()
 
@@ -101,14 +96,17 @@ func (s Session) merge(progress *progress, logger *log.Logger) (err error) {
 		panic(errors.New("attempt to merge on unresumable session"))
 	}
 
-	for i, of := range parts {
-		err := of.checkContentMismatch(s.Parts[i].Written)
+	parts := make([]*outFile, len(s.Parts))
+
+	for i, p := range s.Parts {
+		err := p.output.checkContentMismatch(p.Written)
 		if err != nil {
 			return withStack(err)
 		}
+		parts[i] = p.output
 	}
 
-	bar, err := progress.addMergeBar(len(parts))
+	bar, err := progress.addMergeBar(len(s.Parts))
 	if err != nil {
 		return withStack(err)
 	}
