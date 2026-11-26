@@ -45,10 +45,6 @@ func (s *outFile) Write(b []byte) (int, error) {
 	return s.file.Write(b)
 }
 
-func (s *outFile) Truncate(size int64) error {
-	return s.file.Truncate(size)
-}
-
 func (s *outFile) Stat() (os.FileInfo, error) {
 	if s.file != nil {
 		return s.file.Stat()

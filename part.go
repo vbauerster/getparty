@@ -73,8 +73,8 @@ func (b *flashBar) flashTimeout() {
 	b.signal <- struct{}{}
 }
 
-func (p Part) newBar() (*flashBar, error) {
-	total, signal := p.len(), make(chan struct{}, 1)
+func (p Part) newBar(total int64) (*flashBar, error) {
+	signal := make(chan struct{}, 1)
 	p.logger.Println("Setting bar total:", total)
 	bar, err := p.progress.Add(total, barBuilder.Build(),
 		mpb.BarFillerTrim(),
@@ -145,6 +145,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 
 	var bar *flashBar
 	var statusPartial bool
+	var statusOK bool
 	var progressLogger *log.Logger
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
@@ -262,7 +263,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 			select {
 			case p.firstResp.id <- p.Id:
 				p.firstResp.cancel(errResponsePartial)
-			default:
+			case <-p.firstResp.ctx.Done():
 				if !statusPartial && errors.Is(context.Cause(p.firstResp.ctx), errResponseOK) {
 					// some other part got http.StatusOK first
 					panic(UnexpectedHttpStatusError(http.StatusPartialContent))
@@ -275,7 +276,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 				}
 			}
 			if bar == nil {
-				b, err := p.newBar()
+				b, err := p.newBar(p.len())
 				if err != nil {
 					return false, withStack(err)
 				}
@@ -291,35 +292,42 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 				if p.Written != 0 {
 					panic(fmt.Errorf("unexpected written %d on first %s", p.Written, resp.Status))
 				}
-				err := p.output.Open(os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
-				if err != nil {
-					return false, withStack(err)
+				if bar != nil {
+					panic(errors.New("expected nil bar"))
 				}
-				b, err := p.newBar()
+				b, err := p.newBar(resp.ContentLength)
 				if err != nil {
 					return false, withStack(err)
 				}
 				bar = b
-				p.reset(resp.ContentLength)
-			default:
-				if !p.single || statusPartial {
-					if errors.Is(context.Cause(p.firstResp.ctx), errResponsePartial) {
-						// some other part got http.StatusPartialContent first
-						panic(UnexpectedHttpStatusError(http.StatusOK))
-					}
+				statusOK = true
+				p.single = true
+				p.resetLength(resp.ContentLength)
+			case <-p.firstResp.ctx.Done():
+				if !statusOK && errors.Is(context.Cause(p.firstResp.ctx), errResponsePartial) {
+					// some other part got http.StatusPartialContent first
+					panic(UnexpectedHttpStatusError(http.StatusPartialContent))
+				}
+				if !p.single {
 					p.logger.Println("Some other part got:", resp.Status)
 					return false, nil
 				}
-				if p.Written != 0 {
-					// there is no way to resume on http.StatusOK so retry from scratch
-					err := p.output.Truncate(0)
-					if err != nil {
-						return false, withStack(err)
+				p.Written = 0
+				expProgress.Set(expCurrent, expvar.Func(func() any { return 0 }))
+				bar.SetCurrent(0)
+				if resp.ContentLength != p.len() {
+					if progressLogger != nil {
+						progressLogger.Println("ContentLength changed:", resp.ContentLength)
 					}
-					p.Written = 0
-					bar.SetCurrent(0)
-					expProgress.Set(expCurrent, expvar.Func(func() any { return 0 }))
+					p.logger.Println("ContentLength changed, updating bar total:", resp.ContentLength)
+					bar.SetTotal(resp.ContentLength, false)
+					bar.EnableTriggerComplete()
+					p.resetLength(resp.ContentLength)
 				}
+			}
+			err := p.output.Open(os.O_WRONLY | os.O_CREATE)
+			if err != nil {
+				return false, withStack(err)
 			}
 		case http.StatusInternalServerError, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 			return true, withStack(UnexpectedHttpStatusError(resp.StatusCode))
@@ -397,7 +405,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 
 		if errors.Is(err, io.EOF) {
 			if p.single && p.len() <= 0 {
-				p.reset(p.Written)
+				p.resetLength(p.Written)
 				bar.EnableTriggerComplete()
 			}
 			if !p.isDone() {
@@ -420,10 +428,9 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 	})
 }
 
-func (p *Part) reset(contentLength int64) {
+func (p *Part) resetLength(contentLength int64) {
 	p.Start = 0
 	p.Stop = contentLength - 1
-	p.single = true
 }
 
 func (p Part) getRange() string {
