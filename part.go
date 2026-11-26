@@ -263,10 +263,14 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 			select {
 			case p.firstResp.id <- p.Id:
 				p.firstResp.cancel(errResponsePartial)
+				statusPartial = true
 			case <-p.firstResp.ctx.Done():
-				if !statusPartial && errors.Is(context.Cause(p.firstResp.ctx), errResponseOK) {
-					// some other part got http.StatusOK first
-					panic(UnexpectedHttpStatusError(http.StatusPartialContent))
+				if !statusPartial {
+					if errors.Is(context.Cause(p.firstResp.ctx), errResponseOK) {
+						// some other part got http.StatusOK first
+						panic(UnexpectedHttpStatusError(http.StatusPartialContent))
+					}
+					statusPartial = true
 				}
 			}
 			if p.output.file == nil {
@@ -284,7 +288,6 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 			} else {
 				bar.SetRefillCurrent()
 			}
-			statusPartial = true
 		case http.StatusOK: // no partial content, fallback to single part mode
 			select {
 			case p.firstResp.id <- p.Id:
