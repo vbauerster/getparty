@@ -144,7 +144,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 	}
 
 	var bar *flashBar
-	var partial bool
+	var statusPartial bool
 	var progressLogger *log.Logger
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
@@ -263,7 +263,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 			case p.firstResp.id <- p.Id:
 				p.firstResp.cancel(errResponsePartial)
 			default:
-				if !partial && errors.Is(context.Cause(p.firstResp.ctx), errResponseOK) {
+				if !statusPartial && errors.Is(context.Cause(p.firstResp.ctx), errResponseOK) {
 					// some other part got http.StatusOK first
 					panic(UnexpectedHttpStatusError(http.StatusPartialContent))
 				}
@@ -283,7 +283,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 			} else {
 				bar.SetRefillCurrent()
 			}
-			partial = true
+			statusPartial = true
 		case http.StatusOK: // no partial content, fallback to single part mode
 			select {
 			case p.firstResp.id <- p.Id:
@@ -302,7 +302,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 				bar = b
 				p.reset(resp.ContentLength)
 			default:
-				if !p.single || partial {
+				if !p.single || statusPartial {
 					if errors.Is(context.Cause(p.firstResp.ctx), errResponsePartial) {
 						// some other part got http.StatusPartialContent first
 						panic(UnexpectedHttpStatusError(http.StatusOK))
