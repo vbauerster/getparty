@@ -57,9 +57,9 @@ func batchMirrors(
 	target := opt.BestMirror.Doget * 1024
 
 	loggers[DBUG].Printf(
-		"BestMirror options: method=%s doget=%d workers=%d pass=%d timeout=%s",
+		"BestMirror options: method=%s doget=%dKiB workers=%d pass=%d timeout=%s",
 		opt.BestMirror.Method,
-		target,
+		opt.BestMirror.Doget,
 		workers,
 		pass,
 		timeout,
