@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -141,18 +140,13 @@ func (s Session) uncompletedPartsCount() int {
 }
 
 func (s Session) summary(output string, loggers [lEVELS]*log.Logger) {
-	format := fmt.Sprintf("Length: %%s [%s]", s.ContentType)
+	loggers[INFO].Printf("Length: %d (%.1f) [%s]", s.ContentLength, decor.SizeB1024(s.ContentLength), s.ContentType)
 	switch {
 	case s.isResumable():
-		summary := fmt.Sprintf("%d (%.1f)", s.ContentLength, decor.SizeB1024(s.ContentLength))
-		loggers[INFO].Printf(format, summary)
 		if tw := s.totalWritten(); tw != 0 {
 			remaining := s.ContentLength - tw
 			loggers[INFO].Printf("Remaining: %d (%.1f)", remaining, decor.SizeB1024(remaining))
 		}
-	case s.ContentLength < 0:
-		loggers[INFO].Printf(format, "unknown")
-		fallthrough
 	default:
 		message := "Session is not resumable"
 		loggers[WARN].Println(message)
