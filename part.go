@@ -395,17 +395,19 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 			}
 		}
 
-		if p.len() <= 0 && errors.Is(err, io.EOF) {
-			p.reset(p.Written)
-			bar.EnableTriggerComplete()
+		if errors.Is(err, io.EOF) {
+			if p.single && p.len() <= 0 {
+				p.reset(p.Written)
+				bar.EnableTriggerComplete()
+			}
+			if !p.isDone() {
+				panic(errors.New("part is not done after EOF"))
+			}
+			return false, nil
 		}
 
 		if p.isDone() {
-			if errors.Is(err, io.EOF) {
-				p.logger.Println("Part is done")
-				return false, nil
-			}
-			panic(fmt.Errorf("expected EOF, got: %w", err))
+			panic(errors.New("part is done before EOF"))
 		}
 
 		chunk.failure = true
