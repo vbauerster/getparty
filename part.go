@@ -138,7 +138,6 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 	if err != nil {
 		return withStack(err)
 	}
-
 	if patcher != nil {
 		patcher.patch(req)
 	}
@@ -229,7 +228,7 @@ func (p *Part) download(patcher httpRequestPatcher, location string, opt downloa
 			}
 		}(p.Written, time.Now())
 
-		p.logger.Println("GET:", req.URL)
+		p.logger.Printf("%s: %s", req.Method, req.URL.Redacted())
 
 		req.Header.Set(hRange, p.getRange())
 		for k, v := range req.Header {
