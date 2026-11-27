@@ -723,11 +723,19 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 
 	var fc uint
 	template := "R%02d:F%02d %s"
-	location := rawURL
+	template2 := "%s(%s):R%02d:F%02d %s"
 	timeout := m.getTimeout()
 	timeout2 := timeout * 2
 	maxRetry := cmp.Or(m.opt.MaxRetry, math.MaxUint)
 	maxFollow := cmp.Or(m.opt.MaxFollow, math.MaxUint-1) + 1
+
+	req, err := http.NewRequest(http.MethodHead, rawURL, nil)
+	if err != nil {
+		return nil, withStack(err)
+	}
+	if patcher != nil {
+		patcher.patch(req)
+	}
 
 	err = backoff.RetryWithContext(m.Ctx, backoff.DefaultStrategy(), func(attempt uint) (retry bool, err error) {
 		ctx, cancel := context.WithTimeoutCause(m.Ctx, timeout, errTimeout)
@@ -740,22 +748,16 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 					m.loggers[DBUG].Println(errTimeout.Error())
 					return
 				}
+				if errors.Is(err, io.EOF) {
+					req.Method = http.MethodGet
+				}
 				m.loggers[WARN].Println(unwrapOrErr(err).Error())
 				m.loggers[DBUG].Println(err.Error())
 			}
 		}()
 		for range maxFollow - fc {
-			m.loggers[INFO].Printf(template, attempt, fc, location)
-			m.loggers[DBUG].Printf(template, attempt, fc, location)
-
-			req, err := http.NewRequest(http.MethodHead, location, nil)
-			if err != nil {
-				return false, withStack(err)
-			}
-
-			if patcher != nil {
-				patcher.patch(req)
-			}
+			m.loggers[INFO].Printf(template, attempt, fc, req.URL.Redacted())
+			m.loggers[DBUG].Printf(template2, req.Method, timeout, attempt, fc, req.URL.Redacted())
 
 			for k, v := range req.Header {
 				m.loggers[DBUG].Printf("Request Header: %s: %v", k, v)
@@ -769,13 +771,13 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 				return true, withStack(err)
 			}
 
+			m.loggers[DBUG].Println("Response Status:", resp.Status)
+
 			if jar := httpClient.Jar; jar != nil {
 				for _, cookie := range jar.Cookies(req.URL) {
 					m.loggers[DBUG].Println("Cookie:", cookie) // *http.Cookie implements fmt.Stringer
 				}
 			}
-
-			m.loggers[DBUG].Println("Response Status:", resp.Status)
 
 			for k, v := range resp.Header {
 				m.loggers[DBUG].Printf("Response Header: %s: %v", k, v)
@@ -783,11 +785,17 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 
 			if isRedirect(resp.StatusCode) {
 				m.loggers[INFO].Println("Response Status:", resp.Status)
-				loc, err := resp.Location()
+				url, err := resp.Location()
 				if err != nil {
 					return false, withStack(err)
 				}
-				location = loc.String()
+				req, err = http.NewRequest(http.MethodHead, url.String(), nil)
+				if err != nil {
+					return false, withStack(err)
+				}
+				if patcher != nil {
+					patcher.patch(req)
+				}
 				fc++
 				continue
 			}
@@ -805,7 +813,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 			m.loggers[INFO].Println("Response Status:", resp.Status)
 
 			session = &Session{
-				location:      location,
+				location:      req.URL.String(),
 				URL:           rawURL,
 				AcceptRanges:  resp.Header.Get(hAcceptRanges),
 				ContentType:   resp.Header.Get(hContentType),
@@ -819,7 +827,7 @@ func (m Cmd) follow(patcher httpRequestPatcher, rawURL string) (session *Session
 
 			if m.opt.Output.Name == "" {
 				for _, pf := range []bool{m.opt.Output.PathFirst, !m.opt.Output.PathFirst} {
-					name, err := parseOutputName(location, resp.Header, pf)
+					name, err := parseOutputName(session.location, resp.Header, pf)
 					if err != nil {
 						return false, withStack(err)
 					}
